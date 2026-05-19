@@ -8,9 +8,9 @@ phase 2).  Writing the container by hand lets us embed each pre-processed
 image verbatim.
 
 ICO binary layout (all integers little-endian):
-  ICONDIR        6 bytes  – magic / entry count
-  ICONDIRENTRY  16 bytes  – one per image (offset + metadata)
-  image data           – PNG or DIB per entry; we always use PNG
+  ICONDIR        6 bytes  - magic / entry count
+  ICONDIRENTRY  16 bytes  - one per image (offset + metadata)
+  image data           - PNG or DIB per entry; we always use PNG
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ _ICONDIR = struct.Struct("<HHH")
 #               planes(H) bitCount(H) bytesInRes(I) imageOffset(I)
 _ICONDIRENTRY = struct.Struct("<BBBBHHII")
 
-_ICONDIR_SIZE = _ICONDIR.size        # 6
+_ICONDIR_SIZE = _ICONDIR.size  # 6
 _ICONDIRENTRY_SIZE = _ICONDIRENTRY.size  # 16
 
 
@@ -58,7 +58,7 @@ def write_ico(target: Path, images: list[tuple[Image.Image, SizeSpec]]) -> None:
 
     _validate_sizes(images)
 
-    # Sort largest-first – conventional order in ICO files.
+    # Sort largest-first - conventional order in ICO files.
     ordered = sorted(images, key=lambda pair: pair[1].width * pair[1].height, reverse=True)
 
     encoded = [_encode_png(img) for img, _ in ordered]
@@ -75,7 +75,7 @@ def write_ico(target: Path, images: list[tuple[Image.Image, SizeSpec]]) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("wb") as fh:
         fh.write(_ICONDIR.pack(0, 1, n))
-        for (_, spec), blob, offset in zip(ordered, encoded, offsets):
+        for (_, spec), blob, offset in zip(ordered, encoded, offsets, strict=False):
             fh.write(_pack_entry(spec, len(blob), offset))
         for blob in encoded:
             fh.write(blob)
@@ -90,8 +90,7 @@ def _validate_sizes(images: list[tuple[Image.Image, SizeSpec]]) -> None:
     for img, spec in images:
         if img.size != (spec.width, spec.height):
             raise ValueError(
-                f"Image size {img.size} does not match SizeSpec "
-                f"{(spec.width, spec.height)}"
+                f"Image size {img.size} does not match SizeSpec {(spec.width, spec.height)}"
             )
 
 
@@ -111,10 +110,11 @@ def _pack_entry(spec: SizeSpec, blob_size: int, offset: int) -> bytes:
     w = 0 if spec.width == 256 else spec.width
     h = 0 if spec.height == 256 else spec.height
     return _ICONDIRENTRY.pack(
-        w, h,
-        0,               # colorCount – 0 means more than 256 colours
-        0,               # reserved
-        1,               # planes
+        w,
+        h,
+        0,  # colorCount - 0 means more than 256 colours
+        0,  # reserved
+        1,  # planes
         spec.bit_depth,  # bitCount
         blob_size,
         offset,

@@ -58,11 +58,6 @@ def optimize_png(
     if source.suffix.lower() != ".png":
         raise ValueError(f"Expected .png source, got {source.suffix}")
 
-    cfg = config or OptimizationConfig()
-    out_path = target or source
-
-    bytes_before = source.stat().st_size
-
     # TODO(phase-3): wire pyoxipng here.
     # import pyoxipng
     # opts = pyoxipng.Options(level=cfg.level, ...)

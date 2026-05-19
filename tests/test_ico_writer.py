@@ -10,13 +10,14 @@ from PIL import Image
 from icoforge.core.ico_writer import write_ico
 from icoforge.core.models import SizeSpec
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def _rgba_image(width: int, height: int, color: tuple[int, int, int, int] = (255, 0, 0, 255)) -> Image.Image:
+def _rgba_image(
+    width: int, height: int, color: tuple[int, int, int, int] = (255, 0, 0, 255)
+) -> Image.Image:
     return Image.new("RGBA", (width, height), color)
 
 
@@ -128,7 +129,7 @@ def test_write_ico_fully_transparent_image(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 256×256 special case (stored as 0×0 in ICONDIRENTRY)
+# 256x256 special case (stored as 0x0 in ICONDIRENTRY)
 # ---------------------------------------------------------------------------
 
 

@@ -7,12 +7,12 @@ the pipeline; never read configuration from globals.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Literal
 
 
-class ResampleAlgorithm(str, Enum):
+class ResampleAlgorithm(StrEnum):
     """Resampling algorithms exposed by the converter.
 
     Maps to ``PIL.Image.Resampling`` values in ``core.resampling``.
@@ -39,13 +39,13 @@ _VALID_BIT_DEPTHS: frozenset[int] = frozenset({8, 24, 32})
 
 @dataclass(frozen=True)
 class Color:
-    """RGBA color with each channel in the range 0–255.
+    """RGBA color with each channel in the range 0-255.
 
     Attributes:
-        r: Red channel (0–255).
-        g: Green channel (0–255).
-        b: Blue channel (0–255).
-        a: Alpha channel (0–255). Defaults to 255 (fully opaque).
+        r: Red channel (0-255).
+        g: Green channel (0-255).
+        b: Blue channel (0-255).
+        a: Alpha channel (0-255). Defaults to 255 (fully opaque).
     """
 
     r: int
@@ -72,13 +72,13 @@ class SizeSpec:
     """Specification for one image inside the ICO container.
 
     Attributes:
-        width: Target width in pixels (1–256).
-        height: Target height in pixels (1–256).
+        width: Target width in pixels (1-256).
+        height: Target height in pixels (1-256).
         bit_depth: Colour depth of this entry. Must be 8, 24, or 32.
         resample: Override the global resampling algorithm for this size.
             ``None`` means "inherit from :class:`IcoConfig`".
         source_override: Use a different source file for this size only.
-            Intended for phase-2 per-size sources (e.g. a hand-drawn 16×16).
+            Intended for phase-2 per-size sources (e.g. a hand-drawn 16x16).
             ``None`` means "use the global source".
     """
 
@@ -94,7 +94,9 @@ class SizeSpec:
         if not (1 <= self.height <= 256):
             raise ValueError(f"ICO height must be 1..256, got {self.height}")
         if self.bit_depth not in _VALID_BIT_DEPTHS:
-            raise ValueError(f"bit_depth must be one of {sorted(_VALID_BIT_DEPTHS)}, got {self.bit_depth}")
+            raise ValueError(
+                f"bit_depth must be one of {sorted(_VALID_BIT_DEPTHS)}, got {self.bit_depth}"
+            )
 
 
 @dataclass(frozen=True)

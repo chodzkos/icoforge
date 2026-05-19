@@ -7,10 +7,13 @@ from pathlib import Path
 import click
 
 from icoforge.core import (
+    TRANSPARENT,
+    WINDOWS_APP_SIZES,
+    Background,
+    Color,
     IcoConfig,
     ResampleAlgorithm,
     SizeSpec,
-    WINDOWS_APP_SIZES,
 )
 from icoforge.core.converter import convert as run_convert
 
@@ -57,10 +60,7 @@ def convert(
     background: str,
 ) -> None:
     """Convert SOURCE image to multi-size ICO at TARGET."""
-    if sizes == "windows":
-        size_specs = WINDOWS_APP_SIZES
-    else:
-        size_specs = _parse_sizes(sizes)
+    size_specs = WINDOWS_APP_SIZES if sizes == "windows" else _parse_sizes(sizes)
 
     bg = _parse_background(background)
 
@@ -97,10 +97,8 @@ def optimize(
     raise SystemExit(1)
 
 
-def _parse_background(value: str) -> object:
+def _parse_background(value: str) -> Background:
     """Parse a background string into a Background value."""
-    from icoforge.core.models import TRANSPARENT, Color
-
     if value == "transparent":
         return TRANSPARENT
     v = value.lstrip("#")

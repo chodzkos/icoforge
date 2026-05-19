@@ -60,8 +60,7 @@ def convert(
     suffix = source.suffix.lower()
     if suffix not in _SUPPORTED_SUFFIXES:
         raise ValueError(
-            f"Unsupported source format: '{suffix}'. "
-            f"Supported: {sorted(_SUPPORTED_SUFFIXES)}"
+            f"Unsupported source format: '{suffix}'. Supported: {sorted(_SUPPORTED_SUFFIXES)}"
         )
 
     _report(progress, 0.0)
@@ -167,7 +166,7 @@ def _letterbox(
     pillow_algo: Image.Resampling,
     background: Background,
 ) -> Image.Image:
-    """Scale ``source`` to fit within ``tgt_w × tgt_h``, padding the rest.
+    """Scale ``source`` to fit within ``tgt_w x tgt_h``, padding the rest.
 
     The image is scaled uniformly (no stretching) to the largest size that
     fits inside the target box, then centred on a canvas filled with

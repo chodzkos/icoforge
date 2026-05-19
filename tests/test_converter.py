@@ -11,7 +11,6 @@ from icoforge.core import IcoConfig, ResampleAlgorithm, SizeSpec
 from icoforge.core.converter import convert
 from icoforge.core.models import Color
 
-
 # ---------------------------------------------------------------------------
 # Helpers / extra fixtures
 # ---------------------------------------------------------------------------
@@ -163,7 +162,7 @@ def test_convert_preserve_aspect_output_is_square(tmp_path: Path) -> None:
 
 def test_convert_preserve_aspect_adds_transparent_padding(tmp_path: Path) -> None:
     """Letterboxed output should have transparent rows on top/bottom."""
-    src = _make_wide_png(tmp_path)  # 256×128, solid red
+    src = _make_wide_png(tmp_path)  # 256x128, solid red
     target = tmp_path / "out.ico"
     config = IcoConfig(sizes=(SizeSpec(32, 32),), preserve_aspect=True, background="transparent")
     convert(src, target, config)

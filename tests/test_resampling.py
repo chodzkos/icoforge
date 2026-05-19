@@ -8,9 +8,8 @@ from PIL import Image
 from icoforge.core.models import ResampleAlgorithm
 from icoforge.core.resampling import recommend_for_size, to_pillow
 
-
 # ---------------------------------------------------------------------------
-# to_pillow – mapping coverage
+# to_pillow - mapping coverage
 # ---------------------------------------------------------------------------
 
 
@@ -49,7 +48,7 @@ def test_to_pillow_mappings_are_distinct() -> None:
 
 
 # ---------------------------------------------------------------------------
-# recommend_for_size – pixel art
+# recommend_for_size - pixel art
 # ---------------------------------------------------------------------------
 
 
@@ -59,7 +58,7 @@ def test_recommend_pixel_art_returns_nearest_regardless_of_size() -> None:
 
 
 # ---------------------------------------------------------------------------
-# recommend_for_size – small sizes (≤ 24) get BOX
+# recommend_for_size - small sizes (<= 24) get BOX
 # ---------------------------------------------------------------------------
 
 
@@ -69,7 +68,7 @@ def test_recommend_small_size_returns_box(size: int) -> None:
 
 
 # ---------------------------------------------------------------------------
-# recommend_for_size – larger sizes (≥ 25) get LANCZOS
+# recommend_for_size - larger sizes (>= 25) get LANCZOS
 # ---------------------------------------------------------------------------
 
 
@@ -79,7 +78,7 @@ def test_recommend_large_size_returns_lanczos(size: int) -> None:
 
 
 # ---------------------------------------------------------------------------
-# recommend_for_size – boundary conditions
+# recommend_for_size - boundary conditions
 # ---------------------------------------------------------------------------
 
 
