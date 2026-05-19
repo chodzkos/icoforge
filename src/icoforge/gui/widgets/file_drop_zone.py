@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QDragEnterEvent, QDropEvent, QMouseEvent
+from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent, QMouseEvent
 from PySide6.QtWidgets import QFileDialog, QFrame, QLabel, QVBoxLayout, QWidget
 
 SUPPORTED_SUFFIXES: frozenset[str] = frozenset(
@@ -57,6 +57,12 @@ class FileDropZone(QFrame):
                 event.acceptProposedAction()
                 return
         event.ignore()
+
+    def dragMoveEvent(self, event: QDragMoveEvent) -> None:
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
 
     def dropEvent(self, event: QDropEvent) -> None:
         urls = event.mimeData().urls()

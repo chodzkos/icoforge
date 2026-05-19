@@ -4,16 +4,25 @@ Konwerter i edytor plików ICO. Konwersja z PNG/JPG/WEBP/SVG/HEIC do `.ico` z pe
 
 ## Status
 
-Projekt na wczesnym etapie. Patrz [docs/ROADMAP.md](docs/ROADMAP.md) dla aktualnego planu.
+| Faza | Opis | Stan |
+|------|------|------|
+| Faza 1 | MVP konwersji PNG → ICO | ✅ Ukończona |
+| Faza 2 | Więcej formatów wejściowych | Planowana |
+| Faza 3 | Optymalizacja PNG | Planowana |
+| Faza 4 | Edytor pikselowy | Planowana |
+| Faza 5 | Tworzenie ICO od podstaw | Planowana |
 
-## Funkcje (planowane)
+Patrz [docs/ROADMAP.md](docs/ROADMAP.md) dla szczegółowego planu.
 
-**Faza 1 – fundament (MVP)**
-- Konwersja PNG → ICO z wyborem zestawu rozdzielczości (16, 20, 24, 32, 40, 48, 64, 96, 128, 256 px)
-- Konfiguracja głębi bitowej (8 / 24 / 32-bit) per rozmiar
+## Funkcje
+
+**Faza 1 – fundament (MVP)** ✅
+- Konwersja PNG/JPG/BMP/GIF/WEBP/TIFF → ICO z wyborem zestawu rozdzielczości
 - Zachowanie kanału alpha i przezroczystości
-- Wybór algorytmu resamplingu (Lanczos, Bicubic, Nearest – pixel art)
-- CLI równolegle do GUI
+- Wybór algorytmu resamplingu (Lanczos, Bicubic, Bilinear, Nearest, Box)
+- Zachowanie proporcji (letterboxing)
+- GUI (PySide6): drag & drop, podgląd każdego rozmiaru, zapis z paskiem postępu
+- CLI: `icoforge-cli convert`
 
 **Faza 2 – więcej formatów wejściowych**
 - JPG, BMP, GIF, WEBP, TIFF (przez Pillow)
