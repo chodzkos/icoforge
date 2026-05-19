@@ -7,7 +7,6 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
     QColorDialog,
-    QComboBox,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -58,8 +57,8 @@ class SettingsPanel(QWidget):
 
         # Declared here; assigned in the _make_* helpers called below.
         self._size_checks: dict[int, QCheckBox]
-        self._preset_combo: QComboBox
-        self._resample_combo: QComboBox
+        self._preset_buttons: dict[str, QRadioButton]
+        self._resample_buttons: dict[ResampleAlgorithm, QRadioButton]
         self._radio_transparent: QRadioButton
         self._radio_color: QRadioButton
         self._color_btn: QPushButton
@@ -97,12 +96,17 @@ class SettingsPanel(QWidget):
         group = QGroupBox("Preset")
         vbox = QVBoxLayout(group)
         vbox.setContentsMargins(8, 8, 8, 8)
+        vbox.setSpacing(2)
 
-        self._preset_combo = QComboBox()
+        self._preset_buttons = {}
         for name in _PRESETS:
-            self._preset_combo.addItem(name)
-        self._preset_combo.currentTextChanged.connect(self._on_preset_changed)
-        vbox.addWidget(self._preset_combo)
+            rb = QRadioButton(name)
+            rb.toggled.connect(
+                lambda checked, n=name: self._on_preset_changed(n) if checked else None
+            )
+            self._preset_buttons[name] = rb
+            vbox.addWidget(rb)
+        self._preset_buttons["Custom"].setChecked(True)
 
         return group
 
@@ -110,16 +114,18 @@ class SettingsPanel(QWidget):
         group = QGroupBox("Algorytm skalowania")
         vbox = QVBoxLayout(group)
         vbox.setContentsMargins(8, 8, 8, 8)
+        vbox.setSpacing(2)
 
-        self._resample_combo = QComboBox()
+        self._resample_buttons = {}
         for algo in ResampleAlgorithm:
-            self._resample_combo.addItem(algo.value.capitalize(), userData=algo)
-        idx = self._resample_combo.findData(ResampleAlgorithm.LANCZOS)
-        if idx >= 0:
-            self._resample_combo.setCurrentIndex(idx)
-        self._resample_combo.setToolTip(_RESAMPLE_TOOLTIPS[ResampleAlgorithm.LANCZOS])
-        self._resample_combo.currentIndexChanged.connect(self._on_resample_index_changed)
-        vbox.addWidget(self._resample_combo)
+            rb = QRadioButton(algo.value.capitalize())
+            rb.setToolTip(_RESAMPLE_TOOLTIPS[algo])
+            rb.toggled.connect(
+                lambda checked, a=algo: self._on_resample_changed(a) if checked else None
+            )
+            self._resample_buttons[algo] = rb
+            vbox.addWidget(rb)
+        self._resample_buttons[ResampleAlgorithm.LANCZOS].setChecked(True)
 
         return group
 
@@ -161,8 +167,10 @@ class SettingsPanel(QWidget):
         checked = sorted(s for s, cb in self._size_checks.items() if cb.isChecked())
         sizes = tuple(SizeSpec(s, s) for s in checked) or (SizeSpec(32, 32),)
 
-        raw = self._resample_combo.currentData()
-        resample = raw if isinstance(raw, ResampleAlgorithm) else ResampleAlgorithm.LANCZOS
+        resample = next(
+            (algo for algo, rb in self._resample_buttons.items() if rb.isChecked()),
+            ResampleAlgorithm.LANCZOS,
+        )
 
         background: Background = (
             TRANSPARENT if self._radio_transparent.isChecked() else self._bg_color
@@ -177,11 +185,8 @@ class SettingsPanel(QWidget):
     def _on_size_toggled(self, _checked: bool) -> None:
         if self._updating_preset:
             return
-        # Switch combo to Custom when user manually changes a checkbox.
         self._updating_preset = True
-        idx = self._preset_combo.findText("Custom")
-        if idx >= 0:
-            self._preset_combo.setCurrentIndex(idx)
+        self._preset_buttons["Custom"].setChecked(True)
         self._updating_preset = False
         self.settings_changed.emit()
 
@@ -190,7 +195,6 @@ class SettingsPanel(QWidget):
             return
         sizes = _PRESETS.get(name)
         if sizes is None:
-            # "Custom" selected — nothing to update.
             self.settings_changed.emit()
             return
         self._updating_preset = True
@@ -199,10 +203,7 @@ class SettingsPanel(QWidget):
         self._updating_preset = False
         self.settings_changed.emit()
 
-    def _on_resample_index_changed(self, _index: int) -> None:
-        raw = self._resample_combo.currentData()
-        if isinstance(raw, ResampleAlgorithm):
-            self._resample_combo.setToolTip(_RESAMPLE_TOOLTIPS.get(raw, ""))
+    def _on_resample_changed(self, _algo: ResampleAlgorithm) -> None:
         self.settings_changed.emit()
 
     def _on_bg_radio_toggled(self, checked: bool) -> None:
