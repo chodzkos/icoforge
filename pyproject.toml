@@ -79,6 +79,9 @@ ignore = [
     "E501",  # line length handled by formatter
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"src/icoforge/gui/**" = ["N802"]  # Qt requires camelCase override names
+
 [tool.ruff.format]
 quote-style = "double"
 
