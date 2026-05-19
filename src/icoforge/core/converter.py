@@ -1,12 +1,13 @@
 """High-level conversion pipeline.
 
 The single public entry point is :func:`convert`.  It handles:
-- Loading the source into a normalised RGBA canvas.
+- Loading the source into a normalised RGBA canvas (raster) or rasterizing
+  the source per-size (SVG, via :mod:`icoforge.core.svg_loader`).
 - Resizing to each requested size (letterboxing when ``preserve_aspect=True``).
 - Writing the resulting ICO via :func:`~icoforge.core.ico_writer.write_ico`.
 
-Supported source formats (phase 1): PNG, JPEG, BMP, GIF, WEBP, TIFF.
-SVG and HEIC support are added in phase 2.
+Supported source formats: PNG, JPEG, BMP, GIF, WEBP, TIFF, SVG.
+HEIC support is planned for a later phase.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from icoforge.core import resampling
+from icoforge.core import resampling, svg_loader
 from icoforge.core.ico_writer import write_ico
 from icoforge.core.models import (
     TRANSPARENT,
@@ -26,9 +27,11 @@ from icoforge.core.models import (
     SizeSpec,
 )
 
-_SUPPORTED_SUFFIXES: frozenset[str] = frozenset(
+_RASTER_SUFFIXES: frozenset[str] = frozenset(
     {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".tiff", ".tif"}
 )
+_SVG_SUFFIXES: frozenset[str] = frozenset({".svg"})
+_SUPPORTED_SUFFIXES: frozenset[str] = _RASTER_SUFFIXES | _SVG_SUFFIXES
 
 ProgressCallback = Callable[[float], None]
 
@@ -53,28 +56,12 @@ def convert(
     Raises:
         FileNotFoundError: ``source`` does not exist.
         ValueError: ``source`` has an unsupported extension.
+        SvgSupportMissingError: source is SVG but ``cairosvg`` is not installed.
     """
-    if not source.exists():
-        raise FileNotFoundError(source)
-
-    suffix = source.suffix.lower()
-    if suffix not in _SUPPORTED_SUFFIXES:
-        raise ValueError(
-            f"Unsupported source format: '{suffix}'. Supported: {sorted(_SUPPORTED_SUFFIXES)}"
-        )
-
+    _validate_source(source)
     _report(progress, 0.0)
 
-    base = _load_rgba(source, config.background)
-    _report(progress, 0.1)
-
-    sized: list[tuple[Image.Image, SizeSpec]] = []
-    total = len(config.sizes)
-    for i, spec in enumerate(config.sizes):
-        frame = _render_frame(base, spec, config)
-        sized.append((frame, spec))
-        _report(progress, 0.1 + 0.8 * (i + 1) / total)
-
+    sized = _render_sized_frames(source, config, progress)
     write_ico(target, sized)
     _report(progress, 1.0)
 
@@ -97,28 +84,78 @@ def render_frames(
     Raises:
         FileNotFoundError: ``source`` does not exist.
         ValueError: ``source`` has an unsupported extension.
+        SvgSupportMissingError: source is SVG but ``cairosvg`` is not installed.
     """
+    _validate_source(source)
+    _report(progress, 0.0)
+    sized = _render_sized_frames(source, config, progress)
+    _report(progress, 1.0)
+    return [frame for frame, _ in sized]
+
+
+# ---------------------------------------------------------------------------
+# Internal pipeline
+# ---------------------------------------------------------------------------
+
+
+def _validate_source(source: Path) -> None:
     if not source.exists():
         raise FileNotFoundError(source)
-
     suffix = source.suffix.lower()
     if suffix not in _SUPPORTED_SUFFIXES:
         raise ValueError(
             f"Unsupported source format: '{suffix}'. Supported: {sorted(_SUPPORTED_SUFFIXES)}"
         )
 
-    _report(progress, 0.0)
+
+def _render_sized_frames(
+    source: Path,
+    config: IcoConfig,
+    progress: ProgressCallback | None,
+) -> list[tuple[Image.Image, SizeSpec]]:
+    """Dispatch to raster or SVG pipeline and return ``[(frame, spec), …]``."""
+    suffix = source.suffix.lower()
+    if suffix in _SVG_SUFFIXES:
+        return _render_svg_sized(source, config, progress)
+    return _render_raster_sized(source, config, progress)
+
+
+def _render_raster_sized(
+    source: Path,
+    config: IcoConfig,
+    progress: ProgressCallback | None,
+) -> list[tuple[Image.Image, SizeSpec]]:
     base = _load_rgba(source, config.background)
     _report(progress, 0.1)
 
-    frames: list[Image.Image] = []
+    sized: list[tuple[Image.Image, SizeSpec]] = []
     total = len(config.sizes)
     for i, spec in enumerate(config.sizes):
-        frames.append(_render_frame(base, spec, config))
+        frame = _render_frame(base, spec, config)
+        sized.append((frame, spec))
         _report(progress, 0.1 + 0.8 * (i + 1) / total)
+    return sized
 
-    _report(progress, 1.0)
-    return frames
+
+def _render_svg_sized(
+    source: Path,
+    config: IcoConfig,
+    progress: ProgressCallback | None,
+) -> list[tuple[Image.Image, SizeSpec]]:
+    """Rasterize the SVG fresh for each requested size (vector advantage)."""
+    _report(progress, 0.1)
+
+    sized: list[tuple[Image.Image, SizeSpec]] = []
+    total = len(config.sizes)
+    for i, spec in enumerate(config.sizes):
+        frame = svg_loader.rasterize_svg(source, spec.width, spec.height)
+        if isinstance(config.background, Color):
+            canvas = Image.new("RGBA", frame.size, config.background.as_tuple())
+            canvas.alpha_composite(frame)
+            frame = canvas
+        sized.append((frame, spec))
+        _report(progress, 0.1 + 0.8 * (i + 1) / total)
+    return sized
 
 
 # ---------------------------------------------------------------------------
