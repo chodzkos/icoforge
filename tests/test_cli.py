@@ -138,6 +138,79 @@ def test_convert_background_without_hash(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# --bit-depth flag
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("depth", ["8", "24", "32"])
+def test_convert_bit_depth(depth: str, tmp_path: Path) -> None:
+    src = _make_png(tmp_path)
+    out = tmp_path / f"out_{depth}.ico"
+    result = CliRunner().invoke(
+        main, ["convert", str(src), str(out), "--sizes", "32", "--bit-depth", depth]
+    )
+    assert result.exit_code == 0, result.output
+    assert out.exists()
+
+
+def test_convert_bit_depth_default_is_32(tmp_path: Path) -> None:
+    src = _make_png(tmp_path)
+    out = tmp_path / "out.ico"
+    result = CliRunner().invoke(main, ["convert", str(src), str(out), "--sizes", "32"])
+    assert result.exit_code == 0, result.output
+
+
+def test_convert_bad_bit_depth_exits_nonzero(tmp_path: Path) -> None:
+    src = _make_png(tmp_path)
+    result = CliRunner().invoke(
+        main, ["convert", str(src), str(tmp_path / "out.ico"), "--bit-depth", "16"]
+    )
+    assert result.exit_code != 0
+
+
+# ---------------------------------------------------------------------------
+# --keep-aspect / --no-keep-aspect flag
+# ---------------------------------------------------------------------------
+
+
+def _make_wide_png(tmp_path: Path) -> Path:
+    from PIL import Image as _Image
+
+    img = _Image.new("RGBA", (256, 128), (255, 0, 0, 255))
+    p = tmp_path / "wide.png"
+    img.save(p)
+    return p
+
+
+def test_convert_keep_aspect_default(tmp_path: Path) -> None:
+    src = _make_wide_png(tmp_path)
+    out = tmp_path / "out.ico"
+    result = CliRunner().invoke(main, ["convert", str(src), str(out), "--sizes", "32"])
+    assert result.exit_code == 0, result.output
+    assert _ico_sizes(out) == {(32, 32)}
+
+
+def test_convert_no_keep_aspect(tmp_path: Path) -> None:
+    src = _make_wide_png(tmp_path)
+    out = tmp_path / "out.ico"
+    result = CliRunner().invoke(
+        main, ["convert", str(src), str(out), "--sizes", "32", "--no-keep-aspect"]
+    )
+    assert result.exit_code == 0, result.output
+    assert _ico_sizes(out) == {(32, 32)}
+
+
+def test_convert_keep_aspect_explicit(tmp_path: Path) -> None:
+    src = _make_wide_png(tmp_path)
+    out = tmp_path / "out.ico"
+    result = CliRunner().invoke(
+        main, ["convert", str(src), str(out), "--sizes", "32", "--keep-aspect"]
+    )
+    assert result.exit_code == 0, result.output
+    assert _ico_sizes(out) == {(32, 32)}
+
+
+# ---------------------------------------------------------------------------
 # Progress bar
 # ---------------------------------------------------------------------------
 

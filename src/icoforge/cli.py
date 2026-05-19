@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal, cast
 
 import click
 
@@ -140,20 +141,43 @@ def main() -> None:
         "(e.g. JPEG).  Use 'transparent' or a hex colour like '#ffffff'."
     ),
 )
+@click.option(
+    "--bit-depth",
+    type=click.Choice(["8", "24", "32"]),
+    default="32",
+    show_default=True,
+    help="Colour depth for each ICO frame (8, 24, or 32 bits).",
+)
+@click.option(
+    "--keep-aspect/--no-keep-aspect",
+    default=True,
+    show_default=True,
+    help="Preserve source aspect ratio by letterboxing (default: on).",
+)
 def convert(
     source: Path,
     target: Path,
     sizes: str,
     resample: str,
     background: str,
+    bit_depth: str,
+    keep_aspect: bool,
 ) -> None:
     """Convert SOURCE image to a multi-size ICO file at TARGET."""
-    size_specs = _parse_sizes(sizes)
+    parsed_sizes = _parse_sizes(sizes)
+    bd = cast(Literal[8, 24, 32], int(bit_depth))
+    size_specs = tuple(
+        SizeSpec(
+            s.width, s.height, bit_depth=bd, resample=s.resample, source_override=s.source_override
+        )
+        for s in parsed_sizes
+    )
     bg = _parse_background(background)
     config = IcoConfig(
         sizes=size_specs,
         resample=ResampleAlgorithm(resample),
         background=bg,
+        preserve_aspect=keep_aspect,
     )
 
     try:
