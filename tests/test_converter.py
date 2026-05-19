@@ -76,8 +76,8 @@ def test_convert_preserves_alpha(tmp_png: Path, tmp_path: Path) -> None:
         ico.size = (64, 64)  # type: ignore[misc]
         ico.load()
         rgba = ico.convert("RGBA")
-    pixels = list(rgba.getdata())
-    assert any(p[3] == 0 for p in pixels), "Expected transparency to survive conversion"
+    alpha = rgba.tobytes()[3::4]
+    assert any(a == 0 for a in alpha), "Expected transparency to survive conversion"
 
 
 def test_convert_rgba_source_has_alpha_in_output(tmp_png: Path, tmp_path: Path) -> None:
@@ -114,8 +114,8 @@ def test_convert_jpg_pixels_are_fully_opaque(tmp_path: Path) -> None:
     with Image.open(target) as ico:
         ico.load()
         rgba = ico.convert("RGBA")
-    pixels = list(rgba.getdata())
-    assert all(p[3] == 255 for p in pixels), "JPEG output should be fully opaque"
+    alpha = rgba.tobytes()[3::4]
+    assert all(a == 255 for a in alpha), "JPEG output should be fully opaque"
 
 
 def test_convert_jpg_with_background_color(tmp_path: Path) -> None:
