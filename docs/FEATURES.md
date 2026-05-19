@@ -60,7 +60,19 @@ Status: `[ ]` planowane, `[~]` w trakcie, `[x]` gotowe.
 - [ ] Wymuszanie aspektu (centrowanie z paddingiem)
 - [ ] Ekstrakcja ikon z `.exe` / `.dll`
 - [ ] Wsadowe usuwanie tła (rembg, opcjonalny extra)
-- [ ] Lokalizacja PL/EN
+
+## Interfejs i UX
+
+- [ ] Ikona aplikacji (własna, stworzona w icoforge – ostateczny dogfooding)
+- [ ] Tryb ciemny / jasny (auto-detekcja z systemu + ręczny przełącznik)
+- [ ] Lokalizacja PL/EN (system tłumaczeń Qt – `tr()`)
+- [ ] Lista ostatnio otwartych plików (Recent Files, max 10)
+- [ ] Zapamiętywanie pozycji i rozmiaru okna między uruchomieniami
+- [ ] Konfigurowalne skróty klawiszowe
+- [ ] Toolbar z głównymi akcjami
+- [ ] Pasek statusu z informacją o aktualnym pliku
+- [ ] Powiadomienia systemowe po zakończeniu długich operacji
+- [ ] Ekran "O programie" (About) z wersją i linkami
 
 ## Dystrybucja
 
