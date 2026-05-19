@@ -79,6 +79,48 @@ def convert(
     _report(progress, 1.0)
 
 
+def render_frames(
+    source: Path,
+    config: IcoConfig,
+    progress: ProgressCallback | None = None,
+) -> list[Image.Image]:
+    """Render all ICO frames without writing to disk.
+
+    Returns one RGBA image per size in ``config.sizes``, in the same order.
+    Intended for GUI preview; heavy work should run in a background thread.
+
+    Args:
+        source: Path to the source image.
+        config: Conversion parameters (sizes, resampling, background, …).
+        progress: Optional progress callback (same contract as :func:`convert`).
+
+    Raises:
+        FileNotFoundError: ``source`` does not exist.
+        ValueError: ``source`` has an unsupported extension.
+    """
+    if not source.exists():
+        raise FileNotFoundError(source)
+
+    suffix = source.suffix.lower()
+    if suffix not in _SUPPORTED_SUFFIXES:
+        raise ValueError(
+            f"Unsupported source format: '{suffix}'. Supported: {sorted(_SUPPORTED_SUFFIXES)}"
+        )
+
+    _report(progress, 0.0)
+    base = _load_rgba(source, config.background)
+    _report(progress, 0.1)
+
+    frames: list[Image.Image] = []
+    total = len(config.sizes)
+    for i, spec in enumerate(config.sizes):
+        frames.append(_render_frame(base, spec, config))
+        _report(progress, 0.1 + 0.8 * (i + 1) / total)
+
+    _report(progress, 1.0)
+    return frames
+
+
 # ---------------------------------------------------------------------------
 # Loading
 # ---------------------------------------------------------------------------

@@ -5,24 +5,64 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import QObject, QRunnable, QThreadPool, QUrl, Signal
+from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
+    QFileDialog,
     QFrame,
     QHBoxLayout,
-    QLabel,
     QMainWindow,
     QMessageBox,
+    QProgressBar,
     QStatusBar,
+    QToolBar,
     QVBoxLayout,
     QWidget,
 )
 
+from icoforge.core.converter import convert as run_convert
+from icoforge.core.models import IcoConfig
 from icoforge.gui.widgets.file_drop_zone import SUPPORTED_SUFFIXES, FileDropZone
+from icoforge.gui.widgets.preview_panel import PreviewPanel
 from icoforge.gui.widgets.settings_panel import SettingsPanel
 
-_PREVIEW_MAX_PX = 480
+# ---------------------------------------------------------------------------
+# Background convert worker
+# ---------------------------------------------------------------------------
+
+
+class _ConvertSignals(QObject):
+    progress = Signal(float)
+    finished = Signal(str)  # absolute path of saved file
+    error = Signal(str)
+
+
+class _ConvertTask(QRunnable):
+    def __init__(self, source: Path, target: Path, config: IcoConfig) -> None:
+        super().__init__()
+        self.signals = _ConvertSignals()
+        self._source = source
+        self._target = target
+        self._config = config
+        self.setAutoDelete(True)
+
+    def run(self) -> None:
+        try:
+            run_convert(
+                self._source,
+                self._target,
+                self._config,
+                self.signals.progress.emit,
+            )
+            self.signals.finished.emit(str(self._target))
+        except Exception as exc:
+            self.signals.error.emit(str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Main window
+# ---------------------------------------------------------------------------
 
 
 class MainWindow(QMainWindow):
@@ -34,9 +74,12 @@ class MainWindow(QMainWindow):
         self.source_path: Path | None = None
         self._drop_zone: FileDropZone
         self._settings_panel: SettingsPanel
-        self._preview_label: QLabel
+        self._preview_panel: PreviewPanel
+        self._save_action: QAction
+        self._progress_bar: QProgressBar
 
         self._setup_menu()
+        self._setup_toolbar()
         self._setup_central()
         self._setup_statusbar()
 
@@ -56,6 +99,16 @@ class MainWindow(QMainWindow):
         help_menu = menubar.addMenu("&Help")
         help_menu.addAction("&About", self._on_about)
 
+    def _setup_toolbar(self) -> None:
+        toolbar = QToolBar("Actions")
+        toolbar.setMovable(False)
+        self.addToolBar(toolbar)
+
+        self._save_action = QAction("Zapisz jako…", self)
+        self._save_action.setEnabled(False)
+        self._save_action.triggered.connect(self._on_save_as)
+        toolbar.addAction(self._save_action)
+
     def _setup_central(self) -> None:
         central = QWidget()
         self.setCentralWidget(central)
@@ -65,9 +118,13 @@ class MainWindow(QMainWindow):
         layout.setSpacing(8)
 
         layout.addWidget(self._make_settings_panel(), stretch=1)
-        layout.addWidget(self._make_preview_panel(), stretch=2)
+
+        self._preview_panel = PreviewPanel()
+        layout.addWidget(self._preview_panel, stretch=2)
 
         self._drop_zone.file_loaded.connect(self.on_file_loaded)
+        self._settings_panel.settings_changed.connect(self._update_preview)
+        self._preview_panel.render_error.connect(self._on_preview_error)
 
     def _make_settings_panel(self) -> QWidget:
         panel = QFrame()
@@ -85,24 +142,16 @@ class MainWindow(QMainWindow):
 
         return panel
 
-    def _make_preview_panel(self) -> QWidget:
-        panel = QFrame()
-        panel.setFrameShape(QFrame.Shape.StyledPanel)
-
-        vbox = QVBoxLayout(panel)
-        vbox.setContentsMargins(8, 8, 8, 8)
-
-        self._preview_label = QLabel("Preview\n(load a file to see it here)")
-        self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._preview_label.setEnabled(False)
-        vbox.addWidget(self._preview_label, stretch=1)
-
-        return panel
-
     def _setup_statusbar(self) -> None:
         bar = QStatusBar()
         self.setStatusBar(bar)
         bar.showMessage("Ready")
+
+        self._progress_bar = QProgressBar()
+        self._progress_bar.setMaximumWidth(200)
+        self._progress_bar.setRange(0, 100)
+        self._progress_bar.setVisible(False)
+        bar.addPermanentWidget(self._progress_bar)
 
     # ------------------------------------------------------------------
     # File loading
@@ -120,27 +169,81 @@ class MainWindow(QMainWindow):
 
         self.source_path = path
         self.statusBar().showMessage(f"Załadowano: {path.name}")
+        self._save_action.setEnabled(True)
+        self._update_preview()
 
-        pixmap = QPixmap(str(path))
-        if not pixmap.isNull():
-            scaled = pixmap.scaled(
-                _PREVIEW_MAX_PX,
-                _PREVIEW_MAX_PX,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            self._preview_label.setEnabled(True)
-            self._preview_label.setPixmap(scaled)
+    def _update_preview(self) -> None:
+        if self.source_path is None:
+            return
+        config = self._settings_panel.get_config()
+        self._preview_panel.update_preview(self.source_path, config)
 
     # ------------------------------------------------------------------
-    # Slots
+    # Save As
+    # ------------------------------------------------------------------
+
+    def _on_save_as(self) -> None:
+        if self.source_path is None:
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Zapisz plik ICO", "", "ICO files (*.ico)")
+        if not path:
+            return
+        if not path.lower().endswith(".ico"):
+            path += ".ico"
+        target = Path(path)
+        config = self._settings_panel.get_config()
+
+        task = _ConvertTask(self.source_path, target, config)
+        task.signals.progress.connect(self._on_convert_progress)
+        task.signals.finished.connect(self._on_convert_finished)
+        task.signals.error.connect(self._on_convert_error)
+
+        self._progress_bar.setValue(0)
+        self._progress_bar.setVisible(True)
+        self._save_action.setEnabled(False)
+
+        QThreadPool.globalInstance().start(task)
+
+    # ------------------------------------------------------------------
+    # Convert task slots
+    # ------------------------------------------------------------------
+
+    def _on_convert_progress(self, value: float) -> None:
+        self._progress_bar.setValue(int(value * 100))
+
+    def _on_convert_finished(self, path: str) -> None:
+        self._progress_bar.setVisible(False)
+        self._save_action.setEnabled(True)
+        self.statusBar().showMessage(f"Zapisano: {Path(path).name}")
+
+        target = Path(path)
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Zapisano")
+        msg.setText(f"Plik zapisany:\n{target}")
+        open_btn = msg.addButton("Otwórz folder", QMessageBox.ButtonRole.ActionRole)
+        msg.addButton(QMessageBox.StandardButton.Ok)
+        msg.exec()
+        if msg.clickedButton() is open_btn:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(target.parent)))
+
+    def _on_convert_error(self, message: str) -> None:
+        self._progress_bar.setVisible(False)
+        self._save_action.setEnabled(True)
+        QMessageBox.critical(
+            self,
+            "Błąd konwersji",
+            f"Nie udało się zapisać pliku ICO:\n{message}",
+        )
+
+    def _on_preview_error(self, message: str) -> None:
+        self.statusBar().showMessage(f"Błąd podglądu: {message}")
+
+    # ------------------------------------------------------------------
+    # Other slots
     # ------------------------------------------------------------------
 
     def _on_open(self) -> None:
         self._drop_zone.open_file_dialog()
-
-    def _on_save_as(self) -> None:
-        self.statusBar().showMessage("Save As… (not yet implemented)")
 
     def _on_about(self) -> None:
         QMessageBox.about(
