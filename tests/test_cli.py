@@ -1,0 +1,223 @@
+"""Tests for the CLI (icoforge-cli convert)."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+from click.testing import CliRunner
+from PIL import Image
+
+from icoforge.cli import main
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _ico_sizes(path: Path) -> set[tuple[int, int]]:
+    with Image.open(path) as ico:
+        return set(ico.info["sizes"])
+
+
+def _make_png(tmp_path: Path, mode: str = "RGBA", size: tuple[int, int] = (64, 64)) -> Path:
+    img = Image.new(mode, size, (255, 0, 0, 255) if mode == "RGBA" else (255, 0, 0))
+    p = tmp_path / f"src_{mode}.png"
+    img.save(p)
+    return p
+
+
+def _make_jpeg(tmp_path: Path) -> Path:
+    img = Image.new("RGB", (64, 64), (100, 150, 200))
+    p = tmp_path / "src.jpg"
+    img.save(p, format="JPEG")
+    return p
+
+
+# ---------------------------------------------------------------------------
+# Basic conversion
+# ---------------------------------------------------------------------------
+
+
+def test_convert_default_sizes(tmp_path: Path) -> None:
+    src = _make_png(tmp_path)
+    out = tmp_path / "out.ico"
+    result = CliRunner().invoke(main, ["convert", str(src), str(out)])
+    assert result.exit_code == 0, result.output
+    assert out.exists()
+    assert _ico_sizes(out) == {(16, 16), (32, 32), (48, 48), (256, 256)}
+
+
+def test_convert_explicit_sizes(tmp_path: Path) -> None:
+    src = _make_png(tmp_path)
+    out = tmp_path / "out.ico"
+    result = CliRunner().invoke(main, ["convert", str(src), str(out), "--sizes", "32,64"])
+    assert result.exit_code == 0, result.output
+    assert _ico_sizes(out) == {(32, 32), (64, 64)}
+
+
+# ---------------------------------------------------------------------------
+# Presets
+# ---------------------------------------------------------------------------
+
+
+def test_convert_preset_windows(tmp_path: Path) -> None:
+    src = _make_png(tmp_path)
+    out = tmp_path / "out.ico"
+    result = CliRunner().invoke(main, ["convert", str(src), str(out), "--sizes", "windows"])
+    assert result.exit_code == 0, result.output
+    sizes = _ico_sizes(out)
+    assert (16, 16) in sizes
+    assert (256, 256) in sizes
+    assert len(sizes) == 10
+
+
+def test_convert_preset_favicon(tmp_path: Path) -> None:
+    src = _make_png(tmp_path)
+    out = tmp_path / "out.ico"
+    result = CliRunner().invoke(main, ["convert", str(src), str(out), "--sizes", "favicon"])
+    assert result.exit_code == 0, result.output
+    assert _ico_sizes(out) == {(16, 16), (32, 32), (48, 48)}
+
+
+# ---------------------------------------------------------------------------
+# --resample flag
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("algo", ["lanczos", "bicubic", "bilinear", "nearest", "box"])
+def test_convert_resample_algorithms(algo: str, tmp_path: Path) -> None:
+    src = _make_png(tmp_path)
+    out = tmp_path / f"out_{algo}.ico"
+    result = CliRunner().invoke(
+        main, ["convert", str(src), str(out), "--sizes", "32", "--resample", algo]
+    )
+    assert result.exit_code == 0, result.output
+    assert out.exists()
+
+
+# ---------------------------------------------------------------------------
+# --background flag
+# ---------------------------------------------------------------------------
+
+
+def test_convert_background_transparent(tmp_path: Path) -> None:
+    src = _make_jpeg(tmp_path)
+    out = tmp_path / "out.ico"
+    result = CliRunner().invoke(
+        main, ["convert", str(src), str(out), "--sizes", "32", "--background", "transparent"]
+    )
+    assert result.exit_code == 0, result.output
+
+
+def test_convert_background_hex_rgb(tmp_path: Path) -> None:
+    src = _make_jpeg(tmp_path)
+    out = tmp_path / "out.ico"
+    result = CliRunner().invoke(
+        main, ["convert", str(src), str(out), "--sizes", "32", "--background", "#ffffff"]
+    )
+    assert result.exit_code == 0, result.output
+
+
+def test_convert_background_hex_rgba(tmp_path: Path) -> None:
+    src = _make_jpeg(tmp_path)
+    out = tmp_path / "out.ico"
+    result = CliRunner().invoke(
+        main, ["convert", str(src), str(out), "--sizes", "32", "--background", "#ffffffff"]
+    )
+    assert result.exit_code == 0, result.output
+
+
+def test_convert_background_without_hash(tmp_path: Path) -> None:
+    src = _make_jpeg(tmp_path)
+    out = tmp_path / "out.ico"
+    result = CliRunner().invoke(
+        main, ["convert", str(src), str(out), "--sizes", "32", "--background", "ff0000"]
+    )
+    assert result.exit_code == 0, result.output
+
+
+# ---------------------------------------------------------------------------
+# Progress bar
+# ---------------------------------------------------------------------------
+
+
+def test_convert_progress_output_contains_bar(tmp_path: Path) -> None:
+    src = _make_png(tmp_path)
+    out = tmp_path / "out.ico"
+    result = CliRunner().invoke(main, ["convert", str(src), str(out), "--sizes", "32"])
+    assert "[" in result.output
+    assert "#" in result.output or "-" in result.output
+    assert "100.0%" in result.output
+
+
+def test_convert_output_contains_wrote_line(tmp_path: Path) -> None:
+    src = _make_png(tmp_path)
+    out = tmp_path / "out.ico"
+    result = CliRunner().invoke(main, ["convert", str(src), str(out), "--sizes", "32"])
+    assert "Wrote" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Error handling
+# ---------------------------------------------------------------------------
+
+
+def test_convert_missing_source_exits_nonzero(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        main, ["convert", str(tmp_path / "no-such-file.png"), str(tmp_path / "out.ico")]
+    )
+    assert result.exit_code != 0
+
+
+def test_convert_bad_sizes_integer_exits_nonzero(tmp_path: Path) -> None:
+    src = _make_png(tmp_path)
+    result = CliRunner().invoke(
+        main, ["convert", str(src), str(tmp_path / "out.ico"), "--sizes", "abc"]
+    )
+    assert result.exit_code != 0
+
+
+def test_convert_bad_sizes_out_of_range_exits_nonzero(tmp_path: Path) -> None:
+    src = _make_png(tmp_path)
+    result = CliRunner().invoke(
+        main, ["convert", str(src), str(tmp_path / "out.ico"), "--sizes", "0"]
+    )
+    assert result.exit_code != 0
+
+
+def test_convert_bad_background_exits_nonzero(tmp_path: Path) -> None:
+    src = _make_png(tmp_path)
+    result = CliRunner().invoke(
+        main, ["convert", str(src), str(tmp_path / "out.ico"), "--background", "notacolor"]
+    )
+    assert result.exit_code != 0
+
+
+def test_convert_bad_background_error_message(tmp_path: Path) -> None:
+    src = _make_png(tmp_path)
+    result = CliRunner().invoke(
+        main, ["convert", str(src), str(tmp_path / "out.ico"), "--background", "zzz"]
+    )
+    assert result.exit_code != 0
+    assert "--background" in result.output
+
+
+def test_convert_bad_sizes_error_mentions_param(tmp_path: Path) -> None:
+    src = _make_png(tmp_path)
+    result = CliRunner().invoke(
+        main, ["convert", str(src), str(tmp_path / "out.ico"), "--sizes", "bad"]
+    )
+    assert result.exit_code != 0
+    assert "--sizes" in result.output
+
+
+def test_convert_unsupported_format_exits_nonzero(tmp_path: Path) -> None:
+    bogus = tmp_path / "file.xyz"
+    bogus.write_bytes(b"data")
+    result = CliRunner().invoke(
+        main,
+        ["convert", str(bogus), str(tmp_path / "out.ico")],
+        catch_exceptions=False,
+    )
+    assert result.exit_code != 0
