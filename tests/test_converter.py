@@ -9,6 +9,38 @@ from PIL import Image
 
 from icoforge.core import IcoConfig, ResampleAlgorithm, SizeSpec
 from icoforge.core.converter import convert
+from icoforge.core.models import Color
+
+
+# ---------------------------------------------------------------------------
+# Helpers / extra fixtures
+# ---------------------------------------------------------------------------
+
+
+def _ico_sizes(path: Path) -> set[tuple[int, int]]:
+    with Image.open(path) as ico:
+        return set(ico.info["sizes"])
+
+
+def _make_jpeg(tmp_path: Path, size: tuple[int, int] = (200, 200)) -> Path:
+    """Create an opaque RGB JPEG (no alpha channel)."""
+    img = Image.new("RGB", size, (180, 90, 30))
+    out = tmp_path / "input.jpg"
+    img.save(out, format="JPEG")
+    return out
+
+
+def _make_wide_png(tmp_path: Path) -> Path:
+    """Create a wide (2:1) RGBA PNG to test letterboxing."""
+    img = Image.new("RGBA", (256, 128), (255, 0, 0, 255))
+    out = tmp_path / "wide.png"
+    img.save(out)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Basic pipeline — sizes
+# ---------------------------------------------------------------------------
 
 
 def test_convert_produces_ico_with_requested_sizes(tmp_png: Path, tmp_path: Path) -> None:
@@ -21,13 +53,18 @@ def test_convert_produces_ico_with_requested_sizes(tmp_png: Path, tmp_path: Path
     convert(tmp_png, target, config)
 
     assert target.exists()
-    with Image.open(target) as ico:
-        # Pillow exposes ICO sizes via `ico.ico.sizes()`. The container itself
-        # decodes the first/largest entry as the main image.
-        sizes = ico.ico.sizes()  # type: ignore[attr-defined]
-        assert (16, 16) in sizes
-        assert (32, 32) in sizes
-        assert (256, 256) in sizes
+    assert _ico_sizes(target) == {(16, 16), (32, 32), (256, 256)}
+
+
+def test_convert_creates_parent_directories(tmp_png: Path, tmp_path: Path) -> None:
+    target = tmp_path / "deep" / "nested" / "out.ico"
+    convert(tmp_png, target, IcoConfig(sizes=(SizeSpec(32, 32),)))
+    assert target.exists()
+
+
+# ---------------------------------------------------------------------------
+# Alpha channel (PNG with transparency)
+# ---------------------------------------------------------------------------
 
 
 def test_convert_preserves_alpha(tmp_png: Path, tmp_path: Path) -> None:
@@ -37,13 +74,121 @@ def test_convert_preserves_alpha(tmp_png: Path, tmp_path: Path) -> None:
     convert(tmp_png, target, config)
 
     with Image.open(target) as ico:
-        ico.size = (64, 64)  # type: ignore[misc]  # ICO sub-image selection
+        ico.size = (64, 64)  # type: ignore[misc]
         ico.load()
         rgba = ico.convert("RGBA")
-    # Top-right corner of source was transparent; we expect at least one fully
-    # transparent pixel after downscaling.
     pixels = list(rgba.getdata())
     assert any(p[3] == 0 for p in pixels), "Expected transparency to survive conversion"
+
+
+def test_convert_rgba_source_has_alpha_in_output(tmp_png: Path, tmp_path: Path) -> None:
+    target = tmp_path / "out.ico"
+    convert(tmp_png, target, IcoConfig(sizes=(SizeSpec(32, 32),)))
+
+    with Image.open(target) as ico:
+        ico.load()
+        assert ico.convert("RGBA").mode == "RGBA"
+
+
+# ---------------------------------------------------------------------------
+# No alpha — JPG source
+# ---------------------------------------------------------------------------
+
+
+def test_convert_jpg_without_alpha_produces_ico(tmp_path: Path) -> None:
+    src = _make_jpeg(tmp_path)
+    target = tmp_path / "out.ico"
+    config = IcoConfig(sizes=(SizeSpec(32, 32),))
+
+    convert(src, target, config)
+
+    assert target.exists()
+    assert _ico_sizes(target) == {(32, 32)}
+
+
+def test_convert_jpg_pixels_are_fully_opaque(tmp_path: Path) -> None:
+    """JPEG source has no alpha; all output pixels should be fully opaque."""
+    src = _make_jpeg(tmp_path)
+    target = tmp_path / "out.ico"
+    convert(src, target, IcoConfig(sizes=(SizeSpec(32, 32),)))
+
+    with Image.open(target) as ico:
+        ico.load()
+        rgba = ico.convert("RGBA")
+    pixels = list(rgba.getdata())
+    assert all(p[3] == 255 for p in pixels), "JPEG output should be fully opaque"
+
+
+def test_convert_jpg_with_background_color(tmp_path: Path) -> None:
+    """Explicit background colour must be accepted without error for JPG input."""
+    src = _make_jpeg(tmp_path)
+    target = tmp_path / "out.ico"
+    config = IcoConfig(
+        sizes=(SizeSpec(32, 32),),
+        background=Color(255, 255, 255),
+    )
+    convert(src, target, config)
+    assert target.exists()
+
+
+def test_convert_jpg_with_transparent_background(tmp_path: Path) -> None:
+    src = _make_jpeg(tmp_path)
+    target = tmp_path / "out.ico"
+    config = IcoConfig(sizes=(SizeSpec(32, 32),), background="transparent")
+    convert(src, target, config)
+    assert target.exists()
+
+
+def test_convert_multiple_sizes_from_jpg(tmp_path: Path) -> None:
+    src = _make_jpeg(tmp_path)
+    target = tmp_path / "out.ico"
+    config = IcoConfig(sizes=(SizeSpec(16, 16), SizeSpec(32, 32), SizeSpec(48, 48)))
+    convert(src, target, config)
+    assert _ico_sizes(target) == {(16, 16), (32, 32), (48, 48)}
+
+
+# ---------------------------------------------------------------------------
+# Letterboxing (preserve_aspect=True, non-square source)
+# ---------------------------------------------------------------------------
+
+
+def test_convert_preserve_aspect_output_is_square(tmp_path: Path) -> None:
+    """Wide image letterboxed to square must produce a square output frame."""
+    src = _make_wide_png(tmp_path)
+    target = tmp_path / "out.ico"
+    config = IcoConfig(sizes=(SizeSpec(32, 32),), preserve_aspect=True)
+    convert(src, target, config)
+    assert _ico_sizes(target) == {(32, 32)}
+
+
+def test_convert_preserve_aspect_adds_transparent_padding(tmp_path: Path) -> None:
+    """Letterboxed output should have transparent rows on top/bottom."""
+    src = _make_wide_png(tmp_path)  # 256×128, solid red
+    target = tmp_path / "out.ico"
+    config = IcoConfig(sizes=(SizeSpec(32, 32),), preserve_aspect=True, background="transparent")
+    convert(src, target, config)
+
+    with Image.open(target) as ico:
+        ico.load()
+        rgba = ico.convert("RGBA")
+
+    top_row = [rgba.getpixel((x, 0)) for x in range(32)]  # type: ignore[call-overload]
+    # Top row should be in the transparent padding area for a 2:1 wide image
+    assert any(p[3] == 0 for p in top_row), "Letterbox padding should be transparent"
+
+
+def test_convert_preserve_aspect_false_stretches(tmp_path: Path) -> None:
+    """With preserve_aspect=False a non-square source is stretched to fill."""
+    src = _make_wide_png(tmp_path)
+    target = tmp_path / "out.ico"
+    config = IcoConfig(sizes=(SizeSpec(32, 32),), preserve_aspect=False)
+    convert(src, target, config)
+    assert _ico_sizes(target) == {(32, 32)}
+
+
+# ---------------------------------------------------------------------------
+# Error handling
+# ---------------------------------------------------------------------------
 
 
 def test_convert_rejects_missing_source(tmp_path: Path) -> None:
@@ -62,6 +207,11 @@ def test_convert_rejects_unsupported_format(tmp_path: Path) -> None:
         convert(bogus, tmp_path / "out.ico", IcoConfig(sizes=(SizeSpec(16, 16),)))
 
 
+# ---------------------------------------------------------------------------
+# Progress callback
+# ---------------------------------------------------------------------------
+
+
 def test_progress_callback_reaches_one(tmp_png: Path, tmp_path: Path) -> None:
     values: list[float] = []
     convert(
@@ -73,3 +223,43 @@ def test_progress_callback_reaches_one(tmp_png: Path, tmp_path: Path) -> None:
     assert values
     assert values[-1] == pytest.approx(1.0)
     assert all(0.0 <= v <= 1.0 for v in values)
+
+
+def test_progress_callback_starts_at_zero(tmp_png: Path, tmp_path: Path) -> None:
+    values: list[float] = []
+    convert(
+        tmp_png,
+        tmp_path / "out.ico",
+        IcoConfig(sizes=(SizeSpec(32, 32),)),
+        progress=values.append,
+    )
+    assert values[0] == pytest.approx(0.0)
+
+
+def test_progress_callback_is_monotonically_increasing(tmp_png: Path, tmp_path: Path) -> None:
+    values: list[float] = []
+    convert(
+        tmp_png,
+        tmp_path / "out.ico",
+        IcoConfig(sizes=(SizeSpec(16, 16), SizeSpec(32, 32), SizeSpec(48, 48))),
+        progress=values.append,
+    )
+    assert values == sorted(values)
+
+
+def test_progress_callback_called_multiple_times_for_multiple_sizes(
+    tmp_png: Path, tmp_path: Path
+) -> None:
+    values: list[float] = []
+    convert(
+        tmp_png,
+        tmp_path / "out.ico",
+        IcoConfig(sizes=(SizeSpec(16, 16), SizeSpec(32, 32), SizeSpec(48, 48))),
+        progress=values.append,
+    )
+    # start + 3 sizes + finish = at least 5 calls
+    assert len(values) >= 5
+
+
+def test_convert_works_without_progress_callback(tmp_png: Path, tmp_path: Path) -> None:
+    convert(tmp_png, tmp_path / "out.ico", IcoConfig(sizes=(SizeSpec(32, 32),)))
