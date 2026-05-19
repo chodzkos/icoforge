@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
-    QMenuBar,
     QMessageBox,
     QStatusBar,
     QVBoxLayout,
@@ -33,7 +32,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _setup_menu(self) -> None:
-        menubar: QMenuBar = self.menuBar()  # type: ignore[assignment]
+        menubar = self.menuBar()
 
         file_menu = menubar.addMenu("&File")
         file_menu.addAction("&Open…", self._on_open)
@@ -93,10 +92,10 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _on_open(self) -> None:
-        self.statusBar().showMessage("Open… (not yet implemented)")  # type: ignore[union-attr]
+        self.statusBar().showMessage("Open… (not yet implemented)")
 
     def _on_save_as(self) -> None:
-        self.statusBar().showMessage("Save As… (not yet implemented)")  # type: ignore[union-attr]
+        self.statusBar().showMessage("Save As… (not yet implemented)")
 
     def _on_about(self) -> None:
         QMessageBox.about(
@@ -110,4 +109,4 @@ def main() -> int:
     app = QApplication.instance() or QApplication(sys.argv)
     window = MainWindow()
     window.show()
-    return app.exec()  # type: ignore[union-attr]
+    return app.exec()
