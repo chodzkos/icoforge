@@ -4,92 +4,84 @@ Kontekst projektu dla Claude Code. Czytaj ten plik na początku każdej sesji.
 
 ## Czym jest projekt
 
-IcoForge to desktopowy konwerter i edytor plików ICO napisany w Pythonie. Łączy trzy obszary:
-1. Konwersja obrazów (PNG, JPG, SVG, …) do wielorozdzielczościowego ICO
-2. Bezstratna optymalizacja PNG (oxipng + ręczne czyszczenie metadanych)
-3. Edytor pikselowy do tworzenia / edycji ICO od zera
+IcoForge to desktopowa aplikacja Python do tworzenia i edycji plików ikon (.ico).
+Łączy trzy obszary:
 
-Architektura jest celowo podzielona na rdzeń (`core/`) niezależny od GUI – ten sam kod obsługuje GUI (PySide6) i CLI. Każda funkcja powinna najpierw działać w `core/` z testami, dopiero potem dostawać interfejs.
+1. **Konwersja** – pliki PNG/JPG/SVG/WEBP → wielorozdzielczościowy plik .ico
+2. **Optymalizacja PNG** – bezstratne zmniejszanie rozmiaru pliku (bez utraty pikseli)
+3. **Edytor pikselowy** – tworzenie i edycja ikon piksel po pikselu
+
+Każda z tych funkcji jest dostępna zarówno przez GUI (okienkowy program)
+jak i przez CLI (wiersz poleceń) – ten sam kod rdzenia (`core/`).
 
 ## Stos technologiczny
 
-- **Python 3.11+** – nowoczesne typing, match statements
-- **PySide6** – GUI (licencja LGPL, lepsze niż PyQt6 dla dystrybucji)
+- **Python 3.11+**
+- **PySide6** – GUI (licencja LGPL)
 - **Pillow** + **numpy** – obróbka obrazów
 - **pyoxipng** – optymalizacja PNG
+- **click** – CLI
 - **pytest** + **pytest-qt** – testy
-- **ruff** – lint i formatowanie (zamiast black + flake8 + isort)
-- **mypy** w trybie strict – type checking
+- **ruff** + **mypy strict** – lint i typowanie
 
-## Konwencje kodu
+## Architektura – najważniejsza zasada
 
-- Wszystkie publiczne funkcje mają type hints i docstringi w stylu Google
-- Nie ma `Any` poza warstwą I/O – jeśli musisz użyć, dodaj komentarz dlaczego
-- Plik tematyczny, nie typy – jeden moduł = jedna domena (np. `ico_writer.py`, nie `models.py`)
-- Funkcje pure w `core/`, side-effects izolowane w `gui/` i `cli.py`
-- Brak globalnego stanu. Konfiguracja przekazywana jawnie przez dataclassy
-- Komentarze i docstringi po angielsku (kod), README/docs po polsku
+`core/` NIE importuje niczego z `gui/` ani `cli.py`.
+Cała logika biznesowa jest w `core/` i działa niezależnie od interfejsu.
+Postęp operacji przez callback: `progress: Callable[[float], None] | None = None`
 
 ## Struktura katalogów
 
 ```
 src/icoforge/
-├── core/           # Rdzeń, bez zależności od GUI/CLI
-│   ├── ico_writer.py     # Zapis ICO z multi-resolution
-│   ├── ico_reader.py     # Parser ICO (do edytora)
-│   ├── converter.py      # Pipeline: source → resized → ICO
-│   ├── optimizer.py      # Optymalizacja PNG
-│   ├── resampling.py     # Algorytmy resamplingu i wybór
-│   └── models.py         # Dataclassy: IcoConfig, SizeSpec, …
-├── gui/            # PySide6
+├── core/                  # Logika – bez GUI/CLI
+│   ├── models.py          # Dataclassy: SizeSpec, IcoConfig, OptimizationConfig
+│   ├── resampling.py      # Algorytmy skalowania obrazu
+│   ├── converter.py       # Pipeline: source → resized → ICO
+│   ├── ico_writer.py      # Zapis ICO (multi-resolution)
+│   ├── ico_reader.py      # Odczyt ICO (do edytora, faza 4)
+│   └── optimizer.py       # Optymalizacja PNG (faza 3)
+├── gui/                   # PySide6 GUI
 │   ├── main_window.py
-│   ├── editor/           # Canvas, narzędzia, undo stack
-│   └── widgets/          # Reużywalne widgety
-├── utils/          # Logging, ścieżki, helpers
+│   ├── editor/            # Edytor pikselowy (faza 4)
+│   └── widgets/           # Reużywalne widgety
+├── utils/
 ├── cli.py
-└── __main__.py     # `python -m icoforge`
+└── __main__.py
 ```
 
-## Komendy
+## Konwencje kodu
+
+- Type hints na wszystkich publicznych funkcjach
+- Docstringi Google-style po angielsku w kodzie
+- Dataclassy z `frozen=True` zamiast słowników po API
+- `ruff check .` i `mypy src/` muszą przechodzić przed każdym commitem
+- Test-first dla rdzenia: najpierw test, potem implementacja
+- Komentarze w kodzie po angielsku, dokumenty w docs/ po polsku
+
+## Komendy robocze
 
 ```bash
-# Setup
-pip install -e ".[dev]"
-
-# Testy
-pytest                          # wszystkie
-pytest tests/test_converter.py  # jeden plik
-pytest -k "alpha"               # po nazwie
-pytest --cov=icoforge           # z coverage
-
-# Lint i typing
-ruff check .
-ruff format .
-mypy src/
-
-# Uruchomienie
-icoforge          # GUI
-icoforge-cli ...  # CLI
+pip install -e ".[dev]"          # instalacja
+pytest                           # wszystkie testy
+pytest tests/test_converter.py   # jeden plik
+pytest --cov=icoforge            # z pokryciem kodu
+ruff check . --fix               # lint z auto-naprawą
+ruff format .                    # formatowanie
+mypy src/                        # type checking
+icoforge-cli convert in.png out.ico --sizes 16,32,48,256
 ```
 
-## Filozofia rozwoju
+## Roadmapa i zasoby
 
-- **Małe iteracje.** Najpierw działający MVP fazy 1, potem rozszerzanie.
-- **Test-first dla rdzenia.** GUI i tak będzie się zmieniał, ale `core/` musi być solidny.
-- **Nie zaczynaj GUI bez działającego CLI.** CLI jest darmowym testem API rdzenia.
-- **Optymalizacja po profilowaniu.** Pillow i numpy są szybkie; nie cache'uj na zapas.
+- `docs/ROADMAP.md` – plan faz z kryteriami zakończenia
+- `docs/PROMPTY.md` – gotowe polecenia do implementacji kolejnych kroków
+- `docs/ZALOZENIA_PROJEKTU.md` – pełne założenia w języku polskim
+- `docs/CO_ROBI_CLAUDE_CODE.md` – podział pracy user vs Claude Code
 
-## Roadmapa
+## Co NIE należy do projektu
 
-Patrz [docs/ROADMAP.md](docs/ROADMAP.md). Każda faza ma jasno zdefiniowane kryteria zakończenia. Nie skacz między fazami – kończ kompletnie.
-
-## Gdy coś nie pasuje
-
-Jeśli zaproponowana zmiana łamie którąś z konwencji powyżej, **najpierw zapytaj**, nie zakładaj że konwencja jest do wyrzucenia. Konwencje są tu po to, żeby kod był spójny przez całą długość projektu.
-
-## Co NIE należy do tego projektu
-
-- Konwersja w drugą stronę (ICO → PNG poza prostym eksportem z edytora)
-- Wektorowa edycja (to nie Inkscape)
-- Generowanie ikon z tekstu / AI (osobny projekt)
-- Web frontend (to ma być natywna aplikacja desktop)
+- OCR, AI generowanie obrazów
+- Konwersja EPUB/PDF (osobny projekt – epubtools)
+- Web frontend
+- Generator ikon z tekstu

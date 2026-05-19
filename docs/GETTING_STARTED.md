@@ -1,83 +1,133 @@
-# Pierwsze kroki
+# Przewodnik startowy krok po kroku
 
-## Setup repozytorium
+*Zakładam że masz już zainstalowane: WSL2, VS Code z rozszerzeniem WSL,
+Node.js w WSL, GitHub CLI i Claude Code. Jeśli nie – wróć do przewodnika
+instalacji który był wcześniej przygotowany w tym czacie.*
+
+---
+
+## Część 1 – Jednorazowe przygotowanie projektu
+
+### Krok 1 – Pobierz projekt
+
+Pobierz plik `icoforge.zip` z czatu Claude na swój komputer Windows.
+
+### Krok 2 – Otwórz terminal WSL
+
+W VS Code: `Ctrl + `` ` (backtick, klawisz pod Escape).
+Sprawdź że w terminalu widzisz prompt zaczynający się od `marcin@` lub podobny
+(NIE od `C:\`). To oznacza że jesteś w WSL, nie w Windows.
+
+### Krok 3 – Przenieś i rozpakuj
 
 ```bash
-# 1. Utwórz repo na GitHubie (możesz też przez gh CLI)
-gh repo create icoforge --private --source=. --remote=origin
-
-# 2. Zainicjuj git lokalnie
-git init
-git branch -M main
-git add .
-git commit -m "Initial scaffold"
-git push -u origin main
+mkdir -p ~/projekty
+cp /mnt/c/Users/<TWOJA_NAZWA_WINDOWS>/Downloads/icoforge.zip ~/projekty/
+cd ~/projekty
+unzip icoforge.zip
+cd icoforge
 ```
 
-## Środowisko deweloperskie
+*Zamień `<TWOJA_NAZWA_WINDOWS>` na swoją nazwę użytkownika Windows.*
+*Możesz ją sprawdzić wpisując: `ls /mnt/c/Users/`*
+
+### Krok 4 – Zainstaluj Python i zależności
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e ".[dev]"
+```
 
-# Skopiuj przykładowe ustawienia VS Code
+Pierwsze uruchomienie pobiera biblioteki z internetu – trwa 1–3 minuty.
+
+Sprawdź że wszystko działa:
+```bash
+pytest tests/test_models.py -v
+```
+Powinno pokazać kilka linii z `PASSED` na zielono.
+
+### Krok 5 – Otwórz projekt w VS Code
+
+```bash
+code .
+```
+
+VS Code otworzy się. W dolnym lewym rogu zobaczysz zielony napis
+`WSL: Ubuntu` – to potwierdza połączenie z WSL.
+
+Skopiuj przykładowe ustawienia VS Code:
+```bash
 cp .vscode/settings.example.json .vscode/settings.json
 ```
 
-## Uruchomienie testów (powinny przechodzić "z pudełka")
+### Krok 6 – Utwórz repozytorium na GitHub
 
 ```bash
-pytest                    # konwertera (działa po fazie 1) + modeli (działa już teraz)
-pytest tests/test_models.py
-ruff check .
-mypy src/
+gh repo create icoforge --private --source=. --remote=origin --push
 ```
 
-W skrypcie `cli.py` polecenie `convert` działa od razu po zainstalowaniu zależności – core PNG→ICO już jest, tylko trzeba uruchomić:
+Jeśli pojawi się prośba o logowanie:
+```bash
+gh auth login
+# wybierz: GitHub.com → HTTPS → Login with a web browser
+```
+
+Sprawdź: wejdź na `https://github.com/<TWÓJ_LOGIN>/icoforge` – powinny być pliki.
+
+---
+
+## Część 2 – Codzienne uruchamianie
+
+Za każdym razem gdy siadasz do pracy:
 
 ```bash
-icoforge-cli convert input.png output.ico --sizes 16,32,48,256
+cd ~/projekty/icoforge
+source .venv/bin/activate
+claude
 ```
 
-## Praca z Claude Code
+---
 
-Claude Code automatycznie czyta `CLAUDE.md` przy starcie sesji. Sugerowany flow:
+## Część 3 – Pierwsze polecenie dla Claude Code
 
-1. Otwórz folder w VS Code: `code icoforge/`
-2. Uruchom Claude Code: `claude` (z folderu repo)
-3. Podawaj zadania w jednostkach kroków z `docs/ROADMAP.md`. Przykład:
+Wklej to jako pierwszą wiadomość:
 
 ```
-Zaimplementuj fazę 1 z ROADMAP, sekcja "Rdzeń". Pomijaj GUI, skup się tylko 
-na core/. Przed implementacją pokaż mi plan w 5 punktach.
+Przeczytaj CLAUDE.md i docs/ROADMAP.md. Uruchom pytest i powiedz mi:
+1. Co jest już zaimplementowane
+2. Czy wszystkie testy przechodzą
+3. Co zrobić jako następne według roadmapy
 ```
 
+Następnie korzystaj z gotowych promptów z pliku `docs/PROMPTY.md`.
+
+---
+
+## Część 4 – Koniec pracy – zapis na GitHub
+
+```bash
+git add .
+git commit -m "Opis tego co zrobiłeś"
+git push
 ```
-Dodaj test sprawdzający, że konwersja PNG bez kanału alpha z opcją 
-background=#ffffff produkuje ICO z białym tłem zamiast czarnego. Najpierw test, 
-potem ewentualna poprawka kodu.
+
+Albo poproś Claude Code: *„Zrób commit i push wszystkich zmian"*
+
+---
+
+## Najczęstsze problemy
+
+**Brak `(.venv)` przed promptem:** uruchom `source .venv/bin/activate`
+
+**VS Code nie widzi plików:** otwieraj przez `code .` z terminala WSL,
+nie przez ikonę na pulpicie Windows
+
+**Claude Code nie znajduje pliku:** sprawdź `pwd` – musisz być w `~/projekty/icoforge`
+
+**Jak cofnąć zmiany Claude Code:**
+```bash
+git checkout -- .    # cofa wszystkie niezapisane zmiany
+git log --oneline    # historia commitów
+git revert HEAD      # cofa ostatni commit
 ```
-
-```
-Faza 3, oxipng. Zaimplementuj optimize_png z testem walidującym bezstratność 
-(hash pikseli przed/po). Nie ruszaj CLI dopóki testy nie przejdą.
-```
-
-## Workflow git z Claude Code
-
-- Twórz osobne branche na fazy: `feature/phase-1-core`, `feature/phase-3-optimizer`
-- Claude Code może robić commity – ustaw mu mały zakres na sesję
-- PRs przez `gh pr create` z czytelnym opisem (Claude Code zrobi to dobrze jeśli poprosisz)
-
-## Częste pytania
-
-**Czy potrzebuję Qt do uruchomienia testów core?**
-Nie. Testy `core/` używają tylko Pillow. Qt jest tylko w `gui/` (faza 1+).
-
-**Pillow narzeka na ICO sizes()?**
-Pillow zmieniał API ICO między wersjami. Jeśli atrybut `ico.ico.sizes()` znika, użyj 
-`ico.info["sizes"]` lub ręcznego parsowania nagłówka.
-
-**Jak ograniczyć żeby Claude Code nie dodawał niepotrzebnych funkcji?**
-W `CLAUDE.md` jest sekcja "Co NIE należy do tego projektu". Odsyłaj do niej.
