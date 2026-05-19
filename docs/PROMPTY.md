@@ -74,15 +74,111 @@ Zaimplementuj CLI w src/icoforge/cli.py:
 Przetestuj ręcznie: pobierz jakiś PNG z internetu i skonwertuj.
 ```
 
-### Krok 1.6 – Sprawdzenie jakości
+### Krok 1.6 – Główne okno GUI (szkielet)
 
 ```
-Uruchom pełny zestaw kontrolny:
-1. pytest --cov=icoforge -v (pokaż coverage)
-2. ruff check . (pokaż błędy stylu)
-3. ruff format . (popraw formatowanie)
-4. mypy src/ (pokaż błędy typów)
-Napraw wszystkie błędy i ostrzeżenia. Zrób commit ze wszystkimi zmianami.
+Zaimplementuj główne okno aplikacji w src/icoforge/gui/main_window.py używając PySide6:
+- Klasa MainWindow(QMainWindow) z tytułem "IcoForge"
+- Domyślny rozmiar 900x600, możliwość zmiany rozmiaru
+- Centralny widget z QHBoxLayout: po lewej panel ustawień (1/3 szerokości),
+  po prawej obszar podglądu (2/3 szerokości)
+- Menubar z menu: File (Open, Save As, Exit), Help (About)
+- Statusbar na dole z miejscem na komunikaty
+- Funkcja main() w src/icoforge/gui/main_window.py i podpięcie pod
+  run_gui() w __main__.py
+- Po uruchomieniu `icoforge` (lub `python -m icoforge`) okno powinno się otworzyć
+Nie implementuj jeszcze logiki konwersji – tylko pusty szkielet z layoutem.
+Uruchom i pokaż mi że się otwiera.
+```
+
+### Krok 1.7 – Wczytywanie pliku (przycisk + drag & drop)
+
+```
+Dodaj do MainWindow obsługę wczytywania pliku źródłowego:
+- Stwórz widget src/icoforge/gui/widgets/file_drop_zone.py
+- FileDropZone(QFrame) - duży obszar z napisem "Przeciągnij plik PNG tutaj
+  lub kliknij aby wybrać", obsługuje dragEnterEvent i dropEvent
+- Kliknięcie otwiera QFileDialog z filtrem na obsługiwane formaty
+- Po wybraniu pliku: sygnał file_loaded(Path) emitowany przez widget
+- W MainWindow podłącz sygnał do metody on_file_loaded(path) która:
+  - Wyświetla nazwę pliku w statusbar
+  - Wyświetla podgląd oryginału w prawym panelu (QLabel z QPixmap)
+  - Zapamiętuje ścieżkę w self.source_path
+- Walidacja: jeśli plik nieobsługiwany (zła rozszerzenie) → QMessageBox.warning
+```
+
+### Krok 1.8 – Panel ustawień konwersji
+
+```
+Stwórz src/icoforge/gui/widgets/settings_panel.py - lewy panel z opcjami:
+- Klasa SettingsPanel(QWidget) z QVBoxLayout
+- Sekcja "Rozmiary" - QGroupBox z checkboxami dla wszystkich standardowych
+  rozmiarów (16, 20, 24, 32, 40, 48, 64, 96, 128, 256). Domyślnie zaznaczone:
+  16, 32, 48, 256
+- Sekcja "Presety" - QComboBox z opcjami: "Custom", "Favicon (16/32/48)",
+  "Windows App (all)", "Web (16/32/64/128)". Wybór presetu zaznacza odpowiednie
+  checkboxy
+- Sekcja "Algorytm skalowania" - QComboBox z wartościami z ResampleAlgorithm
+  (Lanczos jako default), z tooltipem opisującym kiedy używać każdego
+- Sekcja "Tło dla braku alpha" - radio buttons: "Przezroczyste" (default)
+  lub "Kolor" + QPushButton otwierający QColorDialog
+- Metoda get_config() -> IcoConfig która zwraca skonfigurowany obiekt
+- Sygnał settings_changed() emitowany przy każdej zmianie
+- Dodaj panel jako lewą kolumnę w MainWindow
+```
+
+### Krok 1.9 – Podgląd rozmiarów + zapis
+
+```
+Rozszerz MainWindow o podgląd i zapis:
+- Stwórz widget src/icoforge/gui/widgets/preview_panel.py
+- PreviewPanel(QScrollArea) wyświetlający siatkę miniatur dla każdego
+  wybranego rozmiaru (QLabel z QPixmap odpowiedniego wymiaru + etykieta
+  "16x16", "32x32" itp.)
+- Aktualizacja podglądu gdy zmieni się: plik źródłowy LUB ustawienia
+- Renderowanie podglądu w background thread (żeby nie blokować UI dla
+  dużych obrazów) - użyj QThreadPool + QRunnable, NIE odwołuj się do core
+  z głównego wątku
+- Przycisk "Zapisz jako..." w toolbarze lub na dole okna
+- Klik otwiera QFileDialog.getSaveFileName z filtrem "*.ico"
+- Po wyborze ścieżki: wywołanie core.converter.convert() w background thread
+  z callback'iem postępu aktualizującym QProgressBar w statusbar
+- Po zakończeniu: QMessageBox z informacją o sukcesie i opcją otwarcia folderu
+- Obsługa błędów: każdy wyjątek z core → QMessageBox.critical z czytelnym komunikatem
+```
+
+### Krok 1.10 – Threading i pasek postępu
+
+```
+Wyodrębnij pracę z wątkami do osobnego modułu i ulepsz feedback dla użytkownika:
+- Stwórz src/icoforge/gui/workers.py z klasą ConversionWorker(QRunnable)
+- Sygnały (przez QObject signals helper): progress(float), finished(Path), error(str)
+- Worker wywołuje core.converter.convert() i przekazuje progress przez sygnał
+- W MainWindow: QProgressBar w statusbar pokazujący postęp 0-100%
+- Disable przycisków konwersji w trakcie pracy, enable po zakończeniu
+- Anulowanie konwersji: przycisk "Anuluj" + flag w workerze sprawdzana w callback
+  (czysta przerwa, bez kill thread)
+- Test ręczny: konwersja dużego obrazu (np. 4000x4000 PNG) - UI nie zamarza,
+  progress bar płynnie się aktualizuje
+```
+
+### Krok 1.11 – Sprawdzenie jakości fazy 1
+
+```
+Końcowa kontrola fazy 1:
+1. pytest --cov=icoforge -v (pokaż coverage, core powinno mieć ≥75%)
+2. ruff check . i ruff format .
+3. mypy src/
+4. Uruchom GUI: icoforge - sprawdź pełny flow:
+   - drag & drop pliku PNG
+   - wybór rozmiarów przez preset i ręcznie  
+   - podgląd aktualizuje się
+   - zapis do ICO działa
+   - wynik otwiera się w Eksploratorze Windows (sprawdź właściwości ikony)
+5. Uruchom CLI: icoforge-cli convert (jakiś-plik).png test.ico --sizes windows
+6. Napraw wszystkie znalezione problemy
+7. Zaktualizuj sekcję "Status" w README.md - oznacz fazę 1 jako ukończoną
+8. Commit z message "feat: complete phase 1 - PNG to ICO conversion with GUI and CLI"
 ```
 
 ---
