@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from icoforge.gui.widgets.file_drop_zone import SUPPORTED_SUFFIXES, FileDropZone
+from icoforge.gui.widgets.settings_panel import SettingsPanel
 
 _PREVIEW_MAX_PX = 480
 
@@ -32,6 +33,7 @@ class MainWindow(QMainWindow):
 
         self.source_path: Path | None = None
         self._drop_zone: FileDropZone
+        self._settings_panel: SettingsPanel
         self._preview_label: QLabel
 
         self._setup_menu()
@@ -78,10 +80,8 @@ class MainWindow(QMainWindow):
         self._drop_zone = FileDropZone()
         vbox.addWidget(self._drop_zone)
 
-        placeholder = QLabel("Settings\n(coming soon)")
-        placeholder.setEnabled(False)
-        vbox.addWidget(placeholder)
-        vbox.addStretch()
+        self._settings_panel = SettingsPanel()
+        vbox.addWidget(self._settings_panel)
 
         return panel
 
