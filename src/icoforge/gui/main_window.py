@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QRunnable, QThreadPool, QUrl, Signal
+from PySide6.QtCore import QThreadPool, QUrl
 from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
@@ -21,48 +21,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from icoforge.core.converter import convert as run_convert
-from icoforge.core.models import IcoConfig
 from icoforge.gui.widgets.file_drop_zone import SUPPORTED_SUFFIXES, FileDropZone
 from icoforge.gui.widgets.preview_panel import PreviewPanel
 from icoforge.gui.widgets.settings_panel import SettingsPanel
-
-# ---------------------------------------------------------------------------
-# Background convert worker
-# ---------------------------------------------------------------------------
-
-
-class _ConvertSignals(QObject):
-    progress = Signal(float)
-    finished = Signal(str)  # absolute path of saved file
-    error = Signal(str)
-
-
-class _ConvertTask(QRunnable):
-    def __init__(self, source: Path, target: Path, config: IcoConfig) -> None:
-        super().__init__()
-        self.signals = _ConvertSignals()
-        self._source = source
-        self._target = target
-        self._config = config
-        self.setAutoDelete(True)
-
-    def run(self) -> None:
-        try:
-            run_convert(
-                self._source,
-                self._target,
-                self._config,
-                self.signals.progress.emit,
-            )
-            self.signals.finished.emit(str(self._target))
-        except Exception as exc:
-            self.signals.error.emit(str(exc))
-
-
-# ---------------------------------------------------------------------------
-# Main window
-# ---------------------------------------------------------------------------
+from icoforge.gui.workers import ConversionWorker
 
 
 class MainWindow(QMainWindow):
@@ -72,10 +34,12 @@ class MainWindow(QMainWindow):
         self.resize(900, 600)
 
         self.source_path: Path | None = None
+        self._current_worker: ConversionWorker | None = None
         self._drop_zone: FileDropZone
         self._settings_panel: SettingsPanel
         self._preview_panel: PreviewPanel
         self._save_action: QAction
+        self._cancel_action: QAction
         self._progress_bar: QProgressBar
 
         self._setup_menu()
@@ -108,6 +72,11 @@ class MainWindow(QMainWindow):
         self._save_action.setEnabled(False)
         self._save_action.triggered.connect(self._on_save_as)
         toolbar.addAction(self._save_action)
+
+        self._cancel_action = QAction("Anuluj", self)
+        self._cancel_action.setEnabled(False)
+        self._cancel_action.triggered.connect(self._on_cancel)
+        toolbar.addAction(self._cancel_action)
 
     def _setup_central(self) -> None:
         central = QWidget()
@@ -183,7 +152,8 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _on_save_as(self) -> None:
-        if self.source_path is None:
+        source = self.source_path
+        if source is None:
             return
         path, _ = QFileDialog.getSaveFileName(self, "Zapisz plik ICO", "", "ICO files (*.ico)")
         if not path:
@@ -193,42 +163,60 @@ class MainWindow(QMainWindow):
         target = Path(path)
         config = self._settings_panel.get_config()
 
-        task = _ConvertTask(self.source_path, target, config)
-        task.signals.progress.connect(self._on_convert_progress)
-        task.signals.finished.connect(self._on_convert_finished)
-        task.signals.error.connect(self._on_convert_error)
+        worker = ConversionWorker(source, target, config)
+        worker.signals.progress.connect(self._on_convert_progress)
+        worker.signals.finished.connect(self._on_convert_finished)
+        worker.signals.error.connect(self._on_convert_error)
+        self._current_worker = worker
 
         self._progress_bar.setValue(0)
         self._progress_bar.setVisible(True)
         self._save_action.setEnabled(False)
+        self._cancel_action.setEnabled(True)
 
-        QThreadPool.globalInstance().start(task)
+        QThreadPool.globalInstance().start(worker)
 
     # ------------------------------------------------------------------
-    # Convert task slots
+    # Cancellation
+    # ------------------------------------------------------------------
+
+    def _on_cancel(self) -> None:
+        if self._current_worker is not None:
+            self._current_worker.cancel()
+            self._current_worker = None
+        self._cancel_action.setEnabled(False)
+        self._save_action.setEnabled(True)
+        self._progress_bar.setVisible(False)
+        self.statusBar().showMessage("Konwersja anulowana")
+
+    # ------------------------------------------------------------------
+    # Convert worker slots
     # ------------------------------------------------------------------
 
     def _on_convert_progress(self, value: float) -> None:
         self._progress_bar.setValue(int(value * 100))
 
-    def _on_convert_finished(self, path: str) -> None:
+    def _on_convert_finished(self, path: Path) -> None:
+        self._current_worker = None
         self._progress_bar.setVisible(False)
         self._save_action.setEnabled(True)
-        self.statusBar().showMessage(f"Zapisano: {Path(path).name}")
+        self._cancel_action.setEnabled(False)
+        self.statusBar().showMessage(f"Zapisano: {path.name}")
 
-        target = Path(path)
         msg = QMessageBox(self)
         msg.setWindowTitle("Zapisano")
-        msg.setText(f"Plik zapisany:\n{target}")
+        msg.setText(f"Plik zapisany:\n{path}")
         open_btn = msg.addButton("Otwórz folder", QMessageBox.ButtonRole.ActionRole)
         msg.addButton(QMessageBox.StandardButton.Ok)
         msg.exec()
         if msg.clickedButton() is open_btn:
-            QDesktopServices.openUrl(QUrl.fromLocalFile(str(target.parent)))
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.parent)))
 
     def _on_convert_error(self, message: str) -> None:
+        self._current_worker = None
         self._progress_bar.setVisible(False)
         self._save_action.setEnabled(True)
+        self._cancel_action.setEnabled(False)
         QMessageBox.critical(
             self,
             "Błąd konwersji",
