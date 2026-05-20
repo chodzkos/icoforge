@@ -9,11 +9,14 @@ from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent, QMouseEve
 from PySide6.QtWidgets import QFileDialog, QFrame, QLabel, QVBoxLayout, QWidget
 
 SUPPORTED_SUFFIXES: frozenset[str] = frozenset(
-    {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".tiff", ".tif", ".svg"}
+    {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".tiff", ".tif", ".svg",
+     ".heic", ".heif", ".avif"}
 )
 
 _DIALOG_FILTER = (
-    "Image files (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.tiff *.tif *.svg);;All files (*)"
+    "Image files "
+    "(*.png *.jpg *.jpeg *.bmp *.gif *.webp *.tiff *.tif *.svg *.heic *.heif *.avif)"
+    ";;All files (*)"
 )
 
 

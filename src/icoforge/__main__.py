@@ -5,6 +5,10 @@ from __future__ import annotations
 
 def run_gui() -> int:
     """Launch the PySide6 GUI."""
+    from icoforge.core import heic_loader
+
+    heic_loader.register_heif_opener()
+
     from icoforge.gui.main_window import main as gui_main
 
     return gui_main()

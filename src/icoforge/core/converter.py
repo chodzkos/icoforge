@@ -6,8 +6,8 @@ The single public entry point is :func:`convert`.  It handles:
 - Resizing to each requested size (letterboxing when ``preserve_aspect=True``).
 - Writing the resulting ICO via :func:`~icoforge.core.ico_writer.write_ico`.
 
-Supported source formats: PNG, JPEG, BMP, GIF, WEBP, TIFF, SVG.
-HEIC support is planned for a later phase.
+Supported source formats: PNG, JPEG, BMP, GIF, WEBP, TIFF, SVG,
+HEIC/HEIF/AVIF (requires ``pillow-heif``; install with ``icoforge[heic]``).
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from icoforge.core import resampling, svg_loader
+from icoforge.core import heic_loader, resampling, svg_loader
 from icoforge.core.ico_writer import write_ico
 from icoforge.core.models import (
     TRANSPARENT,
@@ -31,7 +31,8 @@ _RASTER_SUFFIXES: frozenset[str] = frozenset(
     {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".tiff", ".tif"}
 )
 _SVG_SUFFIXES: frozenset[str] = frozenset({".svg"})
-_SUPPORTED_SUFFIXES: frozenset[str] = _RASTER_SUFFIXES | _SVG_SUFFIXES
+_HEIC_SUFFIXES: frozenset[str] = frozenset({".heic", ".heif", ".avif"})
+_SUPPORTED_SUFFIXES: frozenset[str] = _RASTER_SUFFIXES | _SVG_SUFFIXES | _HEIC_SUFFIXES
 
 ProgressCallback = Callable[[float], None]
 
@@ -63,6 +64,8 @@ def convert(
             extension.
         SvgSupportMissingError: a SVG source is used but ``cairosvg`` is not
             installed.
+        HeicSupportMissingError: a HEIC/AVIF source is used but
+            ``pillow-heif`` is not installed.
     """
     _validate_sources(source, config)
     _report(progress, 0.0)
@@ -143,8 +146,11 @@ def _render_sized_frames(
     total = len(config.sizes)
     for i, spec in enumerate(config.sizes):
         effective_source = spec.source_override if spec.source_override is not None else source
-        if effective_source.suffix.lower() in _SVG_SUFFIXES:
+        suffix = effective_source.suffix.lower()
+        if suffix in _SVG_SUFFIXES:
             frame = _render_svg_frame(effective_source, spec, config)
+        elif suffix in _HEIC_SUFFIXES:
+            frame = _render_heic_frame(effective_source, spec, config, raster_cache)
         else:
             frame = _render_raster_frame(effective_source, spec, config, raster_cache)
         sized.append((frame, spec))
@@ -178,6 +184,20 @@ def _render_svg_frame(
         canvas.alpha_composite(frame)
         frame = canvas
     return frame
+
+
+def _render_heic_frame(
+    source: Path,
+    spec: SizeSpec,
+    config: IcoConfig,
+    cache: dict[Path, Image.Image],
+) -> Image.Image:
+    """Load a HEIC/HEIF/AVIF source (cached) and resize to ``spec``."""
+    base = cache.get(source)
+    if base is None:
+        base = heic_loader.load_heic(source)
+        cache[source] = base
+    return _render_frame(base, spec, config)
 
 
 # ---------------------------------------------------------------------------
