@@ -56,8 +56,20 @@ _DIALOG_FILTER = (
     ";;All files (*)"
 )
 _SUPPORTED_SUFFIXES: frozenset[str] = frozenset(
-    {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".tiff", ".tif",
-     ".svg", ".heic", ".heif", ".avif"}
+    {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".bmp",
+        ".gif",
+        ".webp",
+        ".tiff",
+        ".tif",
+        ".svg",
+        ".heic",
+        ".heif",
+        ".avif",
+    }
 )
 
 _COL_CHECK = 0
@@ -180,9 +192,7 @@ class SizeTable(QTableWidget):
             self.sizes_changed.emit()
 
     def _on_browse(self, size: int) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self, f"Zrodlo dla {size}x{size}", "", _DIALOG_FILTER
-        )
+        path, _ = QFileDialog.getOpenFileName(self, f"Zrodlo dla {size}x{size}", "", _DIALOG_FILTER)
         if path:
             self._set_override(size, Path(path))
 
