@@ -16,6 +16,7 @@ class _WorkerSignals(QObject):
     progress = Signal(float)
     finished = Signal(Path)
     error = Signal(str)
+    done = Signal()
 
 
 class _Cancelled(BaseException):
@@ -36,7 +37,7 @@ class ConversionWorker(QRunnable):
         self._target = target
         self._config = config
         self._cancelled = False
-        self.setAutoDelete(True)
+        self.setAutoDelete(False)
 
     def cancel(self) -> None:
         """Request cancellation; the worker stops at the next progress tick."""
@@ -52,6 +53,8 @@ class ConversionWorker(QRunnable):
         except Exception as exc:
             if not self._cancelled:
                 self.signals.error.emit(str(exc))
+        finally:
+            self.signals.done.emit()
 
     def _on_progress(self, value: float) -> None:
         if self._cancelled:
