@@ -46,19 +46,25 @@ def convert(
 
     Args:
         source: Path to the source image.  Format is detected by extension.
+            Used for any :class:`SizeSpec` that does not specify its own
+            ``source_override``.
         target: Path where the resulting ``.ico`` will be written.
             Parent directories are created automatically.
         config: Conversion parameters (sizes, resampling, background, …).
+            Any :class:`SizeSpec` with ``source_override`` set will use that
+            file instead of ``source`` for that size only.
         progress: Optional callback receiving monotonically increasing values
             in ``[0.0, 1.0]``.  Called at the start (0.0), after loading the
             source, after each resized frame, and at completion (1.0).
 
     Raises:
-        FileNotFoundError: ``source`` does not exist.
-        ValueError: ``source`` has an unsupported extension.
-        SvgSupportMissingError: source is SVG but ``cairosvg`` is not installed.
+        FileNotFoundError: ``source`` or any ``source_override`` does not exist.
+        ValueError: ``source`` or any ``source_override`` has an unsupported
+            extension.
+        SvgSupportMissingError: a SVG source is used but ``cairosvg`` is not
+            installed.
     """
-    _validate_source(source)
+    _validate_sources(source, config)
     _report(progress, 0.0)
 
     sized = _render_sized_frames(source, config, progress)
@@ -77,16 +83,19 @@ def render_frames(
     Intended for GUI preview; heavy work should run in a background thread.
 
     Args:
-        source: Path to the source image.
+        source: Path to the source image (used as fallback when a
+            :class:`SizeSpec` does not specify ``source_override``).
         config: Conversion parameters (sizes, resampling, background, …).
         progress: Optional progress callback (same contract as :func:`convert`).
 
     Raises:
-        FileNotFoundError: ``source`` does not exist.
-        ValueError: ``source`` has an unsupported extension.
-        SvgSupportMissingError: source is SVG but ``cairosvg`` is not installed.
+        FileNotFoundError: ``source`` or any ``source_override`` does not exist.
+        ValueError: ``source`` or any ``source_override`` has an unsupported
+            extension.
+        SvgSupportMissingError: a SVG source is used but ``cairosvg`` is not
+            installed.
     """
-    _validate_source(source)
+    _validate_sources(source, config)
     _report(progress, 0.0)
     sized = _render_sized_frames(source, config, progress)
     _report(progress, 1.0)
@@ -108,54 +117,67 @@ def _validate_source(source: Path) -> None:
         )
 
 
+def _validate_sources(source: Path, config: IcoConfig) -> None:
+    """Validate the main source plus every per-size ``source_override``."""
+    _validate_source(source)
+    for spec in config.sizes:
+        if spec.source_override is not None:
+            _validate_source(spec.source_override)
+
+
 def _render_sized_frames(
     source: Path,
     config: IcoConfig,
     progress: ProgressCallback | None,
 ) -> list[tuple[Image.Image, SizeSpec]]:
-    """Dispatch to raster or SVG pipeline and return ``[(frame, spec), …]``."""
-    suffix = source.suffix.lower()
-    if suffix in _SVG_SUFFIXES:
-        return _render_svg_sized(source, config, progress)
-    return _render_raster_sized(source, config, progress)
+    """Render one frame per size, honouring per-size ``source_override``.
 
-
-def _render_raster_sized(
-    source: Path,
-    config: IcoConfig,
-    progress: ProgressCallback | None,
-) -> list[tuple[Image.Image, SizeSpec]]:
-    base = _load_rgba(source, config.background)
+    Raster sources are loaded lazily and cached by path so multiple sizes that
+    share the same source pay the I/O cost only once. SVG sources are
+    rasterized fresh per size (the vector advantage).
+    """
     _report(progress, 0.1)
 
+    raster_cache: dict[Path, Image.Image] = {}
     sized: list[tuple[Image.Image, SizeSpec]] = []
     total = len(config.sizes)
     for i, spec in enumerate(config.sizes):
-        frame = _render_frame(base, spec, config)
+        effective_source = spec.source_override if spec.source_override is not None else source
+        if effective_source.suffix.lower() in _SVG_SUFFIXES:
+            frame = _render_svg_frame(effective_source, spec, config)
+        else:
+            frame = _render_raster_frame(effective_source, spec, config, raster_cache)
         sized.append((frame, spec))
         _report(progress, 0.1 + 0.8 * (i + 1) / total)
     return sized
 
 
-def _render_svg_sized(
+def _render_raster_frame(
     source: Path,
+    spec: SizeSpec,
     config: IcoConfig,
-    progress: ProgressCallback | None,
-) -> list[tuple[Image.Image, SizeSpec]]:
-    """Rasterize the SVG fresh for each requested size (vector advantage)."""
-    _report(progress, 0.1)
+    cache: dict[Path, Image.Image],
+) -> Image.Image:
+    """Resize a (cached) raster source to ``spec``."""
+    base = cache.get(source)
+    if base is None:
+        base = _load_rgba(source, config.background)
+        cache[source] = base
+    return _render_frame(base, spec, config)
 
-    sized: list[tuple[Image.Image, SizeSpec]] = []
-    total = len(config.sizes)
-    for i, spec in enumerate(config.sizes):
-        frame = svg_loader.rasterize_svg(source, spec.width, spec.height)
-        if isinstance(config.background, Color):
-            canvas = Image.new("RGBA", frame.size, config.background.as_tuple())
-            canvas.alpha_composite(frame)
-            frame = canvas
-        sized.append((frame, spec))
-        _report(progress, 0.1 + 0.8 * (i + 1) / total)
-    return sized
+
+def _render_svg_frame(
+    source: Path,
+    spec: SizeSpec,
+    config: IcoConfig,
+) -> Image.Image:
+    """Rasterize an SVG fresh at the requested size."""
+    frame = svg_loader.rasterize_svg(source, spec.width, spec.height)
+    if isinstance(config.background, Color):
+        canvas = Image.new("RGBA", frame.size, config.background.as_tuple())
+        canvas.alpha_composite(frame)
+        frame = canvas
+    return frame
 
 
 # ---------------------------------------------------------------------------

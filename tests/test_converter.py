@@ -328,3 +328,96 @@ def test_convert_palette_mode_source(tmp_path: Path) -> None:
     convert(src, target, IcoConfig(sizes=(SizeSpec(32, 32),)))
     assert target.exists()
     assert _ico_sizes(target) == {(32, 32)}
+
+
+# ---------------------------------------------------------------------------
+# Per-size source override
+# ---------------------------------------------------------------------------
+
+
+def _solid_png(tmp_path: Path, name: str, rgba: tuple[int, int, int, int]) -> Path:
+    img = Image.new("RGBA", (256, 256), rgba)
+    out = tmp_path / name
+    img.save(out)
+    return out
+
+
+def test_convert_uses_source_override_for_specific_size(tmp_path: Path) -> None:
+    """A SizeSpec with source_override pulls pixels from that file, not main."""
+    main = _solid_png(tmp_path, "main.png", (255, 0, 0, 255))  # red
+    small = _solid_png(tmp_path, "small.png", (0, 0, 255, 255))  # blue, for 16x16
+    target = tmp_path / "out.ico"
+
+    config = IcoConfig(
+        sizes=(
+            SizeSpec(16, 16, source_override=small),
+            SizeSpec(256, 256),
+        )
+    )
+    convert(main, target, config)
+
+    # Validate that the 16x16 entry came from 'small' (blue) and the 256x256
+    # from 'main' (red).
+    with Image.open(target) as ico:
+        ico.size = (16, 16)  # type: ignore[misc]
+        ico.load()
+        small_pixel = ico.convert("RGBA").getpixel((8, 8))
+    with Image.open(target) as ico:
+        ico.size = (256, 256)  # type: ignore[misc]
+        ico.load()
+        big_pixel = ico.convert("RGBA").getpixel((128, 128))
+
+    assert small_pixel == (0, 0, 255, 255), f"16x16 should be blue (override), got {small_pixel}"
+    assert big_pixel == (255, 0, 0, 255), f"256x256 should be red (main), got {big_pixel}"
+
+
+def test_convert_with_overrides_for_every_size(tmp_path: Path) -> None:
+    """Every size has its own source — main is just the fallback (unused here)."""
+    main = _solid_png(tmp_path, "main.png", (10, 10, 10, 255))
+    file_16 = _solid_png(tmp_path, "f16.png", (255, 0, 0, 255))
+    file_256 = _solid_png(tmp_path, "f256.png", (0, 255, 0, 255))
+    target = tmp_path / "out.ico"
+
+    config = IcoConfig(
+        sizes=(
+            SizeSpec(16, 16, source_override=file_16),
+            SizeSpec(256, 256, source_override=file_256),
+        )
+    )
+    convert(main, target, config)
+
+    assert _ico_sizes(target) == {(16, 16), (256, 256)}
+
+
+def test_convert_rejects_missing_source_override(tmp_path: Path, tmp_png: Path) -> None:
+    """An override that points to a non-existent file must fail validation."""
+    config = IcoConfig(
+        sizes=(
+            SizeSpec(16, 16, source_override=tmp_path / "does-not-exist.png"),
+            SizeSpec(32, 32),
+        )
+    )
+    with pytest.raises(FileNotFoundError):
+        convert(tmp_png, tmp_path / "out.ico", config)
+
+
+def test_convert_rejects_unsupported_override_format(tmp_path: Path, tmp_png: Path) -> None:
+    bogus = tmp_path / "bogus.xyz"
+    bogus.write_bytes(b"not an image")
+    config = IcoConfig(sizes=(SizeSpec(32, 32, source_override=bogus),))
+    with pytest.raises(ValueError, match="Unsupported"):
+        convert(tmp_png, tmp_path / "out.ico", config)
+
+
+def test_render_frames_uses_source_override(tmp_path: Path) -> None:
+    main = _solid_png(tmp_path, "main.png", (255, 0, 0, 255))
+    override = _solid_png(tmp_path, "override.png", (0, 255, 0, 255))
+    config = IcoConfig(
+        sizes=(
+            SizeSpec(16, 16, source_override=override),
+            SizeSpec(32, 32),
+        )
+    )
+    frames = render_frames(main, config)
+    assert frames[0].getpixel((8, 8)) == (0, 255, 0, 255)
+    assert frames[1].getpixel((16, 16)) == (255, 0, 0, 255)

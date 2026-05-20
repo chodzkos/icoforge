@@ -294,3 +294,120 @@ def test_convert_unsupported_format_exits_nonzero(tmp_path: Path) -> None:
         catch_exceptions=False,
     )
     assert result.exit_code != 0
+
+
+# ---------------------------------------------------------------------------
+# --source-N (per-size source overrides)
+# ---------------------------------------------------------------------------
+
+
+def _solid_png(tmp_path: Path, name: str, rgba: tuple[int, int, int, int]) -> Path:
+    img = Image.new("RGBA", (256, 256), rgba)
+    p = tmp_path / name
+    img.save(p)
+    return p
+
+
+def test_convert_source_override_16(tmp_path: Path) -> None:
+    main_src = _solid_png(tmp_path, "main.png", (255, 0, 0, 255))
+    src_16 = _solid_png(tmp_path, "f16.png", (0, 0, 255, 255))
+    out = tmp_path / "out.ico"
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "convert",
+            str(main_src),
+            str(out),
+            "--sizes",
+            "16,32",
+            "--source-16",
+            str(src_16),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    with Image.open(out) as ico:
+        ico.size = (16, 16)  # type: ignore[misc]
+        ico.load()
+        assert ico.convert("RGBA").getpixel((8, 8)) == (0, 0, 255, 255)
+    with Image.open(out) as ico:
+        ico.size = (32, 32)  # type: ignore[misc]
+        ico.load()
+        assert ico.convert("RGBA").getpixel((16, 16)) == (255, 0, 0, 255)
+
+
+def test_convert_source_override_16_and_256(tmp_path: Path) -> None:
+    main_src = _solid_png(tmp_path, "main.png", (10, 10, 10, 255))
+    src_16 = _solid_png(tmp_path, "f16.png", (255, 0, 0, 255))
+    src_256 = _solid_png(tmp_path, "f256.png", (0, 255, 0, 255))
+    out = tmp_path / "out.ico"
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "convert",
+            str(main_src),
+            str(out),
+            "--sizes",
+            "16,256",
+            "--source-16",
+            str(src_16),
+            "--source-256",
+            str(src_256),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    with Image.open(out) as ico:
+        ico.size = (16, 16)  # type: ignore[misc]
+        ico.load()
+        assert ico.convert("RGBA").getpixel((8, 8)) == (255, 0, 0, 255)
+    with Image.open(out) as ico:
+        ico.size = (256, 256)  # type: ignore[misc]
+        ico.load()
+        assert ico.convert("RGBA").getpixel((128, 128)) == (0, 255, 0, 255)
+
+
+def test_convert_source_override_missing_file_exits_nonzero(tmp_path: Path) -> None:
+    main_src = _make_png(tmp_path)
+    result = CliRunner().invoke(
+        main,
+        [
+            "convert",
+            str(main_src),
+            str(tmp_path / "out.ico"),
+            "--sizes",
+            "16,32",
+            "--source-16",
+            str(tmp_path / "does-not-exist.png"),
+        ],
+    )
+    assert result.exit_code != 0
+
+
+def test_convert_source_override_for_unrequested_size_exits_nonzero(tmp_path: Path) -> None:
+    """--source-128 should fail when 128 is not in --sizes."""
+    main_src = _make_png(tmp_path)
+    src_128 = _solid_png(tmp_path, "f128.png", (0, 255, 0, 255))
+    result = CliRunner().invoke(
+        main,
+        [
+            "convert",
+            str(main_src),
+            str(tmp_path / "out.ico"),
+            "--sizes",
+            "16,32",
+            "--source-128",
+            str(src_128),
+        ],
+    )
+    assert result.exit_code != 0
+    assert "--source-128" in result.output
+
+
+def test_convert_no_source_overrides_unchanged(tmp_path: Path) -> None:
+    """Sanity: omitting all --source-N flags behaves exactly like before."""
+    src = _make_png(tmp_path)
+    out = tmp_path / "out.ico"
+    result = CliRunner().invoke(main, ["convert", str(src), str(out), "--sizes", "16,32"])
+    assert result.exit_code == 0, result.output
+    assert _ico_sizes(out) == {(16, 16), (32, 32)}

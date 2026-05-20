@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 import click
 
@@ -25,6 +26,31 @@ _PRESETS: dict[str, tuple[SizeSpec, ...]] = {
 }
 
 _BAR_WIDTH = 30
+
+# Sizes for which `--source-N` flags are registered. Covers every size used
+# by the built-in presets (windows + favicon).
+_PER_SIZE_FLAG_SIZES: tuple[int, ...] = (16, 20, 24, 32, 40, 48, 64, 96, 128, 256)
+
+
+def _per_size_source_options(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Attach ``--source-N`` options (one per :data:`_PER_SIZE_FLAG_SIZES`).
+
+    Each flag, e.g. ``--source-16 hand.png``, overrides the source file used
+    for that specific ICO entry. Sizes without an override fall back to the
+    positional ``SOURCE`` argument.
+    """
+    for size in reversed(_PER_SIZE_FLAG_SIZES):
+        func = click.option(
+            f"--source-{size}",
+            f"source_{size}",
+            type=click.Path(exists=True, dir_okay=False, path_type=Path),
+            default=None,
+            help=(
+                f"Source file for the {size}x{size} ICO entry only. "
+                f"Overrides the global SOURCE for this one size."
+            ),
+        )(func)
+    return func
 
 
 # ---------------------------------------------------------------------------
@@ -94,6 +120,31 @@ def _parse_background(value: str) -> Background:
     )
 
 
+def _collect_source_overrides(
+    per_size_sources: dict[str, Path | None],
+    parsed_sizes: tuple[SizeSpec, ...],
+) -> dict[int, Path]:
+    """Extract ``--source-N`` flags into a ``{size: path}`` map.
+
+    Flags for sizes that are not part of ``parsed_sizes`` are rejected so the
+    user gets immediate feedback instead of a silently-ignored override.
+    """
+    overrides: dict[int, Path] = {}
+    requested_widths = {spec.width for spec in parsed_sizes}
+    for key, path in per_size_sources.items():
+        if path is None:
+            continue
+        size = int(key.removeprefix("source_"))
+        if size not in requested_widths:
+            raise click.BadParameter(
+                f"--source-{size} was provided but {size}x{size} is not in --sizes "
+                f"({sorted(requested_widths)}).",
+                param_hint=f"'--source-{size}'",
+            )
+        overrides[size] = path
+    return overrides
+
+
 def _progress_callback(value: float) -> None:
     """Print an in-place ASCII progress bar to stdout."""
     filled = round(value * _BAR_WIDTH)
@@ -154,6 +205,7 @@ def main() -> None:
     show_default=True,
     help="Preserve source aspect ratio by letterboxing (default: on).",
 )
+@_per_size_source_options
 def convert(
     source: Path,
     target: Path,
@@ -162,13 +214,19 @@ def convert(
     background: str,
     bit_depth: str,
     keep_aspect: bool,
+    **per_size_sources: Path | None,
 ) -> None:
     """Convert SOURCE image to a multi-size ICO file at TARGET."""
     parsed_sizes = _parse_sizes(sizes)
+    source_overrides = _collect_source_overrides(per_size_sources, parsed_sizes)
     bd = cast(Literal[8, 24, 32], int(bit_depth))
     size_specs = tuple(
         SizeSpec(
-            s.width, s.height, bit_depth=bd, resample=s.resample, source_override=s.source_override
+            s.width,
+            s.height,
+            bit_depth=bd,
+            resample=s.resample,
+            source_override=source_overrides.get(s.width, s.source_override),
         )
         for s in parsed_sizes
     )
