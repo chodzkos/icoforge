@@ -159,23 +159,33 @@ class SizeTable(QTableWidget):
     def _set_override(self, size: int, path: Path) -> None:
         self._overrides[size] = path
         row = self._row_for_size(size)
-        item = self.item(row, _COL_SOURCE)
-        if item:
-            item.setText(path.name)
-            item.setToolTip(str(path))
-            item.setForeground(QColor(0, 0, 0))
-        self._set_row_highlight(row, active=True)
+        # Disconnect itemChanged so cosmetic updates don't cascade into
+        # sizes_changed mid-method; emit once explicitly at the end.
+        self.itemChanged.disconnect(self._on_item_changed)
+        try:
+            item = self.item(row, _COL_SOURCE)
+            if item:
+                item.setText(path.name)
+                item.setToolTip(str(path))
+                item.setForeground(QColor(0, 0, 0))
+            self._set_row_highlight(row, active=True)
+        finally:
+            self.itemChanged.connect(self._on_item_changed)
         self.sizes_changed.emit()
 
     def _clear_override(self, size: int) -> None:
         self._overrides.pop(size, None)
         row = self._row_for_size(size)
-        item = self.item(row, _COL_SOURCE)
-        if item:
-            item.setText("(domyslne)")
-            item.setToolTip("")
-            item.setForeground(QColor(150, 150, 150))
-        self._set_row_highlight(row, active=False)
+        self.itemChanged.disconnect(self._on_item_changed)
+        try:
+            item = self.item(row, _COL_SOURCE)
+            if item:
+                item.setText("(domyslne)")
+                item.setToolTip("")
+                item.setForeground(QColor(150, 150, 150))
+            self._set_row_highlight(row, active=False)
+        finally:
+            self.itemChanged.connect(self._on_item_changed)
         self.sizes_changed.emit()
 
     def _set_row_highlight(self, row: int, active: bool) -> None:
@@ -194,7 +204,11 @@ class SizeTable(QTableWidget):
             self.sizes_changed.emit()
 
     def _on_browse(self, size: int) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, f"Zrodlo dla {size}x{size}", "", _DIALOG_FILTER)
+        # Parent to the top-level window so focus returns there after close.
+        # Using self (a child widget) as parent can break focus on WSLg.
+        path, _ = QFileDialog.getOpenFileName(
+            self.window(), f"Zrodlo dla {size}x{size}", "", _DIALOG_FILTER
+        )
         if path:
             self._set_override(size, Path(path))
 
@@ -248,7 +262,7 @@ class SizeTable(QTableWidget):
                         self._set_override(self._sizes[row], path)
                 drop.acceptProposedAction()
                 return True
-        return super().eventFilter(obj, event)
+        return bool(super().eventFilter(obj, event))
 
     # ------------------------------------------------------------------
     # Public API
