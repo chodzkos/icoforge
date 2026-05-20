@@ -204,7 +204,7 @@ Dodaj obsługę SVG jako formatu wejściowego:
 - Testy z prostym SVG (możesz użyć inline SVG jako string w fixture)
 ```
 
-### Krok 2.3 – Per-size source
+### Krok 2.3 – Per-size source (CLI i rdzeń)
 
 ```
 Dodaj obsługę per-size source w SizeSpec i converter.py:
@@ -212,6 +212,48 @@ Dodaj obsługę per-size source w SizeSpec i converter.py:
 - Jeśli ustawione, użyj tego pliku zamiast głównego source dla tego rozmiaru
 - CLI: --source-16 path.png --source-32 path2.png (opcjonalne flagi)
 - Testy: konwersja z różnym plikiem dla 16px i 256px
+```
+
+### Krok 2.4 – HEIC i AVIF
+
+```
+Dodaj obsługę formatów HEIC i AVIF jako opcjonalny extra:
+- Dodaj do pyproject.toml: [project.optional-dependencies] heic = ["pillow-heif>=0.16.0"]
+- Stwórz src/icoforge/core/heic_loader.py z funkcją load_heic(path) -> Image
+- Przy imporcie pillow-heif rejestruje się automatycznie w Pillow przez
+  register_heif_opener() – wywołaj to przy starcie aplikacji (w __main__.py)
+- Graceful fallback: jeśli pillow-heif nie zainstalowane → czytelny komunikat
+  "Format HEIC/AVIF wymaga: pip install icoforge[heic]"
+- Rozszerz filtry w FileDropZone i QFileDialog o *.heic *.avif *.heif
+- Testy: fixture z małym HEIC (możesz wygenerować programowo przez Pillow+pillow-heif),
+  sprawdź że konwersja do ICO daje poprawny wynik
+```
+
+### Krok 2.5 – GUI: per-size source
+
+```
+Rozszerz GUI o obsługę per-size source (różne pliki na różne rozmiary):
+- W SettingsPanel zamień listę checkboxów rozmiarów na QTableWidget z kolumnami:
+  "✓" (checkbox), "Rozmiar", "Źródło" (ścieżka lub "– domyślne –"), "Wybierz..."
+- Przycisk "Wybierz..." w każdym wierszu otwiera QFileDialog dla danego rozmiaru
+- Kliknięcie komórki "Źródło" prawym przyciskiem → opcja "Usuń override" (wróć do domyślnego)
+- Metoda get_config() uwzględnia source_override w SizeSpec
+- Drag & drop pliku bezpośrednio na wiersz tabeli = ustaw jako source dla tego rozmiaru
+- Wizualny wyróżnik wiersza gdy ma override (np. kolor tła)
+- Testy manualne: ustaw różny PNG dla 16px i 256px, sprawdź że ICO zawiera oba
+```
+
+### Krok 2.6 – Sprawdzenie jakości fazy 2
+
+```
+Końcowa kontrola fazy 2:
+1. pytest --cov=icoforge -v
+2. ruff check . && mypy src/
+3. Przetestuj ręcznie każdy format wejściowy (PNG, JPG, BMP, GIF, WEBP, TIFF, SVG)
+4. Sprawdź per-size source: 16px z uproszczonego PNG, 256px z detailsowego
+5. Sprawdź fallback gdy SVG/HEIC nie zainstalowane (odinstaluj tymczasowo)
+6. Napraw wszystkie znalezione problemy
+7. Commit: "feat: complete phase 2 - multi-format input and per-size source"
 ```
 
 ---
@@ -249,32 +291,80 @@ Dodaj batch processing do optimizer.py i CLI:
 - Raport na końcu: X plików, łącznie Y MB → Z MB (W% mniej)
 ```
 
+### Krok 3.4 – GUI: zakładka Optymalizacja
+
+```
+Dodaj zakładkę "Optymalizacja PNG" do głównego okna:
+- QTabWidget jako centralny widget MainWindow (zakładki: "Konwersja", "Optymalizacja")
+- W zakładce Optymalizacja:
+  - Obszar drag & drop przyjmujący pliki PNG i całe foldery
+  - QListWidget z kolejką plików (ścieżka + rozmiar przed + status)
+  - Suwak poziomu kompresji 0–6 z etykietą "Szybszy" ↔ "Mniejszy"
+  - Checkbox "Tryb Zopfli (wolny, maksymalna kompresja)"
+  - Checkbox "Usuń metadane (GPS, data, aparat)"
+  - Checkbox "Zachowaj profil kolorów ICC"
+  - Radio buttons: "Zapisz w miejscu" / "Zapisz do folderu..." (z wyborem folderu)
+  - Przycisk "Optymalizuj" uruchamiający workers.OptimizationWorker
+  - QProgressBar per plik (pasek w wierszu listy) i globalny na dole
+  - Raport po zakończeniu: tabela z kolumnami Plik / Przed / Po / Oszczędność %
+  - Przycisk "Eksportuj raport CSV"
+- Testy manualne: folder z 10 PNG, sprawdź raport
+```
+
+### Krok 3.5 – Sprawdzenie jakości fazy 3
+
+```
+Końcowa kontrola fazy 3:
+1. pytest --cov=icoforge -v (coverage optimizera ≥ 80%)
+2. ruff check . && mypy src/
+3. Test bezstratności: optimize_png na 20 różnych PNG, verify_lossless musi
+   przejść dla wszystkich
+4. Test metadanych: sprawdź że po --strip nie ma tEXt/eXIf (użyj exiftool lub
+   PIL.Image.open().info)
+5. Benchmark: czas optymalizacji folderu 50 PNG (~5MB łącznie) < 30 sekund
+6. Napraw wszystkie problemy
+7. Commit: "feat: complete phase 3 - PNG optimization with GUI batch processing"
+```
+
 ---
 
 ## FAZA 4 – Edytor pikselowy
 
-### Krok 4.1 – Canvas (najtrudniejszy krok)
+### Krok 4.1 – ico_reader i ładowanie ICO
 
 ```
-Zaimplementuj canvas w src/icoforge/gui/editor/canvas.py używając QGraphicsView:
-- Wyświetlanie obrazu RGBA w siatce pikseli
-- Zoom kółkiem myszy (Ctrl+scroll): zakres 1x do 64x
-- Siatka między pikselami widoczna przy zoom >= 8x  
-- Szachownica dla przezroczystych pikseli (dwa odcienie szarego, 8x8 px)
-- Pan (przesuwanie) środkowym przyciskiem myszy
-Nie implementuj jeszcze narzędzi rysowania – tylko wyświetlanie i nawigację.
-Pokaż mi canvas z załadowanym przykładowym obrazem 32x32.
+Zanim zaczniesz canvas, stwórz fundament odczytu plików ICO:
+- Zaimplementuj src/icoforge/core/ico_reader.py:
+  - Funkcja read_ico(path) -> list[tuple[Image, SizeSpec]]
+  - Otwiera ICO przez PIL.Image, iteruje po rozmiarach przez ico.ico.sizes()
+  - Dla każdego rozmiaru zwraca obraz RGBA i SizeSpec
+  - Testy: otwórz ICO z fazy 1, sprawdź że liczba rozmiarów i ich wymiary zgadzają się
+- Następnie zaimplementuj canvas w src/icoforge/gui/editor/canvas.py (QGraphicsView):
+  - Wyświetlanie obrazu RGBA jako siatka pikseli
+  - Zoom Ctrl+scroll: zakres 1x do 64x
+  - Siatka między pikselami widoczna przy zoom >= 8x
+  - Szachownica dla przezroczystych pikseli (dwa odcienie szarego, 8x8 px)
+  - Pan (przesuwanie) środkowym przyciskiem myszy
+- Stwórz src/icoforge/gui/editor/editor_window.py z:
+  - QSplitter: po lewej QListWidget z listą rozmiarów z ICO, po prawej canvas
+  - Kliknięcie rozmiaru na liście → canvas ładuje ten rozmiar
+  - Tytuł okna: "Edytor – nazwa_pliku.ico [32x32]"
+- Dodaj do menu File w MainWindow: "Otwórz ICO do edycji..." → otwiera EditorWindow
+Pokaż mi działające okno edytora z załadowanym ICO i przełączaniem rozmiarów.
 ```
 
 ### Krok 4.2 – System narzędzi
 
 ```
 Zaimplementuj system narzędzi w src/icoforge/gui/editor/tools.py:
-- Abstrakcyjna klasa bazowa Tool z metodami on_press, on_move, on_release
-- PixelTool (ołówek): maluje kolor podstawowy na klikniętych pikselach
-- EraserTool (gumka): ustawia alpha=0
-- EyedropperTool (kroplomierz): pobiera kolor, Alt jako tymczasowy switch
-Zintegruj z canvas. Testuj ręcznie uruchamiając GUI.
+- Abstrakcyjna klasa bazowa Tool z metodami on_press(x,y), on_move(x,y), on_release(x,y)
+- PixelTool (ołówek): maluje kolor podstawowy na klikniętych pikselach, rozmiar 1-8px
+- EraserTool (gumka): ustawia alpha=0, rozmiar 1-8px
+- EyedropperTool (kroplomierz): klik pobiera kolor do koloru podstawowego,
+  przytrzymanie Alt podczas innego narzędzia = tymczasowy switch na kroplomierz
+- Toolbar z ikonami narzędzi (możesz użyć wbudowanych ikon Qt lub emoji jako placeholder)
+- Skróty: B=ołówek, E=gumka, I=kroplomierz
+Zintegruj z canvas. Testuj ręcznie: narysuj kilka pikseli, sprawdź że kolor się zgadza.
 ```
 
 ### Krok 4.3 – Undo/Redo
@@ -282,32 +372,243 @@ Zintegruj z canvas. Testuj ręcznie uruchamiając GUI.
 ```
 Dodaj historię zmian przez QUndoStack:
 - Klasa DrawCommand(QUndoCommand) dla operacji rysowania
-- Grupowanie pociągnięć ołówkiem w jedną operację (między mouse_press a mouse_release)
+  - Przechowuje: współrzędne, kolor nowy, kolor poprzedni (delta, nie snapshot)
+- Grupowanie: wszystkie piksele pomalowane podczas jednego kliknięcia/przeciągnięcia
+  = jedna operacja w historii (QUndoStack.beginMacro / endMacro)
 - Ctrl+Z / Ctrl+Shift+Z jako skróty klawiszowe
-- Menu Edit → Undo/Redo z aktualnym opisem akcji
+- Menu Edit z pozycjami Undo/Redo i aktualnym opisem akcji ("Undo: Pencil stroke")
+- FillCommand dla flood fill (zapamiętuje listę zmienionych pikseli)
+- Test: narysuj, cofnij, sprawdź że piksel wrócił do poprzedniego koloru
 ```
 
-### Krok 4.4 – Pozostałe narzędzia
+### Krok 4.4 – Paleta i kolory
+
+```
+Zaimplementuj widget palety kolorów w src/icoforge/gui/editor/palette.py:
+- PaletteWidget(QWidget):
+  - Dwa duże kwadraty: kolor podstawowy (foreground) i zapasowy (background)
+  - Klik na kwadrat → QColorDialog z obsługą alpha
+  - Klawisz X lub klik na strzałkę swap → zamień kolory miejscami
+  - Klawisz D → reset do domyślnych (czarny/biały)
+  - Siatka 32 kolorów do podglądu/szybkiego wyboru (edytowalna paleta)
+- ColorExtractor w src/icoforge/core/color_utils.py:
+  - Funkcja extract_dominant_colors(image, n=32) -> list[Color]
+  - Implementacja k-means przez numpy (bez sklearn żeby nie dodawać zależności)
+  - Lub użyj PIL.Image.quantize() jako szybszej alternatywy
+- Przycisk "Pobierz paletę z obrazu" w PaletteWidget → wywołuje extract_dominant_colors
+- Zapis palety do JSON: lista kolorów RGBA
+- Wczytanie palety z pliku JSON
+- Menu palety: Zapisz / Wczytaj / Resetuj do domyślnej
+Dodaj PaletteWidget do EditorWindow po lewej stronie (pod listą rozmiarów).
+```
+
+### Krok 4.5 – Narzędzia rozszerzone
 
 ```
 Dodaj brakujące narzędzia do tools.py:
-- FillTool (wiadro): flood fill z tolerancją kolorów (parametr 0-100)
-- LineTool: linia prosta między punktem start a end (podgląd w trakcie rysowania)
-- RectTool: prostokąt kontur lub wypełniony
-- SelectTool: zaznaczenie prostokątne + kopiuj/wklej przez QClipboard
-Każde narzędzie ma ikonę w toolbarze i skrót klawiszowy.
+- FillTool (wiadro farby):
+  - Flood fill algorytm (iteracyjny BFS, nie rekurencja – ikony małe ale żeby nie stack overflow)
+  - Parametr tolerancji kolorów 0–100 (suwak w panelu opcji narzędzia)
+  - Skrót: G
+- LineTool: linia prosta między punktem start a end
+  - Algorytm Bresenhama
+  - Podgląd linii w trakcie rysowania (render na osobnej warstwie overlay)
+  - Skrót: L
+- RectTool: prostokąt (toggle kontur/wypełniony w toolbarze), skrót: R
+- SelectTool: zaznaczenie prostokątne
+  - Wizualne "maszerujące mrówki" (animowane obramowanie zaznaczenia)
+  - Kopiuj (Ctrl+C), wytnij (Ctrl+X), wklej (Ctrl+V)
+  - Wklejanie zachowuje alpha (sprite-aware paste: nie nadpisuj przezroczystymi pikselami)
+  - Skrót: S lub M
+Każde narzędzie: ikona w toolbarze, tooltip z opisem i skrótem klawiszowym.
+```
+
+### Krok 4.6 – Zapis i sprawdzenie jakości fazy 4
+
+```
+Dokończ edytor i przeprowadź kontrolę jakości:
+1. Implementuj zapis edytowanego ICO:
+   - Przycisk "Zapisz" (Ctrl+S) → nadpisuje oryginalny plik
+   - "Zapisz jako..." (Ctrl+Shift+S) → nowy plik
+   - Jeśli niezapisane zmiany i użytkownik zamyka okno → dialog potwierdzenia
+   - Użyj core.ico_writer.write_ico() – nie wynajduj koła na nowo
+2. Testy integracyjne:
+   - Otwórz ICO z fazy 1, edytuj piksel, zapisz, wczytaj ponownie → piksel zmieniony
+   - Undo po zapisie nie cofa zapisu (historia zostaje, plik zapisany)
+3. pytest -v (co da się testować automatycznie)
+4. ruff check . && mypy src/
+5. Test manualny pełnego flow: otwórz ICO → edytuj 32x32 → zmień kolor tła → undo →
+   redo → zapisz → otwórz w Eksploratorze Windows → sprawdź wygląd ikony
+6. Commit: "feat: complete phase 4 - pixel editor with all tools and undo history"
 ```
 
 ---
 
 ## FAZA 5 – Tworzenie ICO od zera
 
+### Krok 5.1 – Kreator nowego ICO
+
 ```
-Dodaj kreator nowego ICO:
-- Dialog: wybór rozmiarów (checkboxy), kolor tła lub transparent
-- Otwiera edytor z pustymi kanwasami dla każdego rozmiaru
-- Opcja "synchronizuj rozmiary": edycja większego → automatyczny downscale do mniejszych
-- Wbudowane szablony: pusty, gradient, solid color
+Dodaj kreator nowego pustego ICO:
+- Dialog NewIcoDialog uruchamiany przez File → New ICO (Ctrl+N):
+  - Checkboxy rozmiarów (domyślnie: 16, 32, 48, 256)
+  - Radio: "Przezroczyste tło" / "Kolor tła" (z QPushButton → QColorDialog)
+  - Sekcja "Szablon": "Pusty", "Wypełniony kolorem tła", "Skopiuj z schowka"
+  - Podgląd na żywo: lista wybranych rozmiarów z informacją o łącznym rozmiarze
+- Po kliknięciu OK: tworzy Document z pustymi obrazami RGBA i otwiera EditorWindow
+- W EditorWindow: każdy rozmiar na liście pokazuje (pusty) canvas
+- Plik "nienazwany.ico" – przy pierwszym zapisie otwiera SaveAs dialog
+```
+
+### Krok 5.2 – Synchronizacja rozmiarów i szablony
+
+```
+Rozszerz kreator i edytor o zaawansowane funkcje:
+- Synchronizacja rozmiarów:
+  - Checkbox "Synchronizuj rozmiary" w EditorWindow
+  - Gdy włączona: po zapisaniu zmiany w większym rozmiarze, mniejsze rozmiary
+    dostają automatyczny downscale (użyj ResampleAlgorithm z config)
+  - Ikona synchronizacji przy każdym rozmiarze na liście (🔗 gdy zsynchronizowany)
+  - Użytkownik może wyłączyć sync dla konkretnego rozmiaru ("odłącz" go)
+- Szablony startowe jako osobna opcja w NewIcoDialog:
+  - "Windows App Icon" – wszystkie rozmiary, czysty gradient niebieski
+  - "Favicon" – 16/32/48, projekt przyjazny dla przeglądarek
+  - "Kursor" – 16/32 + hotspot (przygotowuje pod .cur)
+  - Szablony to PNG osadzone w zasobach aplikacji (assets/)
+- Eksport wszystkich rozmiarów z tego samego projektu naraz:
+  - Menu File → Export As → ICO / PNG spritesheet / Osobne PNG
+  - ICNS (macOS) jeśli zainstalowane pillow-heif
+```
+
+### Krok 5.3 – Sprawdzenie jakości fazy 5
+
+```
+Końcowa kontrola fazy 5:
+1. pytest -v && ruff check . && mypy src/
+2. Test flow "od zera":
+   - File → New ICO → wybierz 16, 32, 48
+   - Narysuj prostą ikonę (np. literę) w każdym rozmiarze
+   - Włącz synchronizację, edytuj 48px → sprawdź że 16 i 32 się zaktualizowały
+   - Zapisz jako nowy.ico
+   - Otwórz nowy.ico z powrotem i sprawdź że wszystko zostało zachowane
+3. Test szablonów: każdy szablon otwiera się bez błędów
+4. Commit: "feat: complete phase 5 - create ICO from scratch with sync and templates"
+```
+
+---
+
+## FUNKCJE DODATKOWE
+
+*Każda z poniższych funkcji to osobny, niezależny krok. Implementuj w dowolnej
+kolejności po ukończeniu fazy 5.*
+
+### Eksport ICNS (ikony macOS)
+
+```
+Dodaj eksport do formatu ICNS (ikony aplikacji macOS):
+- Stwórz src/icoforge/core/icns_writer.py
+- Format ICNS: nagłówek "icns" + sekwencja bloków typ+rozmiar+dane
+- Obsługiwane typy: icp4 (16px), icp5 (32px), icp6 (64px), ic07 (128px),
+  ic08 (256px), ic09 (512px), ic10 (1024px) – dane jako PNG wewnątrz
+- Testy: sprawdź nagłówek binarny wynikowego pliku
+- CLI: icoforge-cli convert input.png output.icns --sizes 16,32,64,128,256,512
+- GUI: w dialogu zapisu dodaj filtr "*.icns" i obsłuż rozszerzenie
+```
+
+### Eksport CUR (kursory Windows)
+
+```
+Dodaj obsługę kursorów Windows (.cur):
+- Stwórz src/icoforge/core/cur_writer.py
+- Format .cur jest identyczny z .ico oprócz: w nagłówku typ=2 (nie 1),
+  i każdy obraz ma hotspot (x, y) zamiast zarezerwowanych bajtów
+- Dodaj do IcoConfig: cursor_hotspot: tuple[int, int] | None = None
+- CLI: icoforge-cli convert input.png output.cur --hotspot 0,0
+- GUI: w dialogu zapisu filtr "*.cur" + pole na hotspot (dwa SpinBoxy X/Y)
+  z podglądem hotspotu na miniaturze
+- Test: zapisz .cur, sprawdź bajty nagłówka (offset 2-3 = 0x02 0x00)
+```
+
+### Favicon preset
+
+```
+Dodaj preset "Favicon Set" generujący kompletny zestaw dla strony WWW:
+- Stwórz src/icoforge/core/favicon_generator.py z funkcją generate_favicon_set()
+- Generuje w wybranym folderze:
+  - favicon.ico (16, 32, 48px)
+  - apple-touch-icon.png (180×180px, bez przezroczystości, białe tło)
+  - icon-192.png i icon-512.png (dla PWA)
+  - site.webmanifest z template'em {"icons": [...]}
+- CLI: icoforge-cli favicon input.png output-folder/
+- GUI: przycisk "Favicon Set..." w toolbarze → dialog wyboru folderu → generuje
+- Test: sprawdź że wynikowy folder zawiera wszystkie 5 plików
+```
+
+### Auto-trim przezroczystych obrzeży
+
+```
+Dodaj funkcję przycinania pustych krawędzi:
+- W src/icoforge/core/image_utils.py funkcja trim_transparency(image) -> Image:
+  - Znajduje bounding box nieprzezroczystych pikseli (alpha > threshold)
+  - Przycina obraz do tego bounding box
+  - Opcja: dodaj padding N pikseli dookoła wynikowego bbox
+- Integracja z konwerterem: IcoConfig.auto_trim: bool = False + auto_trim_padding: int = 0
+- CLI: --auto-trim --trim-padding 4
+- GUI: checkbox "Auto-trim" w SettingsPanel z polem na padding
+- Testy: obraz z przezroczystymi krawędziami → po trim bbox == rozmiar treści
+```
+
+### Ekstrakcja ikon z plików EXE i DLL
+
+```
+Dodaj możliwość wyciągania ikon z plików Windows:
+- Stwórz src/icoforge/core/exe_extractor.py
+- Użyj biblioteki pefile: pip install pefile (dodaj do pyproject.toml jako extra "exe")
+- Funkcja extract_icons_from_exe(path) -> list[bytes] zwraca listę surowych ICO
+- Obsługa błędów: plik nie jest PE, brak zasobu RT_GROUP_ICON, plik chroniony
+- CLI: icoforge-cli extract-icons program.exe --output-dir ./extracted/
+- GUI: File → "Wyciągnij ikony z EXE/DLL..." → dialog wyboru pliku → 
+  pokazuje siatkę znalezionych ikon do wyboru → zapisz zaznaczone
+- Testy: fixture z minimalnym PE zawierającym ikonę (plik binarny w tests/fixtures/)
+```
+
+### Wsadowe usuwanie tła (rembg)
+
+```
+Dodaj opcjonalne usuwanie tła przez AI:
+- Dodaj do pyproject.toml: [project.optional-dependencies] bgremove = ["rembg>=2.0.50"]
+- Stwórz src/icoforge/core/bg_remover.py z funkcją remove_background(image) -> Image
+- rembg używa modeli ONNX działających lokalnie (pierwsze uruchomienie pobiera model ~170MB)
+- Informacja dla użytkownika o rozmiarze pobieranego modelu przed pierwszym użyciem
+- Graceful fallback jeśli rembg nie zainstalowane
+- CLI: icoforge-cli convert input.jpg output.ico --remove-bg
+- GUI: checkbox "Usuń tło (AI)" w SettingsPanel (widoczny tylko jeśli rembg dostępne)
+- Test manualny: zdjęcie produktu na tle → ICO z przezroczystym tłem
+```
+
+### Instalator Windows (PyInstaller + Inno Setup)
+
+```
+Stwórz automatyczny build instalatora dla Windows:
+- Stwórz icoforge.spec dla PyInstaller:
+  - Tryb onedir (nie onefile – szybszy start)
+  - Dołącz zasoby: assets/, modele rembg jeśli dostępne
+  - UPX compression dla mniejszego rozmiaru
+  - Ikona aplikacji z assets/icoforge.ico
+- Stwórz scripts/build_windows.py:
+  - Uruchamia PyInstaller
+  - Uruchamia Inno Setup (iscc) na skrypcie installer.iss
+  - Wynikowy .exe w dist/
+- Stwórz installer.iss (skrypt Inno Setup):
+  - Instalacja do Program Files\IcoForge
+  - Skrót na pulpicie i w Start Menu
+  - Wpis w Dodaj/Usuń programy
+  - Asocjacja pliku .ico z icoforge (opcjonalna)
+- Stwórz .github/workflows/release.yml:
+  - Trigger: push tagu "v*"
+  - Buduje na windows-latest
+  - Uploaduje .exe do GitHub Releases
+- Test: zainstaluj na czystej maszynie Windows i sprawdź że działa
 ```
 
 ---
