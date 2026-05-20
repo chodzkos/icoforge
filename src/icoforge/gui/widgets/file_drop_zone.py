@@ -57,8 +57,14 @@ class FileDropZone(QFrame):
     # ------------------------------------------------------------------
 
     def open_file_dialog(self) -> None:
-        """Open the native file-chooser dialog."""
-        path, _ = QFileDialog.getOpenFileName(self, "Wybierz plik źródłowy", "", _DIALOG_FILTER)
+        """Open the file-chooser dialog."""
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Wybierz plik źródłowy",
+            "",
+            _DIALOG_FILTER,
+            options=QFileDialog.Option.DontUseNativeDialog,
+        )
         if path:
             self.file_loaded.emit(Path(path))
 

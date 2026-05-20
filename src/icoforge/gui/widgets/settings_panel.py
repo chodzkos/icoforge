@@ -207,7 +207,11 @@ class SizeTable(QTableWidget):
         # Parent to the top-level window so focus returns there after close.
         # Using self (a child widget) as parent can break focus on WSLg.
         path, _ = QFileDialog.getOpenFileName(
-            self.window(), f"Zrodlo dla {size}x{size}", "", _DIALOG_FILTER
+            self.window(),
+            f"Zrodlo dla {size}x{size}",
+            "",
+            _DIALOG_FILTER,
+            options=QFileDialog.Option.DontUseNativeDialog,
         )
         if path:
             self._set_override(size, Path(path))
