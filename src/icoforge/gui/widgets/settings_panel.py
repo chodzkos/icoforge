@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, Qt, Signal
+from PySide6.QtCore import QEvent, QObject, QPoint, Qt, Signal
 from PySide6.QtGui import QColor, QDragEnterEvent, QDragMoveEvent, QDropEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -110,9 +110,11 @@ class SizeTable(QTableWidget):
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._on_context_menu)
 
-        self.setAcceptDrops(True)
-        self.setDragEnabled(False)
-        self.setDropIndicatorShown(False)
+        # Route drops through the viewport widget, NOT the table itself.
+        # setAcceptDrops(True) on QAbstractItemView activates Qt's internal
+        # drag machinery which can steal the cursor on WSLg/XWayland.
+        self.viewport().setAcceptDrops(True)
+        self.viewport().installEventFilter(self)
 
     def _populate(self) -> None:
         for row, size in enumerate(self._sizes):
@@ -210,33 +212,43 @@ class SizeTable(QTableWidget):
             self._clear_override(size)
 
     # ------------------------------------------------------------------
-    # Drag & drop
+    # Drag & drop (handled via viewport event filter, not the table itself,
+    # to avoid cursor interference from QAbstractItemView's drag machinery)
     # ------------------------------------------------------------------
 
-    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
-        if event.mimeData().hasUrls():
-            urls = event.mimeData().urls()
-            if urls and Path(urls[0].toLocalFile()).suffix.lower() in _SUPPORTED_SUFFIXES:
-                event.acceptProposedAction()
-                return
-        event.ignore()
-
-    def dragMoveEvent(self, event: QDragMoveEvent) -> None:
-        if event.mimeData().hasUrls():
-            event.acceptProposedAction()
-        else:
-            event.ignore()
-
-    def dropEvent(self, event: QDropEvent) -> None:
-        urls = event.mimeData().urls()
-        if not urls:
-            event.ignore()
-            return
-        path = Path(urls[0].toLocalFile())
-        row = self.rowAt(event.position().toPoint().y())
-        if 0 <= row < len(self._sizes):
-            self._set_override(self._sizes[row], path)
-        event.acceptProposedAction()
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        if obj is self.viewport():
+            t = event.type()
+            if t == QEvent.Type.DragEnter:
+                de = event  # QDragEnterEvent
+                assert isinstance(de, QDragEnterEvent)
+                if de.mimeData().hasUrls():
+                    urls = de.mimeData().urls()
+                    if urls and Path(urls[0].toLocalFile()).suffix.lower() in _SUPPORTED_SUFFIXES:
+                        de.acceptProposedAction()
+                        return True
+                de.ignore()
+                return True
+            if t == QEvent.Type.DragMove:
+                dm = event  # QDragMoveEvent
+                assert isinstance(dm, QDragMoveEvent)
+                if dm.mimeData().hasUrls():
+                    dm.acceptProposedAction()
+                else:
+                    dm.ignore()
+                return True
+            if t == QEvent.Type.Drop:
+                drop = event  # QDropEvent
+                assert isinstance(drop, QDropEvent)
+                urls = drop.mimeData().urls()
+                if urls:
+                    path = Path(urls[0].toLocalFile())
+                    row = self.rowAt(drop.position().toPoint().y())
+                    if 0 <= row < len(self._sizes):
+                        self._set_override(self._sizes[row], path)
+                drop.acceptProposedAction()
+                return True
+        return super().eventFilter(obj, event)
 
     # ------------------------------------------------------------------
     # Public API
