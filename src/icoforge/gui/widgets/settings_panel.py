@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
-from PySide6.QtGui import QColor
+from pathlib import Path
+
+from PySide6.QtCore import QPoint, Qt, Signal
+from PySide6.QtGui import QColor, QDragEnterEvent, QDragMoveEvent, QDropEvent
 from PySide6.QtWidgets import (
-    QCheckBox,
+    QAbstractItemView,
     QColorDialog,
-    QGridLayout,
+    QFileDialog,
     QGroupBox,
     QHBoxLayout,
+    QHeaderView,
+    QMenu,
     QPushButton,
     QRadioButton,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -43,6 +49,218 @@ _RESAMPLE_TOOLTIPS: dict[ResampleAlgorithm, str] = {
     ResampleAlgorithm.BOX: "Szybki i ostry przy dużym zmniejszaniu",
 }
 
+_OVERRIDE_BG = QColor(200, 230, 255)  # light blue highlight for rows with override
+_DIALOG_FILTER = (
+    "Image files "
+    "(*.png *.jpg *.jpeg *.bmp *.gif *.webp *.tiff *.tif *.svg *.heic *.heif *.avif)"
+    ";;All files (*)"
+)
+_SUPPORTED_SUFFIXES: frozenset[str] = frozenset(
+    {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".tiff", ".tif",
+     ".svg", ".heic", ".heif", ".avif"}
+)
+
+_COL_CHECK = 0
+_COL_SIZE = 1
+_COL_SOURCE = 2
+_COL_BTN = 3
+
+
+class SizeTable(QTableWidget):
+    """Per-size table: enable/disable each ICO size and assign a source override."""
+
+    sizes_changed = Signal()
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(len(_ALL_SIZES), 4, parent)
+        self._sizes: tuple[int, ...] = _ALL_SIZES
+        self._overrides: dict[int, Path] = {}
+        self._setup()
+        self._populate()
+
+    # ------------------------------------------------------------------
+    # Setup
+    # ------------------------------------------------------------------
+
+    def _setup(self) -> None:
+        self.setHorizontalHeaderLabels(["✓", "Rozmiar", "Źródło", ""])
+        self.verticalHeader().setVisible(False)
+        self.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.setShowGrid(False)
+
+        hdr = self.horizontalHeader()
+        hdr.setSectionResizeMode(_COL_CHECK, QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(_COL_SIZE, QHeaderView.ResizeMode.ResizeToContents)
+        hdr.setSectionResizeMode(_COL_SOURCE, QHeaderView.ResizeMode.Stretch)
+        hdr.setSectionResizeMode(_COL_BTN, QHeaderView.ResizeMode.ResizeToContents)
+
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._on_context_menu)
+
+        self.setAcceptDrops(True)
+        self.setDragEnabled(False)
+        self.setDropIndicatorShown(False)
+
+    def _populate(self) -> None:
+        for row, size in enumerate(self._sizes):
+            # Column 0 — checkbox
+            check = QTableWidgetItem()
+            check.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
+            check.setCheckState(
+                Qt.CheckState.Checked if size in _DEFAULT_SIZES else Qt.CheckState.Unchecked
+            )
+            check.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.setItem(row, _COL_CHECK, check)
+
+            # Column 1 — size label
+            size_item = QTableWidgetItem(f"{size}x{size}")
+            size_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            size_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.setItem(row, _COL_SIZE, size_item)
+
+            # Column 2 — source path (or default placeholder)
+            src_item = QTableWidgetItem("(domyslne)")
+            src_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            src_item.setForeground(QColor(150, 150, 150))
+            self.setItem(row, _COL_SOURCE, src_item)
+
+            # Column 3 — browse button
+            btn = QPushButton("Wybierz…")
+            btn.setFixedHeight(22)
+            btn.clicked.connect(lambda _checked, s=size: self._on_browse(s))
+            self.setCellWidget(row, _COL_BTN, btn)
+
+            self.setRowHeight(row, 26)
+
+        self.itemChanged.connect(self._on_item_changed)
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _row_for_size(self, size: int) -> int:
+        return self._sizes.index(size)
+
+    def _set_override(self, size: int, path: Path) -> None:
+        self._overrides[size] = path
+        row = self._row_for_size(size)
+        item = self.item(row, _COL_SOURCE)
+        if item:
+            item.setText(path.name)
+            item.setToolTip(str(path))
+            item.setForeground(QColor(0, 0, 0))
+        self._set_row_highlight(row, active=True)
+        self.sizes_changed.emit()
+
+    def _clear_override(self, size: int) -> None:
+        self._overrides.pop(size, None)
+        row = self._row_for_size(size)
+        item = self.item(row, _COL_SOURCE)
+        if item:
+            item.setText("(domyslne)")
+            item.setToolTip("")
+            item.setForeground(QColor(150, 150, 150))
+        self._set_row_highlight(row, active=False)
+        self.sizes_changed.emit()
+
+    def _set_row_highlight(self, row: int, active: bool) -> None:
+        color = _OVERRIDE_BG if active else QColor(Qt.GlobalColor.transparent)
+        for col in (_COL_CHECK, _COL_SIZE, _COL_SOURCE):
+            item = self.item(row, col)
+            if item:
+                item.setBackground(color)
+
+    # ------------------------------------------------------------------
+    # Slots
+    # ------------------------------------------------------------------
+
+    def _on_item_changed(self, item: QTableWidgetItem) -> None:
+        if item.column() == _COL_CHECK:
+            self.sizes_changed.emit()
+
+    def _on_browse(self, size: int) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, f"Zrodlo dla {size}x{size}", "", _DIALOG_FILTER
+        )
+        if path:
+            self._set_override(size, Path(path))
+
+    def _on_context_menu(self, pos: QPoint) -> None:
+        row = self.rowAt(pos.y())
+        col = self.columnAt(pos.x())
+        if row < 0 or col != _COL_SOURCE:
+            return
+        size = self._sizes[row]
+        if size not in self._overrides:
+            return
+        menu = QMenu(self)
+        action = menu.addAction("Usuń override")
+        if menu.exec(self.viewport().mapToGlobal(pos)) is action:
+            self._clear_override(size)
+
+    # ------------------------------------------------------------------
+    # Drag & drop
+    # ------------------------------------------------------------------
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        if event.mimeData().hasUrls():
+            urls = event.mimeData().urls()
+            if urls and Path(urls[0].toLocalFile()).suffix.lower() in _SUPPORTED_SUFFIXES:
+                event.acceptProposedAction()
+                return
+        event.ignore()
+
+    def dragMoveEvent(self, event: QDragMoveEvent) -> None:
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        urls = event.mimeData().urls()
+        if not urls:
+            event.ignore()
+            return
+        path = Path(urls[0].toLocalFile())
+        row = self.rowAt(event.position().toPoint().y())
+        if 0 <= row < len(self._sizes):
+            self._set_override(self._sizes[row], path)
+        event.acceptProposedAction()
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def checked_sizes(self) -> list[int]:
+        result: list[int] = []
+        for row, size in enumerate(self._sizes):
+            item = self.item(row, _COL_CHECK)
+            if item and item.checkState() == Qt.CheckState.Checked:
+                result.append(size)
+        return sorted(result)
+
+    def set_checked_sizes(self, sizes: frozenset[int]) -> None:
+        """Set which rows are checked without triggering the preset-reset logic."""
+        self.itemChanged.disconnect(self._on_item_changed)
+        for row, size in enumerate(self._sizes):
+            item = self.item(row, _COL_CHECK)
+            if item:
+                item.setCheckState(
+                    Qt.CheckState.Checked if size in sizes else Qt.CheckState.Unchecked
+                )
+        self.itemChanged.connect(self._on_item_changed)
+
+    def get_size_specs(self) -> tuple[SizeSpec, ...]:
+        """Return checked sizes as SizeSpec tuples, including any overrides."""
+        specs: list[SizeSpec] = []
+        for row, size in enumerate(self._sizes):
+            item = self.item(row, _COL_CHECK)
+            if item and item.checkState() == Qt.CheckState.Checked:
+                override = self._overrides.get(size)
+                specs.append(SizeSpec(size, size, source_override=override))
+        return tuple(specs) if specs else (SizeSpec(32, 32),)
+
 
 class SettingsPanel(QWidget):
     """Conversion settings: sizes, preset, resample algorithm, background."""
@@ -55,8 +273,7 @@ class SettingsPanel(QWidget):
         self._updating_preset: bool = False
         self._bg_color: Color = Color(255, 255, 255)
 
-        # Declared here; assigned in the _make_* helpers called below.
-        self._size_checks: dict[int, QCheckBox]
+        self._size_table: SizeTable
         self._preset_buttons: dict[str, QRadioButton]
         self._resample_buttons: dict[ResampleAlgorithm, QRadioButton]
         self._radio_transparent: QRadioButton
@@ -79,16 +296,13 @@ class SettingsPanel(QWidget):
 
     def _make_sizes_group(self) -> QGroupBox:
         group = QGroupBox("Rozmiary")
-        grid = QGridLayout(group)
-        grid.setSpacing(4)
+        vbox = QVBoxLayout(group)
+        vbox.setContentsMargins(4, 4, 4, 4)
+        vbox.setSpacing(0)
 
-        self._size_checks = {}
-        for i, size in enumerate(_ALL_SIZES):
-            cb = QCheckBox(str(size))
-            cb.setChecked(size in _DEFAULT_SIZES)
-            cb.toggled.connect(self._on_size_toggled)
-            self._size_checks[size] = cb
-            grid.addWidget(cb, i // 2, i % 2)
+        self._size_table = SizeTable()
+        self._size_table.sizes_changed.connect(self._on_size_table_changed)
+        vbox.addWidget(self._size_table)
 
         return group
 
@@ -164,8 +378,7 @@ class SettingsPanel(QWidget):
 
     def get_config(self) -> IcoConfig:
         """Return IcoConfig built from the current panel state."""
-        checked = sorted(s for s, cb in self._size_checks.items() if cb.isChecked())
-        sizes = tuple(SizeSpec(s, s) for s in checked) or (SizeSpec(32, 32),)
+        sizes = self._size_table.get_size_specs()
 
         resample = next(
             (algo for algo, rb in self._resample_buttons.items() if rb.isChecked()),
@@ -182,7 +395,7 @@ class SettingsPanel(QWidget):
     # Slots
     # ------------------------------------------------------------------
 
-    def _on_size_toggled(self, _checked: bool) -> None:
+    def _on_size_table_changed(self) -> None:
         if self._updating_preset:
             return
         self._updating_preset = True
@@ -198,8 +411,7 @@ class SettingsPanel(QWidget):
             self.settings_changed.emit()
             return
         self._updating_preset = True
-        for size, cb in self._size_checks.items():
-            cb.setChecked(size in sizes)
+        self._size_table.set_checked_sizes(sizes)
         self._updating_preset = False
         self.settings_changed.emit()
 
