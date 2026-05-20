@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PIL import Image
-from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal
+from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
     QGridLayout,
@@ -117,7 +117,13 @@ class PreviewPanel(QScrollArea):
         task = _RenderTask(source_path, config)
         task.signals.finished.connect(self._on_render_done)
         task.signals.error.connect(self._on_render_error)
-        task.signals.done.connect(lambda t=task: self._live_tasks.discard(t))
+        # Defer the discard one event-loop tick so the _RenderSignals object
+        # isn't deleted from inside its own `done` slot — that would crash Qt
+        # when the slot returns into signal-delivery code that still holds a
+        # pointer to the (now-freed) sender.
+        task.signals.done.connect(
+            lambda t=task: QTimer.singleShot(0, lambda: self._live_tasks.discard(t))
+        )
         self._live_tasks.add(task)
         self._current_task = task
         QThreadPool.globalInstance().start(task)
