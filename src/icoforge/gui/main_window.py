@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QThreadPool, QTimer, QUrl
+from PySide6.QtCore import QThreadPool, QTimer, QUrl
 from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
@@ -257,10 +257,12 @@ class MainWindow(QMainWindow):
 def main() -> int:
     app = QApplication.instance() or QApplication(sys.argv)
     window = MainWindow()
-    # Clear any inherited minimized/maximized bit before showing so the
-    # Wayland compositor maps the surface as a normal toplevel.
-    window.setWindowState(Qt.WindowState.WindowNoState)
-    window.show()
+    # showNormal() forces the toplevel to be mapped in normal state on
+    # WSLg/Wayland; plain show() sometimes maps it minimized.
+    window.showNormal()
     window.raise_()
     window.activateWindow()
+    # If WSLg still maps the window minimized, re-issue showNormal once the
+    # event loop is running so the compositor honours it.
+    QTimer.singleShot(0, window.showNormal)
     return int(app.exec())
