@@ -6,7 +6,7 @@ import csv
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QThreadPool, Signal
-from PySide6.QtGui import QColor, QDragEnterEvent, QDropEvent
+from PySide6.QtGui import QColor, QDragEnterEvent, QDropEvent, QMouseEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -59,6 +59,18 @@ class DropZoneFrame(QFrame):
         paths = [Path(url.toLocalFile()) for url in mime.urls()]
         self.files_dropped.emit(paths)
         event.acceptProposedAction()
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        """Handle click to open file selection dialog."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            paths, _ = QFileDialog.getOpenFileNames(
+                self,
+                "Wybierz pliki PNG do optymalizacji",
+                "",
+                "PNG Images (*.png);;All Files (*)",
+            )
+            if paths:
+                self.files_dropped.emit([Path(p) for p in paths])
 
 
 class OptimizationPanel(QWidget):
