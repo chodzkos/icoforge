@@ -16,12 +16,14 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QProgressBar,
     QStatusBar,
+    QTabWidget,
     QToolBar,
     QVBoxLayout,
     QWidget,
 )
 
 from icoforge.gui.widgets.file_drop_zone import SUPPORTED_SUFFIXES, FileDropZone
+from icoforge.gui.widgets.optimization_panel import OptimizationPanel
 from icoforge.gui.widgets.preview_panel import PreviewPanel
 from icoforge.gui.widgets.settings_panel import SettingsPanel
 from icoforge.gui.workers import ConversionWorker
@@ -38,6 +40,7 @@ class MainWindow(QMainWindow):
         self._drop_zone: FileDropZone
         self._settings_panel: SettingsPanel
         self._preview_panel: PreviewPanel
+        self._optimization_panel: OptimizationPanel
         self._save_action: QAction
         self._cancel_action: QAction
         self._progress_bar: QProgressBar
@@ -79,10 +82,12 @@ class MainWindow(QMainWindow):
         toolbar.addAction(self._cancel_action)
 
     def _setup_central(self) -> None:
-        central = QWidget()
-        self.setCentralWidget(central)
+        tabs = QTabWidget()
+        self.setCentralWidget(tabs)
 
-        layout = QHBoxLayout(central)
+        # Conversion tab
+        conversion_widget = QWidget()
+        layout = QHBoxLayout(conversion_widget)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(8)
 
@@ -94,6 +99,12 @@ class MainWindow(QMainWindow):
         self._drop_zone.file_loaded.connect(self.on_file_loaded)
         self._settings_panel.settings_changed.connect(self._update_preview)
         self._preview_panel.render_error.connect(self._on_preview_error)
+
+        tabs.addTab(conversion_widget, "Konwersja")
+
+        # Optimization tab
+        self._optimization_panel = OptimizationPanel()
+        tabs.addTab(self._optimization_panel, "Optymalizacja")
 
     def _make_settings_panel(self) -> QWidget:
         panel = QFrame()
