@@ -155,13 +155,7 @@ class MainWindow(QMainWindow):
         source = self.source_path
         if source is None:
             return
-        path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Zapisz plik ICO",
-            "",
-            "ICO files (*.ico)",
-            options=QFileDialog.Option.DontUseNativeDialog,
-        )
+        path, _ = QFileDialog.getSaveFileName(self, "Zapisz plik ICO", "", "ICO files (*.ico)")
         if not path:
             return
         if not path.lower().endswith(".ico"):
