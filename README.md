@@ -7,10 +7,10 @@ Konwerter i edytor plików ICO. Konwersja z PNG/JPG/WEBP/SVG/HEIC do `.ico` z pe
 | Faza | Opis | Stan |
 |------|------|------|
 | Faza 1 | MVP konwersji PNG → ICO | ✅ Ukończona |
-| Faza 2 | Więcej formatów wejściowych | Planowana |
-| Faza 3 | Optymalizacja PNG | Planowana |
-| Faza 4 | Edytor pikselowy | Planowana |
-| Faza 5 | Tworzenie ICO od podstaw | Planowana |
+| Faza 2 | Więcej formatów wejściowych | ✅ Ukończona |
+| Faza 3 | Optymalizacja PNG | ✅ Ukończona |
+| Faza 4 | Edytor pikselowy | 🔄 W trakcie |
+| Faza 5 | Tworzenie ICO od podstaw | 📋 Planowana |
 
 Patrz [docs/ROADMAP.md](docs/ROADMAP.md) dla szczegółowego planu.
 
@@ -24,17 +24,18 @@ Patrz [docs/ROADMAP.md](docs/ROADMAP.md) dla szczegółowego planu.
 - GUI (PySide6): drag & drop, podgląd każdego rozmiaru, zapis z paskiem postępu
 - CLI: `icoforge-cli convert`
 
-**Faza 2 – więcej formatów wejściowych**
+**Faza 2 – więcej formatów wejściowych** ✅
 - JPG, BMP, GIF, WEBP, TIFF (przez Pillow)
 - SVG (rasteryzacja resvg / cairosvg)
 - HEIC, AVIF (pillow-heif)
 - Per-size source – inny plik źródłowy na każdy rozmiar
 
-**Faza 3 – optymalizacja PNG (bezstratna)**
-- oxipng jako główny silnik
+**Faza 3 – optymalizacja PNG (bezstratna)** ✅
+- oxipng jako główny silnik (level 0–6)
 - Usuwanie metadanych (`tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`)
 - Zopfli compression (wolniej, mniejszy rozmiar)
-- Tryb wsadowy
+- Tryb wsadowy z raportem CSV
+- GUI: zakładka "Optymalizacja" z drag & drop, progress bar i wynikami
 
 **Faza 4 – edytor pikselowy**
 - Canvas z zoomem do 32x i widokiem siatki
