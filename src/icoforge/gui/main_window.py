@@ -5,8 +5,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QThreadPool, QTimer, QUrl
-from PySide6.QtGui import QAction, QDesktopServices
+from PySide6.QtCore import QThreadPool, QTimer, QUrl
+from PySide6.QtGui import QAction, QCursor, QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -254,13 +254,30 @@ class MainWindow(QMainWindow):
         )
 
 
+def _wake_wslg(window: QMainWindow) -> None:
+    """Force WSLg/XWayland to register the window as the active input target.
+
+    On WSLg the cursor sometimes ends up under the freshly shown window —
+    the X server hasn't received the EnterNotify for the new top-level.
+    Nudging the cursor by one pixel and back generates motion events that
+    re-establish the pointer's owner.
+    """
+    window.raise_()
+    window.activateWindow()
+    pos = QCursor.pos()
+    QCursor.setPos(pos.x() + 1, pos.y())
+    QCursor.setPos(pos.x(), pos.y())
+
+
 def main() -> int:
     app = QApplication.instance() or QApplication(sys.argv)
     window = MainWindow()
-    # Clear any inherited minimized/maximized bit before showing so the
-    # Wayland compositor maps the surface as a normal toplevel.
-    window.setWindowState(Qt.WindowState.WindowNoState)
     window.show()
+    # On WSLg/XWayland the window may not receive focus automatically.
     window.raise_()
     window.activateWindow()
+    # Multiple deferred re-activations: WSLg's compositor sometimes reassigns
+    # focus shortly after show(), and the cursor needs a nudge to re-enter.
+    QTimer.singleShot(100, lambda: _wake_wslg(window))
+    QTimer.singleShot(400, lambda: _wake_wslg(window))
     return int(app.exec())
