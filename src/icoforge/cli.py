@@ -15,10 +15,12 @@ from icoforge.core import (
     Background,
     Color,
     IcoConfig,
+    OptimizationConfig,
     ResampleAlgorithm,
     SizeSpec,
 )
 from icoforge.core.converter import convert as run_convert
+from icoforge.core.optimizer import optimize_png
 
 _PRESETS: dict[str, tuple[SizeSpec, ...]] = {
     "windows": WINDOWS_APP_SIZES,
@@ -266,10 +268,37 @@ def optimize(
     strip: bool,
     slow: bool,
 ) -> None:
-    """Losslessly optimize a PNG file. (Phase 3)"""
-    # TODO(phase-3): wire to icoforge.core.optimizer.optimize_png
-    click.secho("optimize: not yet implemented (phase 3)", fg="yellow")
-    raise SystemExit(1)
+    """Losslessly optimize a PNG file.
+
+    Reduces file size without changing pixel data using pyoxipng compression.
+    Optionally strips metadata chunks (tEXt, iTXt, zTXt, eXIf, tIME, pHYs).
+    """
+    click.echo(f"Optimizing {source.name}...")
+
+    config = OptimizationConfig(
+        level=level,
+        strip_metadata=strip,
+        use_zopfli=slow,
+    )
+
+    try:
+        result = optimize_png(source, target=output, config=config)
+    except FileNotFoundError as exc:
+        click.echo()
+        click.secho(f"Error: source file not found: {exc}", fg="red", err=True)
+        raise SystemExit(1) from exc
+    except ValueError as exc:
+        click.echo()
+        click.secho(f"Error: {exc}", fg="red", err=True)
+        raise SystemExit(1) from exc
+
+    click.echo()
+    click.secho(f"✓ Wrote {result.target}", fg="green")
+    click.secho(
+        f"  {result.bytes_before:,} → {result.bytes_after:,} bytes "
+        f"({result.saved_ratio * 100:.1f}% smaller)",
+        fg="cyan",
+    )
 
 
 if __name__ == "__main__":
