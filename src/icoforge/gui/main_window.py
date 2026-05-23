@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QThreadPool, QTimer, QUrl
+from PySide6.QtCore import QThreadPool, QUrl
 from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
@@ -35,7 +35,6 @@ class MainWindow(QMainWindow):
 
         self.source_path: Path | None = None
         self._current_worker: ConversionWorker | None = None
-        self._live_workers: set[ConversionWorker] = set()
         self._drop_zone: FileDropZone
         self._settings_panel: SettingsPanel
         self._preview_panel: PreviewPanel
@@ -174,9 +173,7 @@ class MainWindow(QMainWindow):
         worker.signals.progress.connect(self._on_convert_progress)
         worker.signals.finished.connect(self._on_convert_finished)
         worker.signals.error.connect(self._on_convert_error)
-        worker.signals.done.connect(lambda w=worker: self._live_workers.discard(w))
         self._current_worker = worker
-        self._live_workers.add(worker)
 
         self._progress_bar.setValue(0)
         self._progress_bar.setVisible(True)
@@ -257,6 +254,4 @@ def main() -> int:
     # On WSLg/XWayland the window may not receive focus automatically.
     window.raise_()
     window.activateWindow()
-    # Deferred re-activation in case the compositor reassigns focus after show().
-    QTimer.singleShot(150, window.activateWindow)
     return int(app.exec())

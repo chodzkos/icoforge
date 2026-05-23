@@ -52,7 +52,6 @@ class _RenderDone:
 class _RenderSignals(QObject):
     finished = Signal(object)  # _RenderDone
     error = Signal(str)
-    done = Signal()
 
 
 class _RenderTask(QRunnable):
@@ -62,7 +61,7 @@ class _RenderTask(QRunnable):
         self._source = source_path
         self._config = config
         self._cancelled = False
-        self.setAutoDelete(False)
+        self.setAutoDelete(True)
 
     def cancel(self) -> None:
         self._cancelled = True
@@ -81,8 +80,6 @@ class _RenderTask(QRunnable):
         except Exception as exc:
             if not self._cancelled:
                 self.signals.error.emit(str(exc))
-        finally:
-            self.signals.done.emit()
 
 
 # ---------------------------------------------------------------------------
@@ -106,7 +103,6 @@ class PreviewPanel(QScrollArea):
         self.setWidget(self._container)
 
         self._current_task: _RenderTask | None = None
-        self._live_tasks: set[_RenderTask] = set()
         self._show_placeholder()
 
     def update_preview(self, source_path: Path, config: IcoConfig) -> None:
@@ -117,8 +113,6 @@ class PreviewPanel(QScrollArea):
         task = _RenderTask(source_path, config)
         task.signals.finished.connect(self._on_render_done)
         task.signals.error.connect(self._on_render_error)
-        task.signals.done.connect(lambda t=task: self._live_tasks.discard(t))
-        self._live_tasks.add(task)
         self._current_task = task
         QThreadPool.globalInstance().start(task)
 
