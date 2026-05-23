@@ -183,9 +183,9 @@ class EditorWindow(QMainWindow):
 
     def _create_tools(self) -> None:
         """Create tool instances for current frame."""
-        if self._current_frame_index >= len(self._frames):
+        if self._canvas._current_image is None:
             return
-        image, _ = self._frames[self._current_frame_index]
+        image = self._canvas._current_image
         self._tools = {
             "pencil": PixelTool(image, self._current_color, self._current_size),
             "eraser": EraserTool(image, self._current_size),

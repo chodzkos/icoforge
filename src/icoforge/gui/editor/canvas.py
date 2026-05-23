@@ -128,7 +128,7 @@ class EditorCanvas(QGraphicsView):
         # Convert PIL Image to QPixmap
         # PIL to QImage conversion
         rgb_image = image.convert("RGBA")
-        data = rgb_image.tobytes("rgba")
+        data = rgb_image.tobytes()
         qimage = QImage(data, width, height, 4 * width, QImage.Format.Format_RGBA8888)
         pixmap = QPixmap.fromImage(qimage)
 
@@ -161,7 +161,7 @@ class EditorCanvas(QGraphicsView):
         if self._current_image is None or self._pixmap_item is None:
             return
         rgb_image = self._current_image.convert("RGBA")
-        data = rgb_image.tobytes("rgba")
+        data = rgb_image.tobytes()
         width, height = self._current_image.size
         qimage = QImage(data, width, height, 4 * width, QImage.Format.Format_RGBA8888)
         pixmap = QPixmap.fromImage(qimage)
