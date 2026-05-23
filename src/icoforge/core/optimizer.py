@@ -8,8 +8,14 @@ Primary engine: ``pyoxipng``. Optional Zopfli pass for max compression.
 
 from __future__ import annotations
 
+import struct
+import zlib
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+
+import oxipng
+from PIL import Image
 
 from icoforge.core.models import OptimizationConfig
 
@@ -34,6 +40,38 @@ class OptimizationResult:
         return self.saved_bytes / self.bytes_before
 
 
+def optimize_batch(
+    paths: list[Path],
+    config: OptimizationConfig | None = None,
+    progress: Callable[[float], None] | None = None,
+) -> list[OptimizationResult]:
+    """Optimize multiple PNG files in batch.
+
+    Args:
+        paths: List of PNG file paths to optimize.
+        config: Optimization parameters. Uses defaults if ``None``.
+        progress: Optional callback ``progress(ratio)`` where ratio is 0..1
+            indicating overall batch progress.
+
+    Returns:
+        List of OptimizationResult for each input file.
+
+    Raises:
+        ValueError: If paths list is empty.
+    """
+    if not paths:
+        raise ValueError("paths list cannot be empty")
+
+    results: list[OptimizationResult] = []
+    for i, source in enumerate(paths):
+        result = optimize_png(source, target=source, config=config)
+        results.append(result)
+        if progress is not None:
+            progress((i + 1) / len(paths))
+
+    return results
+
+
 def optimize_png(
     source: Path,
     target: Path | None = None,
@@ -51,41 +89,149 @@ def optimize_png(
 
     Raises:
         FileNotFoundError: Source does not exist.
-        ValueError: Source is not a PNG (by extension check; deeper validation TODO).
+        ValueError: Source is not a PNG.
     """
     if not source.exists():
         raise FileNotFoundError(source)
     if source.suffix.lower() != ".png":
         raise ValueError(f"Expected .png source, got {source.suffix}")
 
-    # TODO(phase-3): wire pyoxipng here.
-    # import pyoxipng
-    # opts = pyoxipng.Options(level=cfg.level, ...)
-    # pyoxipng.optimize(str(source), str(out_path), opts)
-    raise NotImplementedError("Phase 3 implementation pending")
+    cfg = config or OptimizationConfig()
+    out_path = target or source
+    bytes_before = source.stat().st_size
 
-    # Pseudocode for the metadata strip (to be implemented):
-    # if cfg.strip_metadata:
-    #     _strip_png_chunks(out_path, keep=cfg.keep_chunks)
+    # Validate it's a real PNG
+    try:
+        _ = Image.open(source)
+    except OSError as exc:
+        raise ValueError(f"Cannot open image: {exc}") from exc
 
-    # bytes_after = out_path.stat().st_size
-    # return OptimizationResult(source, out_path, bytes_before, bytes_after)
+    # Read, optimize with oxipng, strip metadata if requested
+    data = source.read_bytes()
+    if cfg.strip_metadata:
+        if cfg.keep_chunks:
+            strip_chunks = oxipng.StripChunks.keep([s.encode() for s in cfg.keep_chunks])
+        else:
+            strip_chunks = oxipng.StripChunks.all()
+    else:
+        strip_chunks = oxipng.StripChunks.none()
+
+    deflate = (
+        oxipng.Deflaters.zopfli(iterations=100)
+        if cfg.use_zopfli
+        else oxipng.Deflaters.libdeflater(cfg.level)
+    )
+    data = oxipng.optimize_from_memory(data, level=cfg.level, strip=strip_chunks, deflate=deflate)
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_bytes(data)
+    bytes_after = len(data)
+
+    return OptimizationResult(source, out_path, bytes_before, bytes_after)
 
 
-def _strip_png_chunks(path: Path, keep: frozenset[str]) -> None:
-    """Remove metadata chunks (tEXt, iTXt, zTXt, eXIf, tIME) from a PNG.
+def _strip_png_chunks(
+    path: Path,
+    keep: frozenset[str] = frozenset(),
+    preserve_color_profile: bool = False,
+) -> None:
+    """Remove metadata chunks from a PNG file in-place.
 
-    Parses chunk-by-chunk because Pillow loses fidelity if we just resave.
+    Keeps critical chunks (IHDR, IDAT, IEND, PLTE) and optionally color
+    profile chunks (sRGB, gAMA, cHRM, iCCP) if preserve_color_profile=True.
+    Removes: tEXt, iTXt, zTXt, eXIf, tIME, pHYs and other ancillary chunks
+    unless explicitly kept in the 'keep' set.
 
     Args:
-        path: PNG file to modify in place.
-        keep: Set of 4-char chunk names to preserve (e.g. ``{"iCCP"}``).
+        path: Path to PNG file to strip (modified in-place).
+        keep: Set of additional 4-char chunk type names to keep (e.g. {"bKGD"}).
+        preserve_color_profile: When True, retain color profile chunks
+            (sRGB, gAMA, cHRM, iCCP) for accurate color reproduction.
+
+    Raises:
+        FileNotFoundError: PNG file not found.
+        ValueError: File is not a valid PNG.
     """
-    # TODO(phase-3): implement chunk parser. PNG layout:
-    #   signature (8 bytes) + chunks
-    #   each chunk: length(4) + type(4) + data(length) + crc(4)
-    # Skip chunks whose type is in the strip set and not in `keep`.
-    raise NotImplementedError("Phase 3 implementation pending")
+    if not path.exists():
+        raise FileNotFoundError(path)
+
+    data = path.read_bytes()
+
+    if len(data) < 8 or data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError(f"Invalid PNG signature: {path}")
+
+    chunks = _parse_png_chunks(data)
+
+    # Critical chunks that must be preserved
+    critical = {b"IHDR", b"IDAT", b"IEND", b"PLTE"}
+
+    # Color profile chunks to preserve if requested
+    color_chunks = {b"sRGB", b"gAMA", b"cHRM", b"iCCP"}
+
+    # User-specified chunks to keep
+    keep_bytes = {s.encode() for s in keep}
+
+    # Filter chunks: keep critical, color (if enabled), and user-specified
+    kept = [
+        (chunk_type, chunk_data)
+        for chunk_type, chunk_data in chunks
+        if chunk_type in critical
+        or (preserve_color_profile and chunk_type in color_chunks)
+        or chunk_type in keep_bytes
+    ]
+
+    # Write stripped PNG back to file
+    stripped_data = _write_png_chunks(kept)
+    path.write_bytes(stripped_data)
+
+
+def _strip_png_chunks_from_bytes(data: bytes, keep: frozenset[str]) -> bytes:
+    """Remove metadata chunks from PNG bytes.
+
+    Args:
+        data: PNG binary data.
+        keep: Set of 4-char chunk type names to keep (e.g. ``{"iCCP"}``).
+
+    Returns:
+        PNG bytes with metadata chunks removed.
+    """
+    if len(data) < 8 or data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError("Invalid PNG signature")
+
+    chunks = _parse_png_chunks(data)
+    keep_bytes = {s.encode() for s in keep}
+    kept = [(ct, cd) for ct, cd in chunks if ct in {b"IHDR", b"IDAT", b"IEND"} or ct in keep_bytes]
+    return _write_png_chunks(kept)
+
+
+def _parse_png_chunks(data: bytes) -> list[tuple[bytes, bytes]]:
+    """Parse PNG chunks. Returns list of (type, data) tuples."""
+    chunks: list[tuple[bytes, bytes]] = []
+    pos = 8  # Skip signature
+    while pos < len(data):
+        if pos + 8 > len(data):
+            break
+        length = struct.unpack(">I", data[pos : pos + 4])[0]
+        pos += 4
+        chunk_type = data[pos : pos + 4]
+        pos += 4
+        chunk_data = data[pos : pos + length]
+        pos += length
+        pos += 4  # Skip CRC
+        chunks.append((chunk_type, chunk_data))
+    return chunks
+
+
+def _write_png_chunks(chunks: list[tuple[bytes, bytes]]) -> bytes:
+    """Reconstruct PNG from chunks."""
+    result = bytearray(b"\x89PNG\r\n\x1a\n")
+    for chunk_type, chunk_data in chunks:
+        result.extend(struct.pack(">I", len(chunk_data)))
+        chunk_with_type = chunk_type + chunk_data
+        result.extend(chunk_with_type)
+        crc = zlib.crc32(chunk_with_type) & 0xFFFFFFFF
+        result.extend(struct.pack(">I", crc))
+    return bytes(result)
 
 
 def verify_lossless(original: Path, optimized: Path) -> bool:
@@ -98,5 +244,7 @@ def verify_lossless(original: Path, optimized: Path) -> bool:
     Returns:
         True if every pixel value matches.
     """
-    # TODO(phase-3): load both with Pillow, compare bytes of raw pixel arrays.
-    raise NotImplementedError("Phase 3 implementation pending")
+    img1 = Image.open(original).convert("RGBA")
+    img2 = Image.open(optimized).convert("RGBA")
+    # Compare images by converting to bytes
+    return img1.tobytes() == img2.tobytes()
