@@ -3,22 +3,31 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QAction, QColor, QFont
 from PySide6.QtWidgets import (
+    QColorDialog,
     QLabel,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QSpinBox,
     QSplitter,
     QStatusBar,
+    QToolBar,
     QVBoxLayout,
     QWidget,
 )
 
 from icoforge.core.ico_reader import read_ico
+from icoforge.core.models import SizeSpec
 from icoforge.gui.editor.canvas import EditorCanvas
+from icoforge.gui.editor.tools import EraserTool, EyedropperTool, PixelTool, Tool
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 
 class EditorWindow(QMainWindow):
@@ -31,8 +40,13 @@ class EditorWindow(QMainWindow):
         self.resize(1000, 700)
 
         # Frames data: list of (Image, SizeSpec) tuples
-        self._frames: list = []
+        self._frames: list[tuple[Image.Image, SizeSpec]] = []
         self._current_frame_index = 0
+
+        # Tool state
+        self._current_color: tuple[int, int, int, int] = (0, 0, 0, 255)
+        self._current_size = 1
+        self._tools: dict[str, Tool] = {}
 
         # Create central widget
         central = QWidget()
@@ -64,6 +78,9 @@ class EditorWindow(QMainWindow):
         splitter.addWidget(self._canvas)
         splitter.setStretchFactor(1, 3)
 
+        # Toolbar
+        self._setup_toolbar()
+
         # Status bar
         self._status_bar = QStatusBar()
         self.setStatusBar(self._status_bar)
@@ -71,6 +88,47 @@ class EditorWindow(QMainWindow):
 
         # Load ICO file
         self._load_ico(ico_path)
+
+    def _setup_toolbar(self) -> None:
+        """Setup the drawing toolbar."""
+        toolbar = QToolBar("Tools")
+        self.addToolBar(toolbar)
+
+        # Pencil tool
+        pencil_action = QAction("Pencil (B)", self)
+        pencil_action.triggered.connect(self._on_tool_pencil)
+        pencil_action.setShortcut("B")
+        toolbar.addAction(pencil_action)
+
+        # Eraser tool
+        eraser_action = QAction("Eraser (E)", self)
+        eraser_action.triggered.connect(self._on_tool_eraser)
+        eraser_action.setShortcut("E")
+        toolbar.addAction(eraser_action)
+
+        # Eyedropper tool
+        eyedropper_action = QAction("Eyedropper (I)", self)
+        eyedropper_action.triggered.connect(self._on_tool_eyedropper)
+        eyedropper_action.setShortcut("I")
+        toolbar.addAction(eyedropper_action)
+
+        toolbar.addSeparator()
+
+        # Color picker
+        color_action = QAction("Pick Color", self)
+        color_action.triggered.connect(self._on_pick_color)
+        toolbar.addAction(color_action)
+
+        toolbar.addSeparator()
+
+        # Size control
+        toolbar.addWidget(QLabel("Size:"))
+        self._size_spinbox = QSpinBox()
+        self._size_spinbox.setMinimum(1)
+        self._size_spinbox.setMaximum(8)
+        self._size_spinbox.setValue(1)
+        self._size_spinbox.valueChanged.connect(self._on_size_changed)
+        toolbar.addWidget(self._size_spinbox)
 
     def _load_ico(self, path: Path) -> None:
         """Load an ICO file and populate the UI."""
@@ -110,6 +168,10 @@ class EditorWindow(QMainWindow):
             # Update window title
             self.setWindowTitle(f"Editor - {self.ico_path.name} [{spec.width}x{spec.height}]")
 
+            # Recreate tools for new frame and select pencil
+            self._tools = {}
+            self._on_tool_pencil()
+
             self._status_bar.showMessage(
                 f"Editing {spec.width}x{spec.height} ({frame_index + 1}/{len(self._frames)})"
             )
@@ -118,3 +180,78 @@ class EditorWindow(QMainWindow):
         """Handle zoom level change."""
         percentage = int(zoom * 100)
         self._status_bar.showMessage(f"Zoom: {percentage}%")
+
+    def _create_tools(self) -> None:
+        """Create tool instances for current frame."""
+        if self._current_frame_index >= len(self._frames):
+            return
+        image, _ = self._frames[self._current_frame_index]
+        self._tools = {
+            "pencil": PixelTool(image, self._current_color, self._current_size),
+            "eraser": EraserTool(image, self._current_size),
+            "eyedropper": EyedropperTool(image),
+        }
+
+    def _on_tool_pencil(self) -> None:
+        """Switch to pencil tool."""
+        if "pencil" not in self._tools:
+            self._create_tools()
+        tool = self._tools["pencil"]
+        assert isinstance(tool, PixelTool)
+        tool.set_color(self._current_color)
+        tool.set_size(self._current_size)
+        self._canvas.set_tool(tool)
+        self._status_bar.showMessage("Tool: Pencil")
+
+    def _on_tool_eraser(self) -> None:
+        """Switch to eraser tool."""
+        if "eraser" not in self._tools:
+            self._create_tools()
+        tool = self._tools["eraser"]
+        assert isinstance(tool, EraserTool)
+        tool.set_size(self._current_size)
+        self._canvas.set_tool(tool)
+        self._status_bar.showMessage("Tool: Eraser")
+
+    def _on_tool_eyedropper(self) -> None:
+        """Switch to eyedropper tool."""
+        if "eyedropper" not in self._tools:
+            self._create_tools()
+        tool = self._tools["eyedropper"]
+        self._canvas.set_tool(tool)
+        self._status_bar.showMessage("Tool: Eyedropper (click to pick color)")
+
+    def _on_pick_color(self) -> None:
+        """Open color picker dialog."""
+        color = QColorDialog.getColor(
+            QColor(*self._current_color),
+            self,
+            "Pick Color",
+        )
+        if color.isValid():
+            self._current_color = (
+                color.red(),
+                color.green(),
+                color.blue(),
+                color.alpha(),
+            )
+            if "pencil" in self._tools:
+                tool = self._tools["pencil"]
+                assert isinstance(tool, PixelTool)
+                tool.set_color(self._current_color)
+            self._status_bar.showMessage(
+                f"Color: #{color.red():02x}{color.green():02x}{color.blue():02x}"
+            )
+
+    def _on_size_changed(self, value: int) -> None:
+        """Handle brush size change."""
+        self._current_size = value
+        if "pencil" in self._tools:
+            tool = self._tools["pencil"]
+            assert isinstance(tool, PixelTool)
+            tool.set_size(value)
+        if "eraser" in self._tools:
+            tool = self._tools["eraser"]
+            assert isinstance(tool, EraserTool)
+            tool.set_size(value)
+        self._status_bar.showMessage(f"Brush size: {value}px")

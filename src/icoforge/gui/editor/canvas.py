@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from PIL import Image
-from PySide6.QtCore import QRect, Qt, Signal
+from PySide6.QtCore import QPointF, QRect, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QGraphicsItem,
@@ -15,7 +15,14 @@ from PySide6.QtWidgets import (
 )
 
 if TYPE_CHECKING:
-    pass
+    from icoforge.gui.editor.tools import Tool
+
+
+def _view_to_pixel_coords(pos: QPointF, zoom: float) -> tuple[int, int]:
+    """Convert view coordinates to pixel coordinates."""
+    x = int(pos.x() / zoom)
+    y = int(pos.y() / zoom)
+    return x, y
 
 
 class CheckerboardBackground(QGraphicsItem):
@@ -92,6 +99,7 @@ class EditorCanvas(QGraphicsView):
         self._grid: GridOverlay | None = None
         self._zoom_level = 1.0
         self._pan_start = None
+        self._current_tool: Tool | None = None
 
         # Appearance
         self.setBackgroundBrush(QBrush(QColor(50, 50, 50)))
@@ -144,6 +152,21 @@ class EditorCanvas(QGraphicsView):
         """Get the current image being edited."""
         return self._current_image.copy() if self._current_image else None
 
+    def set_tool(self, tool: Tool) -> None:
+        """Set the active drawing tool."""
+        self._current_tool = tool
+
+    def _refresh_pixmap(self) -> None:
+        """Refresh the displayed pixmap from the current image."""
+        if self._current_image is None or self._pixmap_item is None:
+            return
+        rgb_image = self._current_image.convert("RGBA")
+        data = rgb_image.tobytes("rgba")
+        width, height = self._current_image.size
+        qimage = QImage(data, width, height, 4 * width, QImage.Format.Format_RGBA8888)
+        pixmap = QPixmap.fromImage(qimage)
+        self._pixmap_item.setPixmap(pixmap)
+
     def wheelEvent(self, event: object) -> None:
         """Handle Ctrl+wheel for zoom."""
         from PySide6.QtGui import QWheelEvent
@@ -174,7 +197,7 @@ class EditorCanvas(QGraphicsView):
         self.zoom_changed.emit(self._zoom_level)
 
     def mousePressEvent(self, event: object) -> None:
-        """Handle mouse press for panning."""
+        """Handle mouse press for drawing or panning."""
         from PySide6.QtGui import QMouseEvent
 
         if not isinstance(event, QMouseEvent):
@@ -184,11 +207,17 @@ class EditorCanvas(QGraphicsView):
         if event.button() == Qt.MouseButton.MiddleButton:
             self._pan_start = event.pos()
             event.accept()
+        elif event.button() == Qt.MouseButton.LeftButton and self._current_tool is not None:
+            scene_pos = self.mapToScene(event.pos())
+            px, py = _view_to_pixel_coords(scene_pos, self._zoom_level)
+            self._current_tool.on_press(px, py)
+            self._refresh_pixmap()
+            event.accept()
         else:
             super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: object) -> None:
-        """Handle mouse move for panning."""
+        """Handle mouse move for drawing or panning."""
         from PySide6.QtGui import QMouseEvent
 
         if not isinstance(event, QMouseEvent):
@@ -200,6 +229,12 @@ class EditorCanvas(QGraphicsView):
             self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - delta.x())
             self.verticalScrollBar().setValue(self.verticalScrollBar().value() - delta.y())
             self._pan_start = event.pos()
+            event.accept()
+        elif event.buttons() & Qt.MouseButton.LeftButton and self._current_tool is not None:
+            scene_pos = self.mapToScene(event.pos())
+            px, py = _view_to_pixel_coords(scene_pos, self._zoom_level)
+            self._current_tool.on_move(px, py)
+            self._refresh_pixmap()
             event.accept()
         else:
             super().mouseMoveEvent(event)
@@ -214,6 +249,12 @@ class EditorCanvas(QGraphicsView):
 
         if event.button() == Qt.MouseButton.MiddleButton:
             self._pan_start = None
+            event.accept()
+        elif event.button() == Qt.MouseButton.LeftButton and self._current_tool is not None:
+            scene_pos = self.mapToScene(event.pos())
+            px, py = _view_to_pixel_coords(scene_pos, self._zoom_level)
+            self._current_tool.on_release(px, py)
+            self._refresh_pixmap()
             event.accept()
         else:
             super().mouseReleaseEvent(event)

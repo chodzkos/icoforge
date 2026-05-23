@@ -65,7 +65,7 @@ class Tool(ABC):
         y = max(0, min(y, self.height - 1))
         return x, y
 
-    def _draw_circle(self, cx: int, cy: int, radius: int, color: tuple) -> None:
+    def _draw_circle(self, cx: int, cy: int, radius: int, color: tuple[int, int, int, int]) -> None:
         """Draw filled circle at position with given color.
 
         Args:
@@ -87,7 +87,9 @@ class Tool(ABC):
 class PixelTool(Tool):
     """Pencil tool for drawing with current color."""
 
-    def __init__(self, image: Image.Image, color: tuple = (0, 0, 0, 255), size: int = 1) -> None:
+    def __init__(
+        self, image: Image.Image, color: tuple[int, int, int, int] = (0, 0, 0, 255), size: int = 1
+    ) -> None:
         """Initialize pencil tool.
 
         Args:
@@ -115,7 +117,7 @@ class PixelTool(Tool):
         """No action on release."""
         pass
 
-    def set_color(self, color: tuple) -> None:
+    def set_color(self, color: tuple[int, int, int, int]) -> None:
         """Set the drawing color."""
         self.color = color
 
@@ -180,7 +182,7 @@ class EyedropperTool(Tool):
             image: PIL Image to sample from.
         """
         super().__init__(image)
-        self.picked_color: tuple | None = None
+        self.picked_color: tuple[int, int, int, int] | None = None
 
     def on_press(self, x: int, y: int) -> None:
         """Pick color from clicked position."""
@@ -195,6 +197,6 @@ class EyedropperTool(Tool):
         """No action on release."""
         pass
 
-    def get_color(self) -> tuple | None:
+    def get_color(self) -> tuple[int, int, int, int] | None:
         """Get the picked color."""
         return self.picked_color
