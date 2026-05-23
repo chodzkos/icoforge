@@ -70,3 +70,4 @@ dist/
 # Test outputs
 tests/output/
 tests/fixtures/generated/
+*.Zone.Identifier
