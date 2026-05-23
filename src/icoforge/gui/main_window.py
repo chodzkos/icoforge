@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QThreadPool, QTimer, QUrl
-from PySide6.QtGui import QAction, QCursor, QDesktopServices
+from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -174,11 +174,7 @@ class MainWindow(QMainWindow):
         worker.signals.progress.connect(self._on_convert_progress)
         worker.signals.finished.connect(self._on_convert_finished)
         worker.signals.error.connect(self._on_convert_error)
-        # Defer the discard one tick so _WorkerSignals isn't destroyed inside
-        # its own `done` slot (PySide6 use-after-free in queued connections).
-        worker.signals.done.connect(
-            lambda w=worker: QTimer.singleShot(0, lambda: self._live_workers.discard(w))
-        )
+        worker.signals.done.connect(lambda w=worker: self._live_workers.discard(w))
         self._current_worker = worker
         self._live_workers.add(worker)
 
@@ -254,21 +250,6 @@ class MainWindow(QMainWindow):
         )
 
 
-def _wake_wslg(window: QMainWindow) -> None:
-    """Force WSLg/XWayland to register the window as the active input target.
-
-    On WSLg the cursor sometimes ends up under the freshly shown window —
-    the X server hasn't received the EnterNotify for the new top-level.
-    Nudging the cursor by one pixel and back generates motion events that
-    re-establish the pointer's owner.
-    """
-    window.raise_()
-    window.activateWindow()
-    pos = QCursor.pos()
-    QCursor.setPos(pos.x() + 1, pos.y())
-    QCursor.setPos(pos.x(), pos.y())
-
-
 def main() -> int:
     app = QApplication.instance() or QApplication(sys.argv)
     window = MainWindow()
@@ -276,8 +257,6 @@ def main() -> int:
     # On WSLg/XWayland the window may not receive focus automatically.
     window.raise_()
     window.activateWindow()
-    # Multiple deferred re-activations: WSLg's compositor sometimes reassigns
-    # focus shortly after show(), and the cursor needs a nudge to re-enter.
-    QTimer.singleShot(100, lambda: _wake_wslg(window))
-    QTimer.singleShot(400, lambda: _wake_wslg(window))
+    # Deferred re-activation in case the compositor reassigns focus after show().
+    QTimer.singleShot(150, window.activateWindow)
     return int(app.exec())

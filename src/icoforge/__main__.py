@@ -2,15 +2,9 @@
 
 from __future__ import annotations
 
-import faulthandler
-
 
 def run_gui() -> int:
     """Launch the PySide6 GUI."""
-    # Dump a Python traceback if the process crashes with a C-level fault
-    # (SIGSEGV, SIGABRT, etc.) instead of disappearing silently.
-    faulthandler.enable()
-
     from icoforge.core import heic_loader
 
     heic_loader.register_heif_opener()
