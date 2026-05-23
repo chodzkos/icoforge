@@ -20,7 +20,7 @@ from icoforge.core import (
     SizeSpec,
 )
 from icoforge.core.converter import convert as run_convert
-from icoforge.core.optimizer import optimize_png
+from icoforge.core.optimizer import optimize_batch, optimize_png
 
 _PRESETS: dict[str, tuple[SizeSpec, ...]] = {
     "windows": WINDOWS_APP_SIZES,
@@ -256,24 +256,39 @@ def convert(
 
 
 @main.command()
-@click.argument("source", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.argument(
+    "paths",
+    nargs=-1,
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
 @click.option("--output", "-o", type=click.Path(dir_okay=False, path_type=Path), default=None)
 @click.option("--level", type=click.IntRange(0, 6), default=4, show_default=True)
 @click.option("--strip/--no-strip", default=True, help="Strip metadata chunks.")
 @click.option("--slow", is_flag=True, help="Use Zopfli (slow, smaller output).")
+@click.option("--in-place", is_flag=True, help="Optimize in-place (overwrite source).")
 def optimize(
-    source: Path,
+    paths: tuple[Path, ...],
     output: Path | None,
     level: int,
     strip: bool,
     slow: bool,
+    in_place: bool,
 ) -> None:
-    """Losslessly optimize a PNG file.
+    """Losslessly optimize PNG file(s).
 
-    Reduces file size without changing pixel data using pyoxipng compression.
+    Reduces file size without changing pixel data using oxipng compression.
     Optionally strips metadata chunks (tEXt, iTXt, zTXt, eXIf, tIME, pHYs).
+
+    Can optimize single or multiple files. Use --in-place to overwrite source files.
     """
-    click.echo(f"Optimizing {source.name}...")
+    if not paths:
+        click.secho("Error: at least one PNG file required", fg="red", err=True)
+        raise SystemExit(1)
+
+    if output and len(paths) > 1:
+        click.secho("Error: --output can only be used with a single file", fg="red", err=True)
+        raise SystemExit(1)
 
     config = OptimizationConfig(
         level=level,
@@ -281,8 +296,33 @@ def optimize(
         use_zopfli=slow,
     )
 
+    click.echo(f"Optimizing {len(paths)} file(s)...")
+    click.echo()
+
     try:
-        result = optimize_png(source, target=output, config=config)
+        if len(paths) == 1:
+            source = paths[0]
+            target = source if in_place else output
+            click.echo(f"  {source.name}...", nl=False)
+            result = optimize_png(source, target=target, config=config)
+            click.echo(" ✓")
+            click.secho(
+                f"    {result.bytes_before:,} → {result.bytes_after:,} bytes "
+                f"({result.saved_ratio * 100:.1f}% smaller)",
+                fg="cyan",
+            )
+            results = [result]
+        else:
+            results = optimize_batch(list(paths), config=config)
+            for result in results:
+                click.echo(f"  {result.source.name}...", nl=False)
+                click.echo(" ✓")
+                click.secho(
+                    f"    {result.bytes_before:,} → {result.bytes_after:,} bytes "
+                    f"({result.saved_ratio * 100:.1f}% smaller)",
+                    fg="cyan",
+                )
+
     except FileNotFoundError as exc:
         click.echo()
         click.secho(f"Error: source file not found: {exc}", fg="red", err=True)
@@ -292,12 +332,17 @@ def optimize(
         click.secho(f"Error: {exc}", fg="red", err=True)
         raise SystemExit(1) from exc
 
+    # Print summary report
     click.echo()
-    click.secho(f"✓ Wrote {result.target}", fg="green")
-    click.secho(
-        f"  {result.bytes_before:,} → {result.bytes_after:,} bytes "
-        f"({result.saved_ratio * 100:.1f}% smaller)",
-        fg="cyan",
+    total_before = sum(r.bytes_before for r in results)
+    total_after = sum(r.bytes_after for r in results)
+    total_saved = total_before - total_after
+    total_ratio = (total_saved / total_before * 100) if total_before > 0 else 0.0
+
+    click.secho("Summary:", fg="green", bold=True)
+    click.echo(
+        f"  {len(results)} file(s): {total_before / 1e6:.1f} MB → "
+        f"{total_after / 1e6:.1f} MB ({total_ratio:.1f}% smaller)"
     )
 
 

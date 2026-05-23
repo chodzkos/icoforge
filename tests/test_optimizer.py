@@ -10,6 +10,7 @@ from PIL import Image
 from icoforge.core.optimizer import (
     OptimizationResult,
     _strip_png_chunks,
+    optimize_batch,
     optimize_png,
     verify_lossless,
 )
@@ -44,6 +45,84 @@ def png_with_metadata(tmp_path: Path) -> Path:
     path = tmp_path / "metadata.png"
     img.save(path, "PNG", info={"Title": "Test Image", "Author": "Test Suite"})
     return path
+
+
+class TestOptimizeBatch:
+    """Test optimize_batch() function."""
+
+    def test_batch_empty_list(self) -> None:
+        """Test error when paths list is empty."""
+        with pytest.raises(ValueError, match="paths list cannot be empty"):
+            optimize_batch([])
+
+    def test_batch_single_file(self, simple_png: Path, tmp_path: Path) -> None:
+        """Test batch with single file."""
+        result_list = optimize_batch([simple_png])
+
+        assert len(result_list) == 1
+        result = result_list[0]
+        assert result.source == simple_png
+        assert result.target == simple_png
+        assert result.bytes_after <= result.bytes_before
+
+    def test_batch_multiple_files(
+        self, simple_png: Path, gradient_png: Path, tmp_path: Path
+    ) -> None:
+        """Test batch with multiple files."""
+        files = [simple_png, gradient_png]
+        results = optimize_batch(files)
+
+        assert len(results) == 2
+        for i, result in enumerate(results):
+            assert result.source == files[i]
+            assert result.bytes_after <= result.bytes_before
+
+    def test_batch_progress_callback(self, simple_png: Path, gradient_png: Path) -> None:
+        """Test that progress callback is called correctly."""
+
+        progress_values: list[float] = []
+
+        def progress_cb(ratio: float) -> None:
+            progress_values.append(ratio)
+
+        files = [simple_png, gradient_png]
+        optimize_batch(files, progress=progress_cb)
+
+        # Should have called progress twice (once per file)
+        assert len(progress_values) == 2
+        # Progress should be monotonically increasing
+        assert progress_values[0] < progress_values[1]
+        # Last value should be 1.0 (100%)
+        assert abs(progress_values[-1] - 1.0) < 0.0001
+
+    def test_batch_lossless_all_files(
+        self, simple_png: Path, gradient_png: Path, tmp_path: Path
+    ) -> None:
+        """Test that all files are lossless after batch optimization."""
+        # Create copies since batch modifies in-place
+        copy_simple = tmp_path / "copy_simple.png"
+        copy_gradient = tmp_path / "copy_gradient.png"
+        copy_simple.write_bytes(simple_png.read_bytes())
+        copy_gradient.write_bytes(gradient_png.read_bytes())
+
+        optimize_batch([copy_simple, copy_gradient])
+
+        # Verify losslessness
+        assert verify_lossless(simple_png, copy_simple)
+        assert verify_lossless(gradient_png, copy_gradient)
+
+    def test_batch_summary_stats(self, simple_png: Path, gradient_png: Path) -> None:
+        """Test that batch results can generate summary statistics."""
+        files = [simple_png, gradient_png]
+        results = optimize_batch(files)
+
+        total_before = sum(r.bytes_before for r in results)
+        total_after = sum(r.bytes_after for r in results)
+
+        assert total_before > 0
+        assert total_after <= total_before
+        # At least some compression should happen
+        assert total_after < total_before
 
 
 class TestOptimizePng:

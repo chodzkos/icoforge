@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import struct
 import zlib
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -37,6 +38,38 @@ class OptimizationResult:
         if self.bytes_before == 0:
             return 0.0
         return self.saved_bytes / self.bytes_before
+
+
+def optimize_batch(
+    paths: list[Path],
+    config: OptimizationConfig | None = None,
+    progress: Callable[[float], None] | None = None,
+) -> list[OptimizationResult]:
+    """Optimize multiple PNG files in batch.
+
+    Args:
+        paths: List of PNG file paths to optimize.
+        config: Optimization parameters. Uses defaults if ``None``.
+        progress: Optional callback ``progress(ratio)`` where ratio is 0..1
+            indicating overall batch progress.
+
+    Returns:
+        List of OptimizationResult for each input file.
+
+    Raises:
+        ValueError: If paths list is empty.
+    """
+    if not paths:
+        raise ValueError("paths list cannot be empty")
+
+    results: list[OptimizationResult] = []
+    for i, source in enumerate(paths):
+        result = optimize_png(source, target=source, config=config)
+        results.append(result)
+        if progress is not None:
+            progress((i + 1) / len(paths))
+
+    return results
 
 
 def optimize_png(
