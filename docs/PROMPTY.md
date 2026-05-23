@@ -9,14 +9,32 @@ Kolejność odzwierciedla kolejność faz w ROADMAP.md.
 
 ```
 Przeczytaj CLAUDE.md i docs/ROADMAP.md. Powiedz mi:
-1. Na którym etapie jest projekt (jakie rzeczy są już zaimplementowane)
-2. Co powinienem zrobić jako następne
-3. Czy wszystkie testy przechodzą (uruchom pytest)
+1. Na której gałęzi Git jesteśmy teraz (uruchom: git branch --show-current)
+2. Na którym etapie jest projekt (jakie rzeczy są już zaimplementowane)
+3. Co powinienem zrobić jako następne
+4. Czy wszystkie testy przechodzą (uruchom pytest)
+Jeśli jesteśmy na main i zaczynamy nową fazę, powiedz mi jaką komendą
+utworzyć gałąź roboczą dla tej fazy.
 ```
 
 ---
 
 ## FAZA 1 – Konwersja PNG → ICO
+
+### 🌿 Gałąź robocza – utwórz zanim zaczniesz
+
+```
+Utwórz gałąź roboczą dla fazy 1:
+git checkout main
+git pull origin main
+git checkout -b feature/phase-1-png-to-ico
+git push -u origin feature/phase-1-png-to-ico
+Potwierdź: git branch --show-current
+Wszystkie commity tej fazy idą na tę gałąź.
+Po każdym kroku rób commit z opisowym message, np:
+"feat: implement SizeSpec and IcoConfig models"
+"feat: add Lanczos resampling wrapper"
+```
 
 ### Krok 1.1 – Modele danych
 
@@ -162,7 +180,7 @@ Wyodrębnij pracę z wątkami do osobnego modułu i ulepsz feedback dla użytkow
   progress bar płynnie się aktualizuje
 ```
 
-### Krok 1.11 – Sprawdzenie jakości fazy 1
+### Krok 1.11 – Sprawdzenie jakości i scalenie z main
 
 ```
 Końcowa kontrola fazy 1:
@@ -171,19 +189,47 @@ Końcowa kontrola fazy 1:
 3. mypy src/
 4. Uruchom GUI: icoforge - sprawdź pełny flow:
    - drag & drop pliku PNG
-   - wybór rozmiarów przez preset i ręcznie  
+   - wybór rozmiarów przez preset i ręcznie
    - podgląd aktualizuje się
    - zapis do ICO działa
    - wynik otwiera się w Eksploratorze Windows (sprawdź właściwości ikony)
 5. Uruchom CLI: icoforge-cli convert (jakiś-plik).png test.ico --sizes windows
 6. Napraw wszystkie znalezione problemy
 7. Zaktualizuj sekcję "Status" w README.md - oznacz fazę 1 jako ukończoną
-8. Commit z message "feat: complete phase 1 - PNG to ICO conversion with GUI and CLI"
+8. Końcowy commit na gałęzi roboczej:
+   git add .
+   git commit -m "feat: complete phase 1 - PNG to ICO conversion with GUI and CLI"
+   git push origin feature/phase-1-png-to-ico
+
+Teraz poczekaj na moje potwierdzenie że wszystko działa poprawnie,
+a dopiero potem scal z main:
+9. git checkout main
+   git pull origin main
+   git merge --no-ff feature/phase-1-png-to-ico -m "feat: merge phase 1 - PNG to ICO complete"
+   git push origin main
+10. Usuń gałąź roboczą:
+    git branch -d feature/phase-1-png-to-ico
+    git push origin --delete feature/phase-1-png-to-ico
+11. Potwierdź że main jest aktualny:
+    git log --oneline -3
+    pytest -v
 ```
 
 ---
 
 ## FAZA 2 – Więcej formatów wejściowych
+
+### 🌿 Gałąź robocza – utwórz zanim zaczniesz
+
+```
+Utwórz gałąź roboczą dla fazy 2:
+git checkout main
+git pull origin main
+git checkout -b feature/phase-2-formats
+git push -u origin feature/phase-2-formats
+Potwierdź: git branch --show-current
+Po każdym kroku rób commit na tę gałąź.
+```
 
 ### Krok 2.1 – Formaty przez Pillow
 
@@ -243,7 +289,7 @@ Rozszerz GUI o obsługę per-size source (różne pliki na różne rozmiary):
 - Testy manualne: ustaw różny PNG dla 16px i 256px, sprawdź że ICO zawiera oba
 ```
 
-### Krok 2.6 – Sprawdzenie jakości fazy 2
+### Krok 2.6 – Sprawdzenie jakości i scalenie z main
 
 ```
 Końcowa kontrola fazy 2:
@@ -253,12 +299,36 @@ Końcowa kontrola fazy 2:
 4. Sprawdź per-size source: 16px z uproszczonego PNG, 256px z detailsowego
 5. Sprawdź fallback gdy SVG/HEIC nie zainstalowane (odinstaluj tymczasowo)
 6. Napraw wszystkie znalezione problemy
-7. Commit: "feat: complete phase 2 - multi-format input and per-size source"
+7. Końcowy commit na gałęzi roboczej:
+   git add .
+   git commit -m "feat: complete phase 2 - multi-format input and per-size source"
+   git push origin feature/phase-2-formats
+
+Poczekaj na moje potwierdzenie, a następnie scal z main:
+8. git checkout main
+   git pull origin main
+   git merge --no-ff feature/phase-2-formats -m "feat: merge phase 2 - multi-format input complete"
+   git push origin main
+9. git branch -d feature/phase-2-formats
+   git push origin --delete feature/phase-2-formats
+10. git log --oneline -3 && pytest -v
 ```
 
 ---
 
 ## FAZA 3 – Optymalizacja PNG
+
+### 🌿 Gałąź robocza – utwórz zanim zaczniesz
+
+```
+Utwórz gałąź roboczą dla fazy 3:
+git checkout main
+git pull origin main
+git checkout -b feature/phase-3-optimizer
+git push -u origin feature/phase-3-optimizer
+Potwierdź: git branch --show-current
+Po każdym kroku rób commit na tę gałąź.
+```
 
 ### Krok 3.1 – Integracja pyoxipng
 
@@ -311,7 +381,7 @@ Dodaj zakładkę "Optymalizacja PNG" do głównego okna:
 - Testy manualne: folder z 10 PNG, sprawdź raport
 ```
 
-### Krok 3.5 – Sprawdzenie jakości fazy 3
+### Krok 3.5 – Sprawdzenie jakości i scalenie z main
 
 ```
 Końcowa kontrola fazy 3:
@@ -323,12 +393,38 @@ Końcowa kontrola fazy 3:
    PIL.Image.open().info)
 5. Benchmark: czas optymalizacji folderu 50 PNG (~5MB łącznie) < 30 sekund
 6. Napraw wszystkie problemy
-7. Commit: "feat: complete phase 3 - PNG optimization with GUI batch processing"
+7. Końcowy commit na gałęzi roboczej:
+   git add .
+   git commit -m "feat: complete phase 3 - PNG optimization with GUI batch processing"
+   git push origin feature/phase-3-optimizer
+
+Poczekaj na moje potwierdzenie, a następnie scal z main:
+8. git checkout main
+   git pull origin main
+   git merge --no-ff feature/phase-3-optimizer -m "feat: merge phase 3 - PNG optimizer complete"
+   git push origin main
+9. git branch -d feature/phase-3-optimizer
+   git push origin --delete feature/phase-3-optimizer
+10. git log --oneline -3 && pytest -v
 ```
 
 ---
 
 ## FAZA 4 – Edytor pikselowy
+
+### 🌿 Gałąź robocza – utwórz zanim zaczniesz
+
+```
+Utwórz gałąź roboczą dla fazy 4:
+git checkout main
+git pull origin main
+git checkout -b feature/phase-4-editor
+git push -u origin feature/phase-4-editor
+Potwierdź: git branch --show-current
+Po każdym kroku rób commit na tę gałąź.
+Faza 4 jest najdłuższa – commity po każdym podkroku są szczególnie ważne
+żeby móc cofnąć się do stabilnego punktu w razie problemów.
+```
 
 ### Krok 4.1 – ico_reader i ładowanie ICO
 
@@ -439,12 +535,36 @@ Dokończ edytor i przeprowadź kontrolę jakości:
 4. ruff check . && mypy src/
 5. Test manualny pełnego flow: otwórz ICO → edytuj 32x32 → zmień kolor tła → undo →
    redo → zapisz → otwórz w Eksploratorze Windows → sprawdź wygląd ikony
-6. Commit: "feat: complete phase 4 - pixel editor with all tools and undo history"
+6. Końcowy commit na gałęzi roboczej:
+   git add .
+   git commit -m "feat: complete phase 4 - pixel editor with all tools and undo history"
+   git push origin feature/phase-4-editor
+
+Poczekaj na moje potwierdzenie, a następnie scal z main:
+7. git checkout main
+   git pull origin main
+   git merge --no-ff feature/phase-4-editor -m "feat: merge phase 4 - pixel editor complete"
+   git push origin main
+8. git branch -d feature/phase-4-editor
+   git push origin --delete feature/phase-4-editor
+9. git log --oneline -3 && pytest -v
 ```
 
 ---
 
 ## FAZA 5 – Tworzenie ICO od zera
+
+### 🌿 Gałąź robocza – utwórz zanim zaczniesz
+
+```
+Utwórz gałąź roboczą dla fazy 5:
+git checkout main
+git pull origin main
+git checkout -b feature/phase-5-new-ico
+git push -u origin feature/phase-5-new-ico
+Potwierdź: git branch --show-current
+Po każdym kroku rób commit na tę gałąź.
+```
 
 ### Krok 5.1 – Kreator nowego ICO
 
@@ -480,7 +600,7 @@ Rozszerz kreator i edytor o zaawansowane funkcje:
   - ICNS (macOS) jeśli zainstalowane pillow-heif
 ```
 
-### Krok 5.3 – Sprawdzenie jakości fazy 5
+### Krok 5.3 – Sprawdzenie jakości i scalenie z main
 
 ```
 Końcowa kontrola fazy 5:
@@ -492,7 +612,19 @@ Końcowa kontrola fazy 5:
    - Zapisz jako nowy.ico
    - Otwórz nowy.ico z powrotem i sprawdź że wszystko zostało zachowane
 3. Test szablonów: każdy szablon otwiera się bez błędów
-4. Commit: "feat: complete phase 5 - create ICO from scratch with sync and templates"
+4. Końcowy commit na gałęzi roboczej:
+   git add .
+   git commit -m "feat: complete phase 5 - create ICO from scratch with sync and templates"
+   git push origin feature/phase-5-new-ico
+
+Poczekaj na moje potwierdzenie, a następnie scal z main:
+5. git checkout main
+   git pull origin main
+   git merge --no-ff feature/phase-5-new-ico -m "feat: merge phase 5 - create from scratch complete"
+   git push origin main
+6. git branch -d feature/phase-5-new-ico
+   git push origin --delete feature/phase-5-new-ico
+7. git log --oneline -3 && pytest -v
 ```
 
 ---
@@ -505,6 +637,8 @@ kolejności po ukończeniu fazy 5.*
 ### Eksport ICNS (ikony macOS)
 
 ```
+Utwórz gałąź: git checkout main && git pull && git checkout -b feature/extra-icns && git push -u origin feature/extra-icns
+
 Dodaj eksport do formatu ICNS (ikony aplikacji macOS):
 - Stwórz src/icoforge/core/icns_writer.py
 - Format ICNS: nagłówek "icns" + sekwencja bloków typ+rozmiar+dane
@@ -513,11 +647,19 @@ Dodaj eksport do formatu ICNS (ikony aplikacji macOS):
 - Testy: sprawdź nagłówek binarny wynikowego pliku
 - CLI: icoforge-cli convert input.png output.icns --sizes 16,32,64,128,256,512
 - GUI: w dialogu zapisu dodaj filtr "*.icns" i obsłuż rozszerzenie
+
+Po zakończeniu i przetestowaniu – poczekaj na moje potwierdzenie, potem:
+git add . && git commit -m "feat: add ICNS export for macOS"
+git push origin feature/extra-icns
+git checkout main && git merge --no-ff feature/extra-icns -m "feat: merge ICNS export" && git push origin main
+git branch -d feature/extra-icns && git push origin --delete feature/extra-icns
 ```
 
 ### Eksport CUR (kursory Windows)
 
 ```
+Utwórz gałąź: git checkout main && git pull && git checkout -b feature/extra-cur && git push -u origin feature/extra-cur
+
 Dodaj obsługę kursorów Windows (.cur):
 - Stwórz src/icoforge/core/cur_writer.py
 - Format .cur jest identyczny z .ico oprócz: w nagłówku typ=2 (nie 1),
@@ -527,11 +669,19 @@ Dodaj obsługę kursorów Windows (.cur):
 - GUI: w dialogu zapisu filtr "*.cur" + pole na hotspot (dwa SpinBoxy X/Y)
   z podglądem hotspotu na miniaturze
 - Test: zapisz .cur, sprawdź bajty nagłówka (offset 2-3 = 0x02 0x00)
+
+Po zakończeniu i przetestowaniu – poczekaj na moje potwierdzenie, potem:
+git add . && git commit -m "feat: add CUR cursor export with hotspot support"
+git push origin feature/extra-cur
+git checkout main && git merge --no-ff feature/extra-cur -m "feat: merge CUR cursor export" && git push origin main
+git branch -d feature/extra-cur && git push origin --delete feature/extra-cur
 ```
 
 ### Favicon preset
 
 ```
+Utwórz gałąź: git checkout main && git pull && git checkout -b feature/extra-favicon && git push -u origin feature/extra-favicon
+
 Dodaj preset "Favicon Set" generujący kompletny zestaw dla strony WWW:
 - Stwórz src/icoforge/core/favicon_generator.py z funkcją generate_favicon_set()
 - Generuje w wybranym folderze:
@@ -542,11 +692,19 @@ Dodaj preset "Favicon Set" generujący kompletny zestaw dla strony WWW:
 - CLI: icoforge-cli favicon input.png output-folder/
 - GUI: przycisk "Favicon Set..." w toolbarze → dialog wyboru folderu → generuje
 - Test: sprawdź że wynikowy folder zawiera wszystkie 5 plików
+
+Po zakończeniu i przetestowaniu – poczekaj na moje potwierdzenie, potem:
+git add . && git commit -m "feat: add favicon set generator"
+git push origin feature/extra-favicon
+git checkout main && git merge --no-ff feature/extra-favicon -m "feat: merge favicon set generator" && git push origin main
+git branch -d feature/extra-favicon && git push origin --delete feature/extra-favicon
 ```
 
 ### Auto-trim przezroczystych obrzeży
 
 ```
+Utwórz gałąź: git checkout main && git pull && git checkout -b feature/extra-autotrim && git push -u origin feature/extra-autotrim
+
 Dodaj funkcję przycinania pustych krawędzi:
 - W src/icoforge/core/image_utils.py funkcja trim_transparency(image) -> Image:
   - Znajduje bounding box nieprzezroczystych pikseli (alpha > threshold)
@@ -556,25 +714,41 @@ Dodaj funkcję przycinania pustych krawędzi:
 - CLI: --auto-trim --trim-padding 4
 - GUI: checkbox "Auto-trim" w SettingsPanel z polem na padding
 - Testy: obraz z przezroczystymi krawędziami → po trim bbox == rozmiar treści
+
+Po zakończeniu i przetestowaniu – poczekaj na moje potwierdzenie, potem:
+git add . && git commit -m "feat: add auto-trim transparent borders"
+git push origin feature/extra-autotrim
+git checkout main && git merge --no-ff feature/extra-autotrim -m "feat: merge auto-trim feature" && git push origin main
+git branch -d feature/extra-autotrim && git push origin --delete feature/extra-autotrim
 ```
 
 ### Ekstrakcja ikon z plików EXE i DLL
 
 ```
+Utwórz gałąź: git checkout main && git pull && git checkout -b feature/extra-exe-extractor && git push -u origin feature/extra-exe-extractor
+
 Dodaj możliwość wyciągania ikon z plików Windows:
 - Stwórz src/icoforge/core/exe_extractor.py
 - Użyj biblioteki pefile: pip install pefile (dodaj do pyproject.toml jako extra "exe")
 - Funkcja extract_icons_from_exe(path) -> list[bytes] zwraca listę surowych ICO
 - Obsługa błędów: plik nie jest PE, brak zasobu RT_GROUP_ICON, plik chroniony
 - CLI: icoforge-cli extract-icons program.exe --output-dir ./extracted/
-- GUI: File → "Wyciągnij ikony z EXE/DLL..." → dialog wyboru pliku → 
+- GUI: File → "Wyciągnij ikony z EXE/DLL..." → dialog wyboru pliku →
   pokazuje siatkę znalezionych ikon do wyboru → zapisz zaznaczone
 - Testy: fixture z minimalnym PE zawierającym ikonę (plik binarny w tests/fixtures/)
+
+Po zakończeniu i przetestowaniu – poczekaj na moje potwierdzenie, potem:
+git add . && git commit -m "feat: add icon extraction from EXE/DLL files"
+git push origin feature/extra-exe-extractor
+git checkout main && git merge --no-ff feature/extra-exe-extractor -m "feat: merge EXE/DLL icon extractor" && git push origin main
+git branch -d feature/extra-exe-extractor && git push origin --delete feature/extra-exe-extractor
 ```
 
 ### Wsadowe usuwanie tła (rembg)
 
 ```
+Utwórz gałąź: git checkout main && git pull && git checkout -b feature/extra-rembg && git push -u origin feature/extra-rembg
+
 Dodaj opcjonalne usuwanie tła przez AI:
 - Dodaj do pyproject.toml: [project.optional-dependencies] bgremove = ["rembg>=2.0.50"]
 - Stwórz src/icoforge/core/bg_remover.py z funkcją remove_background(image) -> Image
@@ -584,11 +758,19 @@ Dodaj opcjonalne usuwanie tła przez AI:
 - CLI: icoforge-cli convert input.jpg output.ico --remove-bg
 - GUI: checkbox "Usuń tło (AI)" w SettingsPanel (widoczny tylko jeśli rembg dostępne)
 - Test manualny: zdjęcie produktu na tle → ICO z przezroczystym tłem
+
+Po zakończeniu i przetestowaniu – poczekaj na moje potwierdzenie, potem:
+git add . && git commit -m "feat: add AI background removal via rembg"
+git push origin feature/extra-rembg
+git checkout main && git merge --no-ff feature/extra-rembg -m "feat: merge AI background removal" && git push origin main
+git branch -d feature/extra-rembg && git push origin --delete feature/extra-rembg
 ```
 
 ### Instalator Windows (PyInstaller + Inno Setup)
 
 ```
+Utwórz gałąź: git checkout main && git pull && git checkout -b feature/extra-installer && git push -u origin feature/extra-installer
+
 Stwórz automatyczny build instalatora dla Windows:
 - Stwórz icoforge.spec dla PyInstaller:
   - Tryb onedir (nie onefile – szybszy start)
@@ -609,6 +791,12 @@ Stwórz automatyczny build instalatora dla Windows:
   - Buduje na windows-latest
   - Uploaduje .exe do GitHub Releases
 - Test: zainstaluj na czystej maszynie Windows i sprawdź że działa
+
+Po zakończeniu i przetestowaniu – poczekaj na moje potwierdzenie, potem:
+git add . && git commit -m "feat: add Windows installer via PyInstaller and Inno Setup"
+git push origin feature/extra-installer
+git checkout main && git merge --no-ff feature/extra-installer -m "feat: merge Windows installer build" && git push origin main
+git branch -d feature/extra-installer && git push origin --delete feature/extra-installer
 ```
 
 ---
@@ -630,12 +818,14 @@ Znajdź potencjalne problemy, nieoptymalny kod, brakujące edge cases.
 Zaproponuj ulepszenia.
 ```
 
-### Commit i push
+### Commit i push (w trakcie pracy na gałęzi)
 
 ```
-Zrób commit wszystkich zmian z tej sesji.
+Sprawdź na jakiej gałęzi jesteśmy (git branch --show-current).
+Zrób commit wszystkich zmian z tej sesji na aktualną gałąź.
 Użyj opisowego commit message po angielsku (conventional commits format).
-Następnie git push.
+Następnie git push origin <nazwa-aktualnej-gałęzi>.
+NIE scalaj z main – to robimy dopiero po pełnym sprawdzeniu jakości.
 ```
 
 ### Status projektu
