@@ -42,7 +42,7 @@ def read_ico(path: Path) -> list[tuple[Image.Image, SizeSpec]]:
         raise ValueError(f"File too small to be ICO: {path}")
 
     # Parse ICONDIR header: reserved(H) type(H) count(H)
-    reserved, ico_type, count = struct.unpack("<HHH", data[0:6])
+    _, ico_type, count = struct.unpack("<HHH", data[0:6])
 
     if ico_type != 1:
         raise ValueError(f"Invalid ICO type: {ico_type}")

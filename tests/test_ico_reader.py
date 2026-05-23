@@ -90,9 +90,11 @@ class TestReadIco:
 
     def test_read_ico_invalid_format(self, tmp_path: Path) -> None:
         """Test error handling for non-ICO file."""
+        import re
+
         invalid_path = tmp_path / "invalid.txt"
         invalid_path.write_text("not an ico")
-        with pytest.raises(ValueError, match="Expected .ico"):
+        with pytest.raises(ValueError, match=re.escape("Expected .ico")):
             read_ico(invalid_path)
 
     def test_read_ico_pixel_data_preserved(self, sample_ico: Path) -> None:
