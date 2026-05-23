@@ -97,6 +97,61 @@ def optimize_png(
     return OptimizationResult(source, out_path, bytes_before, bytes_after)
 
 
+def _strip_png_chunks(
+    path: Path,
+    keep: frozenset[str] = frozenset(),
+    preserve_color_profile: bool = False,
+) -> None:
+    """Remove metadata chunks from a PNG file in-place.
+
+    Keeps critical chunks (IHDR, IDAT, IEND, PLTE) and optionally color
+    profile chunks (sRGB, gAMA, cHRM, iCCP) if preserve_color_profile=True.
+    Removes: tEXt, iTXt, zTXt, eXIf, tIME, pHYs and other ancillary chunks
+    unless explicitly kept in the 'keep' set.
+
+    Args:
+        path: Path to PNG file to strip (modified in-place).
+        keep: Set of additional 4-char chunk type names to keep (e.g. {"bKGD"}).
+        preserve_color_profile: When True, retain color profile chunks
+            (sRGB, gAMA, cHRM, iCCP) for accurate color reproduction.
+
+    Raises:
+        FileNotFoundError: PNG file not found.
+        ValueError: File is not a valid PNG.
+    """
+    if not path.exists():
+        raise FileNotFoundError(path)
+
+    data = path.read_bytes()
+
+    if len(data) < 8 or data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError(f"Invalid PNG signature: {path}")
+
+    chunks = _parse_png_chunks(data)
+
+    # Critical chunks that must be preserved
+    critical = {b"IHDR", b"IDAT", b"IEND", b"PLTE"}
+
+    # Color profile chunks to preserve if requested
+    color_chunks = {b"sRGB", b"gAMA", b"cHRM", b"iCCP"}
+
+    # User-specified chunks to keep
+    keep_bytes = {s.encode() for s in keep}
+
+    # Filter chunks: keep critical, color (if enabled), and user-specified
+    kept = [
+        (chunk_type, chunk_data)
+        for chunk_type, chunk_data in chunks
+        if chunk_type in critical
+        or (preserve_color_profile and chunk_type in color_chunks)
+        or chunk_type in keep_bytes
+    ]
+
+    # Write stripped PNG back to file
+    stripped_data = _write_png_chunks(kept)
+    path.write_bytes(stripped_data)
+
+
 def _strip_png_chunks_from_bytes(data: bytes, keep: frozenset[str]) -> bytes:
     """Remove metadata chunks from PNG bytes.
 

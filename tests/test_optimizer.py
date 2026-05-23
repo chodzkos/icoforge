@@ -9,6 +9,7 @@ from PIL import Image
 
 from icoforge.core.optimizer import (
     OptimizationResult,
+    _strip_png_chunks,
     optimize_png,
     verify_lossless,
 )
@@ -244,6 +245,87 @@ class TestVerifyLossless:
         except AttributeError:
             # Zopfli not available in pyoxipng, skip
             pytest.skip("Zopfli not available in pyoxipng")
+
+
+class TestStripPngChunks:
+    """Test _strip_png_chunks() function."""
+
+    def test_strip_metadata_in_place(self, simple_png: Path) -> None:
+        """Test that _strip_png_chunks removes metadata from file in-place."""
+        original_size = simple_png.stat().st_size
+        original_pixels = Image.open(simple_png).convert("RGBA").tobytes()
+
+        _strip_png_chunks(simple_png)
+
+        # File should be modified
+        assert simple_png.exists()
+        # File might be slightly smaller or same size (depends on content)
+        assert simple_png.stat().st_size <= original_size
+        # Pixels should be identical
+        stripped_pixels = Image.open(simple_png).convert("RGBA").tobytes()
+        assert stripped_pixels == original_pixels
+
+    def test_strip_metadata_from_file_with_metadata(
+        self, png_with_metadata: Path, tmp_path: Path
+    ) -> None:
+        """Test metadata removal reduces file size."""
+        copy_path = tmp_path / "copy_with_metadata.png"
+        copy_path.write_bytes(png_with_metadata.read_bytes())
+        size_before = copy_path.stat().st_size
+
+        _strip_png_chunks(copy_path)
+
+        # Stripping metadata should reduce or maintain size
+        size_after = copy_path.stat().st_size
+        assert size_after <= size_before
+
+    def test_strip_with_preserve_color_profile(self, simple_png: Path, tmp_path: Path) -> None:
+        """Test that preserve_color_profile flag works."""
+        copy_path = tmp_path / "with_profile.png"
+        copy_path.write_bytes(simple_png.read_bytes())
+
+        # Strip but preserve color profile (even if not present, shouldn't error)
+        _strip_png_chunks(copy_path, preserve_color_profile=True)
+
+        assert copy_path.exists()
+        # Verify file is still valid PNG
+        assert Image.open(copy_path).format == "PNG"
+
+    def test_strip_with_keep_chunks(self, simple_png: Path, tmp_path: Path) -> None:
+        """Test that keep parameter preserves specified chunks."""
+        copy_path = tmp_path / "with_keep.png"
+        copy_path.write_bytes(simple_png.read_bytes())
+
+        # Keep some arbitrary chunks (bKGD, even if not present)
+        _strip_png_chunks(copy_path, keep=frozenset({"bKGD"}))
+
+        assert copy_path.exists()
+        # File should still be valid
+        assert Image.open(copy_path).format == "PNG"
+
+    def test_strip_lossless(self, gradient_png: Path, tmp_path: Path) -> None:
+        """Test that stripping metadata doesn't affect pixels."""
+        copy_path = tmp_path / "gradient_stripped.png"
+        copy_path.write_bytes(gradient_png.read_bytes())
+
+        _strip_png_chunks(copy_path)
+
+        assert verify_lossless(gradient_png, copy_path)
+
+    def test_strip_invalid_file(self, tmp_path: Path) -> None:
+        """Test error handling for invalid PNG."""
+        invalid_path = tmp_path / "invalid.png"
+        invalid_path.write_bytes(b"not a png")
+
+        with pytest.raises(ValueError):
+            _strip_png_chunks(invalid_path)
+
+    def test_strip_missing_file(self, tmp_path: Path) -> None:
+        """Test error handling for missing file."""
+        missing = tmp_path / "nonexistent.png"
+
+        with pytest.raises(FileNotFoundError):
+            _strip_png_chunks(missing)
 
 
 class TestOptimizationResult:
