@@ -6,9 +6,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QColor, QFont
+from PySide6.QtGui import QAction, QColor, QFont, QKeySequence
 from PySide6.QtWidgets import (
     QColorDialog,
+    QComboBox,
     QLabel,
     QListWidget,
     QListWidgetItem,
@@ -23,7 +24,7 @@ from PySide6.QtWidgets import (
 
 from icoforge.core.ico_reader import read_ico
 from icoforge.core.models import SizeSpec
-from icoforge.gui.editor.canvas import EditorCanvas
+from icoforge.gui.editor.canvas import ZOOM_LEVELS, EditorCanvas
 from icoforge.gui.editor.tools import EraserTool, EyedropperTool, PixelTool, Tool
 
 if TYPE_CHECKING:
@@ -47,6 +48,10 @@ class EditorWindow(QMainWindow):
         self._current_color: tuple[int, int, int, int] = (0, 0, 0, 255)
         self._current_size = 1
         self._tools: dict[str, Tool] = {}
+
+        # Zoom state: remember user-set zoom per icon size key (w, h)
+        self._zoom_overrides: dict[tuple[int, int], float] = {}
+        self._user_set_zoom = False
 
         # Create central widget
         central = QWidget()
@@ -130,6 +135,39 @@ class EditorWindow(QMainWindow):
         self._size_spinbox.valueChanged.connect(self._on_size_changed)
         toolbar.addWidget(self._size_spinbox)
 
+        # Zoom toolbar
+        zoom_toolbar = QToolBar("Zoom")
+        self.addToolBar(zoom_toolbar)
+
+        zoom_out_action = QAction("- Zoom Out", self)
+        zoom_out_action.triggered.connect(self._on_zoom_out)
+        zoom_out_action.setShortcut(QKeySequence("-"))
+        zoom_toolbar.addAction(zoom_out_action)
+
+        fit_action = QAction("Fit", self)
+        fit_action.triggered.connect(self._on_zoom_fit)
+        fit_action.setShortcut(QKeySequence("Ctrl+0"))
+        zoom_toolbar.addAction(fit_action)
+
+        one_to_one_action = QAction("1:1", self)
+        one_to_one_action.triggered.connect(self._on_zoom_1to1)
+        one_to_one_action.setShortcut(QKeySequence("Ctrl+1"))
+        zoom_toolbar.addAction(one_to_one_action)
+
+        zoom_in_action = QAction("+ Zoom In", self)
+        zoom_in_action.triggered.connect(self._on_zoom_in)
+        zoom_in_action.setShortcut(QKeySequence("="))
+        zoom_toolbar.addAction(zoom_in_action)
+
+        zoom_toolbar.addSeparator()
+
+        self._zoom_combo = QComboBox()
+        self._zoom_combo.setMinimumWidth(80)
+        for level in ZOOM_LEVELS:
+            self._zoom_combo.addItem(f"{int(level * 100)}%", level)
+        self._zoom_combo.currentIndexChanged.connect(self._on_zoom_combo_changed)
+        zoom_toolbar.addWidget(self._zoom_combo)
+
     def _load_ico(self, path: Path) -> None:
         """Load an ICO file and populate the UI."""
         try:
@@ -161,14 +199,18 @@ class EditorWindow(QMainWindow):
         if frame_index is not None and 0 <= frame_index < len(self._frames):
             self._current_frame_index = frame_index
             image, spec = self._frames[frame_index]
+            size_key = (spec.width, spec.height)
 
-            # Load image to canvas
-            self._canvas.load_image(image)
+            # Load image — auto_zoom only when no user override for this size
+            has_override = size_key in self._zoom_overrides
+            self._user_set_zoom = False
+            self._canvas.load_image(image, auto_zoom=not has_override)
 
-            # Update window title
+            if has_override:
+                self._canvas._apply_zoom(self._zoom_overrides[size_key])
+
             self.setWindowTitle(f"Editor - {self.ico_path.name} [{spec.width}x{spec.height}]")
 
-            # Recreate tools for new frame and select pencil
             self._tools = {}
             self._on_tool_pencil()
 
@@ -180,6 +222,24 @@ class EditorWindow(QMainWindow):
         """Handle zoom level change."""
         percentage = int(zoom * 100)
         self._status_bar.showMessage(f"Zoom: {percentage}%")
+
+        # Update combo box selection without triggering another zoom change
+        self._zoom_combo.blockSignals(True)
+        best_idx = 0
+        best_diff = float("inf")
+        for i in range(self._zoom_combo.count()):
+            level = self._zoom_combo.itemData(i)
+            diff = abs(level - zoom)
+            if diff < best_diff:
+                best_diff = diff
+                best_idx = i
+        self._zoom_combo.setCurrentIndex(best_idx)
+        self._zoom_combo.blockSignals(False)
+
+        # Remember user zoom if this was triggered by a user action
+        if self._user_set_zoom and self._current_frame_index < len(self._frames):
+            _, spec = self._frames[self._current_frame_index]
+            self._zoom_overrides[(spec.width, spec.height)] = zoom
 
     def _create_tools(self) -> None:
         """Create tool instances for current frame."""
@@ -242,6 +302,29 @@ class EditorWindow(QMainWindow):
             self._status_bar.showMessage(
                 f"Color: #{color.red():02x}{color.green():02x}{color.blue():02x}"
             )
+
+    def _on_zoom_in(self) -> None:
+        self._user_set_zoom = True
+        self._canvas.zoom_in()
+
+    def _on_zoom_out(self) -> None:
+        self._user_set_zoom = True
+        self._canvas.zoom_out()
+
+    def _on_zoom_fit(self) -> None:
+        self._user_set_zoom = True
+        self._canvas.fit_to_window()
+
+    def _on_zoom_1to1(self) -> None:
+        self._user_set_zoom = True
+        self._canvas.zoom_1to1()
+
+    def _on_zoom_combo_changed(self, index: int) -> None:
+        """Handle zoom level selected from combo box."""
+        level = self._zoom_combo.itemData(index)
+        if level is not None:
+            self._user_set_zoom = True
+            self._canvas._apply_zoom(float(level))
 
     def _on_size_changed(self, value: int) -> None:
         """Handle brush size change."""
