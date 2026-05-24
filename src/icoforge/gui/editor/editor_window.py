@@ -106,11 +106,11 @@ class EditorWindow(QMainWindow):
         """Setup the menu bar with Edit → Undo/Redo."""
         edit_menu = self.menuBar().addMenu("&Edit")
 
-        undo_action = self._canvas.undo_stack.createUndoAction(self, "Undo")
+        undo_action = self._canvas.undo_stack.createUndoAction(self, "Undo:")
         undo_action.setShortcut(QKeySequence("Ctrl+Z"))
         edit_menu.addAction(undo_action)
 
-        redo_action = self._canvas.undo_stack.createRedoAction(self, "Redo")
+        redo_action = self._canvas.undo_stack.createRedoAction(self, "Redo:")
         redo_action.setShortcuts([QKeySequence("Ctrl+Shift+Z"), QKeySequence("Ctrl+Y")])
         edit_menu.addAction(redo_action)
 
