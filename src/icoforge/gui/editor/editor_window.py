@@ -88,6 +88,9 @@ class EditorWindow(QMainWindow):
         splitter.addWidget(self._canvas)
         splitter.setStretchFactor(1, 3)
 
+        # Menu bar
+        self._setup_menu()
+
         # Toolbar
         self._setup_toolbar()
 
@@ -98,6 +101,18 @@ class EditorWindow(QMainWindow):
 
         # Load ICO file
         self._load_ico(ico_path)
+
+    def _setup_menu(self) -> None:
+        """Setup the menu bar with Edit → Undo/Redo."""
+        edit_menu = self.menuBar().addMenu("&Edit")
+
+        undo_action = self._canvas.undo_stack.createUndoAction(self, "Undo")
+        undo_action.setShortcut(QKeySequence("Ctrl+Z"))
+        edit_menu.addAction(undo_action)
+
+        redo_action = self._canvas.undo_stack.createRedoAction(self, "Redo")
+        redo_action.setShortcuts([QKeySequence("Ctrl+Shift+Z"), QKeySequence("Ctrl+Y")])
+        edit_menu.addAction(redo_action)
 
     def _setup_toolbar(self) -> None:
         """Setup the drawing toolbar."""

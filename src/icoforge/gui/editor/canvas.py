@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from PIL import Image
 from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPen, QPixmap
+from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPen, QPixmap, QUndoStack
 from PySide6.QtWidgets import (
     QGraphicsItem,
     QGraphicsPixmapItem,
@@ -14,6 +14,8 @@ from PySide6.QtWidgets import (
     QGraphicsView,
     QWidget,
 )
+
+from icoforge.gui.editor.commands import DrawCommand, compute_pixel_diff
 
 if TYPE_CHECKING:
     from icoforge.gui.editor.tools import Tool
@@ -192,6 +194,10 @@ class EditorCanvas(QGraphicsView):
         self._zoom_level = 1.0
         self._pan_start: QPoint | None = None
         self._current_tool: Tool | None = None
+        self._pre_stroke_image: Image.Image | None = None
+
+        self._undo_stack = QUndoStack(self)
+        self._undo_stack.indexChanged.connect(lambda _: self._refresh_pixmap())
 
         self.setBackgroundBrush(QBrush(QColor(50, 50, 50)))
         self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
@@ -204,9 +210,15 @@ class EditorCanvas(QGraphicsView):
     # Image loading
     # ------------------------------------------------------------------
 
+    @property
+    def undo_stack(self) -> QUndoStack:
+        return self._undo_stack
+
     def load_image(self, image: Image.Image, auto_zoom: bool = True) -> None:
         """Load a new image to the canvas."""
         self._current_image = image.copy()
+        self._undo_stack.clear()
+        self._pre_stroke_image = None
 
         self.scene_obj.clear()
         self._pixmap_item = None
@@ -241,15 +253,31 @@ class EditorCanvas(QGraphicsView):
         """Set the active drawing tool."""
         self._current_tool = tool
 
+    def _commit_stroke(self, description: str) -> None:
+        """Diff against pre-stroke snapshot and push a DrawCommand if pixels changed."""
+        if self._pre_stroke_image is None or self._current_image is None:
+            self._pre_stroke_image = None
+            return
+        changes = compute_pixel_diff(self._pre_stroke_image, self._current_image)
+        self._pre_stroke_image = None
+        if not changes:
+            return
+        self._undo_stack.beginMacro(description)
+        self._undo_stack.push(DrawCommand(self._current_image, changes, description))
+        self._undo_stack.endMacro()
+
     def _refresh_pixmap(self) -> None:
         """Refresh the displayed pixmap from the current image."""
         if self._current_image is None or self._pixmap_item is None:
             return
-        rgb_image = self._current_image.convert("RGBA")
-        data = rgb_image.tobytes()
-        width, height = self._current_image.size
-        qimage = QImage(data, width, height, 4 * width, QImage.Format.Format_RGBA8888)
-        self._pixmap_item.setPixmap(QPixmap.fromImage(qimage))
+        try:
+            rgb_image = self._current_image.convert("RGBA")
+            data = rgb_image.tobytes()
+            width, height = self._current_image.size
+            qimage = QImage(data, width, height, 4 * width, QImage.Format.Format_RGBA8888)
+            self._pixmap_item.setPixmap(QPixmap.fromImage(qimage))
+        except RuntimeError:
+            pass  # C++ object deleted during teardown
 
     # ------------------------------------------------------------------
     # Zoom API
@@ -412,6 +440,8 @@ class EditorCanvas(QGraphicsView):
             self._pan_start = event.pos()
             event.accept()
         elif event.button() == Qt.MouseButton.LeftButton and self._current_tool is not None:
+            if self._current_image is not None:
+                self._pre_stroke_image = self._current_image.copy()
             scene_pos = self.mapToScene(event.pos())
             px, py = int(scene_pos.x()), int(scene_pos.y())
             self._current_tool.on_press(px, py)
@@ -464,6 +494,8 @@ class EditorCanvas(QGraphicsView):
             px, py = int(scene_pos.x()), int(scene_pos.y())
             self._current_tool.on_release(px, py)
             self._refresh_pixmap()
+            tool_name = getattr(self._current_tool, "name", "Draw")
+            self._commit_stroke(f"{tool_name} stroke")
             event.accept()
         else:
             super().mouseReleaseEvent(event)

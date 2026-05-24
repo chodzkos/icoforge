@@ -87,6 +87,8 @@ class Tool(ABC):
 class PixelTool(Tool):
     """Pencil tool for drawing with current color."""
 
+    name = "Pencil"
+
     def __init__(
         self, image: Image.Image, color: tuple[int, int, int, int] = (0, 0, 0, 255), size: int = 1
     ) -> None:
@@ -128,6 +130,8 @@ class PixelTool(Tool):
 
 class EraserTool(Tool):
     """Eraser tool that sets alpha to 0."""
+
+    name = "Eraser"
 
     def __init__(self, image: Image.Image, size: int = 1) -> None:
         """Initialize eraser tool.
@@ -174,6 +178,8 @@ class EraserTool(Tool):
 
 class EyedropperTool(Tool):
     """Color picker tool - samples color from clicked pixel."""
+
+    name = "Eyedropper"
 
     def __init__(self, image: Image.Image) -> None:
         """Initialize eyedropper tool.
