@@ -38,6 +38,7 @@ class MainWindow(QMainWindow):
 
         self.source_path: Path | None = None
         self._current_worker: ConversionWorker | None = None
+        self._editor_window: EditorWindow | None = None
         self._drop_zone: FileDropZone
         self._settings_panel: SettingsPanel
         self._preview_panel: PreviewPanel
@@ -256,8 +257,8 @@ class MainWindow(QMainWindow):
         )
         if path:
             try:
-                editor = EditorWindow(Path(path))
-                editor.show()
+                self._editor_window = EditorWindow(Path(path))
+                self._editor_window.show()
             except Exception as e:
                 QMessageBox.critical(
                     self,
