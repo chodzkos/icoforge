@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QColor, QFont, QKeySequence
 from PySide6.QtWidgets import (
-    QColorDialog,
     QComboBox,
     QLabel,
     QListWidget,
@@ -25,6 +24,7 @@ from PySide6.QtWidgets import (
 from icoforge.core.ico_reader import read_ico
 from icoforge.core.models import SizeSpec
 from icoforge.gui.editor.canvas import ZOOM_LEVELS, EditorCanvas
+from icoforge.gui.editor.color_indicator import ColorIndicator
 from icoforge.gui.editor.tools import EraserTool, EyedropperTool, PixelTool, Tool
 
 if TYPE_CHECKING:
@@ -45,7 +45,6 @@ class EditorWindow(QMainWindow):
         self._current_frame_index = 0
 
         # Tool state
-        self._current_color: tuple[int, int, int, int] = (0, 0, 0, 255)
         self._current_size = 1
         self._tools: dict[str, Tool] = {}
 
@@ -63,10 +62,15 @@ class EditorWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         layout.addWidget(splitter)
 
-        # Left panel: size list
+        # Left panel: color indicator + size list
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
         left_layout.setContentsMargins(4, 4, 4, 4)
+        left_layout.setSpacing(6)
+
+        self._color_indicator = ColorIndicator()
+        self._color_indicator.color_changed.connect(self._on_color_changed)
+        left_layout.addWidget(self._color_indicator, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         left_layout.addWidget(QLabel("Rozmiary:"))
 
@@ -80,6 +84,7 @@ class EditorWindow(QMainWindow):
         # Right panel: canvas
         self._canvas = EditorCanvas()
         self._canvas.zoom_changed.connect(self._on_zoom_changed)
+        self._canvas.color_sampled.connect(self._on_color_sampled)
         splitter.addWidget(self._canvas)
         splitter.setStretchFactor(1, 3)
 
@@ -119,10 +124,11 @@ class EditorWindow(QMainWindow):
 
         toolbar.addSeparator()
 
-        # Color picker
-        color_action = QAction("Pick Color", self)
-        color_action.triggered.connect(self._on_pick_color)
-        toolbar.addAction(color_action)
+        # Swap colors shortcut (X key, same as Photoshop)
+        swap_action = QAction("Swap Colors (X)", self)
+        swap_action.triggered.connect(self._on_swap_colors)
+        swap_action.setShortcut("X")
+        toolbar.addAction(swap_action)
 
         toolbar.addSeparator()
 
@@ -246,8 +252,10 @@ class EditorWindow(QMainWindow):
         if self._canvas._current_image is None:
             return
         image = self._canvas._current_image
+        fg = self._color_indicator.foreground_color
+        color = (fg.red(), fg.green(), fg.blue(), fg.alpha())
         self._tools = {
-            "pencil": PixelTool(image, self._current_color, self._current_size),
+            "pencil": PixelTool(image, color, self._current_size),
             "eraser": EraserTool(image, self._current_size),
             "eyedropper": EyedropperTool(image),
         }
@@ -258,7 +266,8 @@ class EditorWindow(QMainWindow):
             self._create_tools()
         tool = self._tools["pencil"]
         assert isinstance(tool, PixelTool)
-        tool.set_color(self._current_color)
+        fg = self._color_indicator.foreground_color
+        tool.set_color((fg.red(), fg.green(), fg.blue(), fg.alpha()))
         tool.set_size(self._current_size)
         self._canvas.set_tool(tool)
         self._status_bar.showMessage("Tool: Pencil")
@@ -281,27 +290,24 @@ class EditorWindow(QMainWindow):
         self._canvas.set_tool(tool)
         self._status_bar.showMessage("Tool: Eyedropper (click to pick color)")
 
-    def _on_pick_color(self) -> None:
-        """Open color picker dialog."""
-        color = QColorDialog.getColor(
-            QColor(*self._current_color),
-            self,
-            "Pick Color",
+    def _on_color_changed(self, color: QColor, is_foreground: bool) -> None:
+        """Handle color change from ColorIndicator."""
+        if is_foreground and "pencil" in self._tools:
+            tool = self._tools["pencil"]
+            assert isinstance(tool, PixelTool)
+            tool.set_color((color.red(), color.green(), color.blue(), color.alpha()))
+        self._status_bar.showMessage(
+            f"{'Foreground' if is_foreground else 'Background'}: "
+            f"#{color.red():02x}{color.green():02x}{color.blue():02x}"
         )
-        if color.isValid():
-            self._current_color = (
-                color.red(),
-                color.green(),
-                color.blue(),
-                color.alpha(),
-            )
-            if "pencil" in self._tools:
-                tool = self._tools["pencil"]
-                assert isinstance(tool, PixelTool)
-                tool.set_color(self._current_color)
-            self._status_bar.showMessage(
-                f"Color: #{color.red():02x}{color.green():02x}{color.blue():02x}"
-            )
+
+    def _on_color_sampled(self, r: int, g: int, b: int, a: int) -> None:
+        """Handle color picked by eyedropper tool — update ColorIndicator."""
+        self._color_indicator.set_foreground_color(QColor(r, g, b, a))
+
+    def _on_swap_colors(self) -> None:
+        """Swap foreground and background colors."""
+        self._color_indicator.swap_colors()
 
     def _on_zoom_in(self) -> None:
         self._user_set_zoom = True
@@ -330,11 +336,11 @@ class EditorWindow(QMainWindow):
         """Handle brush size change."""
         self._current_size = value
         if "pencil" in self._tools:
-            tool = self._tools["pencil"]
-            assert isinstance(tool, PixelTool)
-            tool.set_size(value)
+            pencil = self._tools["pencil"]
+            assert isinstance(pencil, PixelTool)
+            pencil.set_size(value)
         if "eraser" in self._tools:
-            tool = self._tools["eraser"]
-            assert isinstance(tool, EraserTool)
-            tool.set_size(value)
+            eraser = self._tools["eraser"]
+            assert isinstance(eraser, EraserTool)
+            eraser.set_size(value)
         self._status_bar.showMessage(f"Brush size: {value}px")

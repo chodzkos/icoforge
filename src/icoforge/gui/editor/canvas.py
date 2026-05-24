@@ -175,6 +175,7 @@ class EditorCanvas(QGraphicsView):
 
     zoom_changed = Signal(float)
     pixel_hovered = Signal(int, int)
+    color_sampled = Signal(int, int, int, int)  # r, g, b, a — emitted by eyedropper
 
     MIN_ZOOM = 1.0
     MAX_ZOOM = 64.0
@@ -415,6 +416,7 @@ class EditorCanvas(QGraphicsView):
             px, py = int(scene_pos.x()), int(scene_pos.y())
             self._current_tool.on_press(px, py)
             self._refresh_pixmap()
+            self._maybe_emit_color_sampled()
             event.accept()
         else:
             super().mousePressEvent(event)
@@ -439,6 +441,7 @@ class EditorCanvas(QGraphicsView):
             px, py = int(scene_pos.x()), int(scene_pos.y())
             self._current_tool.on_move(px, py)
             self._refresh_pixmap()
+            self._maybe_emit_color_sampled()
             event.accept()
         else:
             scene_pos = self.mapToScene(event.pos())
@@ -468,6 +471,13 @@ class EditorCanvas(QGraphicsView):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def _maybe_emit_color_sampled(self) -> None:
+        """Emit color_sampled if the current tool has a picked_color attribute."""
+        picked = getattr(self._current_tool, "picked_color", None)
+        if picked is not None:
+            r, g, b, a = picked
+            self.color_sampled.emit(r, g, b, a)
 
     def _update_grid_visibility(self) -> None:
         """Show/hide grid based on zoom level."""
