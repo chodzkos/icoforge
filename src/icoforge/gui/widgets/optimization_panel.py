@@ -40,9 +40,12 @@ class DropZoneFrame(QFrame):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setObjectName("dropZoneFrame")
         self.setFrameShape(QFrame.Shape.StyledPanel)
+        # Use #dropZoneFrame so the rule never cascades into child QFileDialogs.
         self.setStyleSheet(
-            "QFrame { border: 2px dashed #aaa; border-radius: 4px; background-color: #f9f9f9; }"
+            "QFrame#dropZoneFrame { border: 2px dashed #aaa; border-radius: 4px;"
+            " background-color: #f9f9f9; }"
         )
         self.setAcceptDrops(True)
         self.setMinimumHeight(60)
@@ -63,14 +66,20 @@ class DropZoneFrame(QFrame):
     def mousePressEvent(self, event: QMouseEvent) -> None:
         """Handle click to open file selection dialog."""
         if event.button() == Qt.MouseButton.LeftButton:
-            paths, _ = QFileDialog.getOpenFileNames(
-                self,
-                "Wybierz pliki PNG do optymalizacji",
-                "",
-                "PNG Images (*.png);;All Files (*)",
+            dialog = QFileDialog(
+                self, "Wybierz pliki PNG do optymalizacji", "", "PNG Images (*.png);;All Files (*)"
             )
-            if paths:
-                self.files_dropped.emit([Path(p) for p in paths])
+            dialog.setFileMode(QFileDialog.FileMode.ExistingFiles)
+            dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+            dialog.setStyleSheet(
+                "QFrame { border: none; }"
+                " QListView, QTreeView { border: 1px solid palette(mid); }"
+                " QSplitter::handle { background: palette(mid); }"
+            )
+            if dialog.exec():
+                paths = dialog.selectedFiles()
+                if paths:
+                    self.files_dropped.emit([Path(p) for p in paths])
 
 
 class OptimizationPanel(QWidget):
