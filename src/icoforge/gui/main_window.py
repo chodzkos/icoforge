@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from icoforge.gui.editor.editor_window import EditorWindow
 from icoforge.gui.widgets.file_drop_zone import SUPPORTED_SUFFIXES, FileDropZone
 from icoforge.gui.widgets.optimization_panel import OptimizationPanel
 from icoforge.gui.widgets.preview_panel import PreviewPanel
@@ -37,6 +38,7 @@ class MainWindow(QMainWindow):
 
         self.source_path: Path | None = None
         self._current_worker: ConversionWorker | None = None
+        self._editor_window: EditorWindow | None = None
         self._drop_zone: FileDropZone
         self._settings_panel: SettingsPanel
         self._preview_panel: PreviewPanel
@@ -60,6 +62,7 @@ class MainWindow(QMainWindow):
         file_menu = menubar.addMenu("&File")
         file_menu.addAction("&Open…", self._on_open)
         file_menu.addAction("Save &As…", self._on_save_as)
+        file_menu.addAction("Edit &ICO…", self._on_edit_ico)
         file_menu.addSeparator()
         file_menu.addAction("E&xit", self.close)
 
@@ -244,6 +247,25 @@ class MainWindow(QMainWindow):
     def _on_open(self) -> None:
         self._drop_zone.open_file_dialog()
 
+    def _on_edit_ico(self) -> None:
+        """Open file dialog to select ICO for editing."""
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Otwórz plik ICO do edycji",
+            "",
+            "ICO files (*.ico)",
+        )
+        if path:
+            try:
+                self._editor_window = EditorWindow(Path(path))
+                self._editor_window.show()
+            except Exception as e:
+                QMessageBox.critical(
+                    self,
+                    "Błąd",
+                    f"Nie można otworzyć pliku ICO:\n{e}",
+                )
+
     def _on_about(self) -> None:
         QMessageBox.about(
             self,
@@ -256,7 +278,6 @@ def main() -> int:
     app = QApplication.instance() or QApplication(sys.argv)
     window = MainWindow()
     window.show()
-    # On WSLg/XWayland the window may not receive focus automatically.
     window.raise_()
     window.activateWindow()
     return int(app.exec())
