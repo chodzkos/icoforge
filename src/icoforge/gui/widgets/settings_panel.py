@@ -320,6 +320,7 @@ class SettingsPanel(QWidget):
         self._color_btn: QPushButton
         self._auto_trim_check: QCheckBox
         self._trim_padding_spin: QSpinBox
+        self._remove_bg_check: QCheckBox
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -330,6 +331,9 @@ class SettingsPanel(QWidget):
         layout.addWidget(self._make_resample_group())
         layout.addWidget(self._make_background_group())
         layout.addWidget(self._make_trim_group())
+        bg_group = self._make_bg_remove_group()
+        if bg_group is not None:
+            layout.addWidget(bg_group)
         layout.addStretch()
 
     # ------------------------------------------------------------------
@@ -414,6 +418,31 @@ class SettingsPanel(QWidget):
 
         return group
 
+    def _make_bg_remove_group(self) -> QGroupBox | None:
+        """Return a group box for AI bg removal, or None if rembg is not installed."""
+        from icoforge.core.bg_remover import MODEL_DOWNLOAD_WARNING, is_available
+
+        if not is_available():
+            return None
+
+        group = QGroupBox("Usuwanie tla (AI)")
+        vbox = QVBoxLayout(group)
+        vbox.setContentsMargins(8, 8, 8, 8)
+        vbox.setSpacing(4)
+
+        self._remove_bg_check = QCheckBox("Usun tlo (U2-Net)")
+        self._remove_bg_check.setToolTip(
+            MODEL_DOWNLOAD_WARNING + "\n\nModel jest pobierany tylko raz i zapisywany w ~/.u2net/."
+        )
+        self._remove_bg_check.toggled.connect(self._on_remove_bg_toggled)
+        vbox.addWidget(self._remove_bg_check)
+
+        note = QLabel("<small><i>Pierwsze uzycie: pobieranie modelu ~170 MB</i></small>")
+        note.setWordWrap(True)
+        vbox.addWidget(note)
+
+        return group
+
     def _make_trim_group(self) -> QGroupBox:
         group = QGroupBox("Przycinanie")
         vbox = QVBoxLayout(group)
@@ -466,12 +495,15 @@ class SettingsPanel(QWidget):
         auto_trim = self._auto_trim_check.isChecked()
         trim_padding = self._trim_padding_spin.value() if auto_trim else 0
 
+        remove_bg = hasattr(self, "_remove_bg_check") and self._remove_bg_check.isChecked()
+
         return IcoConfig(
             sizes=sizes,
             resample=resample,
             background=background,
             auto_trim=auto_trim,
             auto_trim_padding=trim_padding,
+            remove_bg=remove_bg,
         )
 
     # ------------------------------------------------------------------
@@ -499,6 +531,9 @@ class SettingsPanel(QWidget):
         self.settings_changed.emit()
 
     def _on_resample_changed(self, _algo: ResampleAlgorithm) -> None:
+        self.settings_changed.emit()
+
+    def _on_remove_bg_toggled(self, _checked: bool) -> None:
         self.settings_changed.emit()
 
     def _on_trim_toggled(self, checked: bool) -> None:

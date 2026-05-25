@@ -229,6 +229,15 @@ def main() -> None:
     show_default=True,
     help="Pixels of transparent padding to add around the trimmed content.",
 )
+@click.option(
+    "--remove-bg/--no-remove-bg",
+    default=False,
+    show_default=True,
+    help=(
+        "Remove image background using the U2-Net AI model (requires icoforge[bgremove]). "
+        "First run downloads the model (~170 MB)."
+    ),
+)
 @_per_size_source_options
 def convert(
     source: Path,
@@ -241,6 +250,7 @@ def convert(
     hotspot: str | None,
     auto_trim: bool,
     trim_padding: int,
+    remove_bg: bool,
     **per_size_sources: Path | None,
 ) -> None:
     """Convert SOURCE image to a multi-size ICO, ICNS, or CUR file at TARGET.
@@ -256,6 +266,21 @@ def convert(
     if suffix == ".cur":
         _convert_cur(source, target, sizes, resample, background, bit_depth, keep_aspect, hotspot)
         return
+
+    if remove_bg:
+        from icoforge.core.bg_remover import is_available
+
+        if not is_available():
+            click.secho(
+                "Error: --remove-bg requires rembg. Run: pip install icoforge[bgremove]",
+                fg="red",
+                err=True,
+            )
+            raise SystemExit(1)
+        click.echo(
+            "Uwaga: pierwsze uruchomienie pobierze model AI U2-Net (~170 MB).",
+            err=True,
+        )
 
     parsed_sizes = _parse_sizes(sizes)
     source_overrides = _collect_source_overrides(per_size_sources, parsed_sizes)
@@ -278,6 +303,7 @@ def convert(
         preserve_aspect=keep_aspect,
         auto_trim=auto_trim,
         auto_trim_padding=trim_padding,
+        remove_bg=remove_bg,
     )
 
     try:
@@ -287,6 +313,11 @@ def convert(
         click.secho(f"Error: source file not found: {exc}", fg="red", err=True)
         raise SystemExit(1) from exc
     except ValueError as exc:
+        click.echo()
+        click.secho(f"Error: {exc}", fg="red", err=True)
+        raise SystemExit(1) from exc
+    except Exception as exc:
+        # Catches BgRemoveError (and any other runtime failure)
         click.echo()
         click.secho(f"Error: {exc}", fg="red", err=True)
         raise SystemExit(1) from exc

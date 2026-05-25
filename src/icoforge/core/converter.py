@@ -168,6 +168,10 @@ def _render_raster_frame(
     base = cache.get(source)
     if base is None:
         base = _load_rgba(source, config.background)
+        if config.remove_bg:
+            from icoforge.core.bg_remover import remove_background
+
+            base = remove_background(base)
         if config.auto_trim:
             from icoforge.core.image_utils import trim_transparency
 
@@ -200,6 +204,10 @@ def _render_heic_frame(
     base = cache.get(source)
     if base is None:
         base = heic_loader.load_heic(source)
+        if config.remove_bg:
+            from icoforge.core.bg_remover import remove_background
+
+            base = remove_background(base)
         if config.auto_trim:
             from icoforge.core.image_utils import trim_transparency
 
