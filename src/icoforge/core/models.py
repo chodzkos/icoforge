@@ -121,6 +121,7 @@ class IcoConfig:
     background: Background = TRANSPARENT
     preserve_aspect: bool = True
     auto_trim: bool = False
+    cursor_hotspot: tuple[int, int] | None = None
 
     def __post_init__(self) -> None:
         if not self.sizes:

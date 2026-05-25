@@ -9,12 +9,17 @@ from PySide6.QtCore import QThreadPool, QUrl
 from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
+    QDialog,
+    QDialogButtonBox,
     QFileDialog,
+    QFormLayout,
     QFrame,
     QHBoxLayout,
+    QLabel,
     QMainWindow,
     QMessageBox,
     QProgressBar,
+    QSpinBox,
     QStatusBar,
     QTabWidget,
     QToolBar,
@@ -175,7 +180,7 @@ class MainWindow(QMainWindow):
             self,
             "Zapisz plik",
             "",
-            "ICO files (*.ico);;ICNS files (*.icns)",
+            "ICO files (*.ico);;ICNS files (*.icns);;CUR cursor files (*.cur)",
         )
         if not path:
             return
@@ -184,6 +189,12 @@ class MainWindow(QMainWindow):
             if not path.lower().endswith(".icns"):
                 path += ".icns"
             self._save_icns(source, Path(path))
+            return
+
+        if "cur" in selected_filter.lower():
+            if not path.lower().endswith(".cur"):
+                path += ".cur"
+            self._save_cur(source, Path(path))
             return
 
         if not path.lower().endswith(".ico"):
@@ -229,6 +240,57 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Zapisano {target.name}")
         except Exception as exc:
             QMessageBox.critical(self, "Błąd zapisu ICNS", str(exc))
+
+    def _save_cur(self, source: Path, target: Path) -> None:
+        """Ask for hotspot, then render frames and save as a Windows .cur file."""
+        from icoforge.core.converter import render_frames
+        from icoforge.core.cur_writer import write_cur
+
+        config = self._settings_panel.get_config()
+
+        # --- hotspot dialog ---
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Hotspot kursora")
+        layout = QVBoxLayout(dlg)
+
+        info = QLabel(
+            "Podaj współrzędne aktywnego piksela (hotspot) kursora.\n"
+            "Punkt (0, 0) to lewy górny róg obrazu."
+        )
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        form = QFormLayout()
+        max_size = max(s.width for s in config.sizes)
+        sb_x = QSpinBox()
+        sb_x.setRange(0, max_size - 1)
+        sb_x.setValue(0)
+        sb_y = QSpinBox()
+        sb_y.setRange(0, max_size - 1)
+        sb_y.setValue(0)
+        form.addRow("Hotspot X:", sb_x)
+        form.addRow("Hotspot Y:", sb_y)
+        layout.addLayout(form)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        layout.addWidget(buttons)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        hotspot = (sb_x.value(), sb_y.value())
+
+        try:
+            images = render_frames(source, config)
+            pairs = list(zip(images, config.sizes, strict=False))
+            write_cur(target, pairs, hotspot=hotspot)
+            self.statusBar().showMessage(f"Zapisano {target.name}  hotspot={hotspot}")
+        except Exception as exc:
+            QMessageBox.critical(self, "Błąd zapisu CUR", str(exc))
 
     # ------------------------------------------------------------------
     # Cancellation

@@ -20,6 +20,7 @@ from icoforge.core import (
     SizeSpec,
 )
 from icoforge.core.converter import convert as run_convert
+from icoforge.core.converter import render_frames as run_render
 from icoforge.core.optimizer import optimize_batch, optimize_png
 
 _PRESETS: dict[str, tuple[SizeSpec, ...]] = {
@@ -207,6 +208,14 @@ def main() -> None:
     show_default=True,
     help="Preserve source aspect ratio by letterboxing (default: on).",
 )
+@click.option(
+    "--hotspot",
+    default=None,
+    help=(
+        "Cursor hotspot as 'X,Y' (e.g. '0,0').  "
+        "Required when TARGET is a .cur file; ignored otherwise."
+    ),
+)
 @_per_size_source_options
 def convert(
     source: Path,
@@ -216,15 +225,21 @@ def convert(
     background: str,
     bit_depth: str,
     keep_aspect: bool,
+    hotspot: str | None,
     **per_size_sources: Path | None,
 ) -> None:
-    """Convert SOURCE image to a multi-size ICO or ICNS file at TARGET.
+    """Convert SOURCE image to a multi-size ICO, ICNS, or CUR file at TARGET.
 
     When TARGET ends with .icns the output is a macOS ICNS file.
+    When TARGET ends with .cur the output is a Windows cursor file.
     Supported ICNS sizes: 16, 32, 64, 128, 256, 512, 1024.
     """
-    if target.suffix.lower() == ".icns":
+    suffix = target.suffix.lower()
+    if suffix == ".icns":
         _convert_icns(source, target, sizes, resample, background, keep_aspect)
+        return
+    if suffix == ".cur":
+        _convert_cur(source, target, sizes, resample, background, bit_depth, keep_aspect, hotspot)
         return
 
     parsed_sizes = _parse_sizes(sizes)
@@ -416,6 +431,78 @@ def optimize(
         f"  {len(results)} file(s): {total_before / 1e6:.1f} MB → "
         f"{total_after / 1e6:.1f} MB ({total_ratio:.1f}% smaller)"
     )
+
+
+def _parse_hotspot(value: str | None) -> tuple[int, int]:
+    """Parse '--hotspot X,Y' into a (x, y) tuple.
+
+    Returns ``(0, 0)`` when *value* is ``None``.
+    """
+    if value is None:
+        return (0, 0)
+    parts = value.split(",")
+    if len(parts) != 2:
+        raise click.BadParameter(
+            f"Expected 'X,Y', got {value!r}.",
+            param_hint="'--hotspot'",
+        )
+    try:
+        x, y = int(parts[0].strip()), int(parts[1].strip())
+    except ValueError:
+        raise click.BadParameter(
+            f"Both X and Y must be integers, got {value!r}.",
+            param_hint="'--hotspot'",
+        ) from None
+    if x < 0 or y < 0:
+        raise click.BadParameter(
+            f"Hotspot coordinates must be non-negative, got ({x}, {y}).",
+            param_hint="'--hotspot'",
+        )
+    return (x, y)
+
+
+def _convert_cur(
+    source: Path,
+    target: Path,
+    sizes: str,
+    resample: str,
+    background: str,
+    bit_depth: str,
+    keep_aspect: bool,
+    hotspot: str | None,
+) -> None:
+    """Render frames from *source* and write a Windows .cur file to *target*."""
+    from icoforge.core.cur_writer import write_cur
+
+    parsed_sizes = _parse_sizes(sizes)
+    bd = cast(Literal[8, 24, 32], int(bit_depth))
+    size_specs = tuple(
+        SizeSpec(s.width, s.height, bit_depth=bd, resample=s.resample) for s in parsed_sizes
+    )
+    bg = _parse_background(background)
+    config = IcoConfig(
+        sizes=size_specs,
+        resample=ResampleAlgorithm(resample),
+        background=bg,
+        preserve_aspect=keep_aspect,
+    )
+    hs = _parse_hotspot(hotspot)
+
+    try:
+        frames = run_render(source, config, progress=_progress_callback)
+    except FileNotFoundError as exc:
+        click.echo()
+        click.secho(f"Error: source file not found: {exc}", fg="red", err=True)
+        raise SystemExit(1) from exc
+    except ValueError as exc:
+        click.echo()
+        click.secho(f"Error: {exc}", fg="red", err=True)
+        raise SystemExit(1) from exc
+
+    pairs = list(zip(frames, size_specs, strict=False))
+    write_cur(target, pairs, hotspot=hs)
+    click.echo()
+    click.secho(f"Wrote {target}", fg="green")
 
 
 if __name__ == "__main__":
