@@ -9,7 +9,7 @@ Konwerter i edytor plików ICO. Konwersja z PNG/JPG/WEBP/SVG/HEIC do `.ico` z pe
 | Faza 1 | MVP konwersji PNG → ICO | ✅ Ukończona |
 | Faza 2 | Więcej formatów wejściowych | ✅ Ukończona |
 | Faza 3 | Optymalizacja PNG | ✅ Ukończona |
-| Faza 4 | Edytor pikselowy | 🔄 W trakcie |
+| Faza 4 | Edytor pikselowy | ✅ Ukończona |
 | Faza 5 | Tworzenie ICO od podstaw | 📋 Planowana |
 
 Patrz [docs/ROADMAP.md](docs/ROADMAP.md) dla szczegółowego planu.
@@ -37,12 +37,14 @@ Patrz [docs/ROADMAP.md](docs/ROADMAP.md) dla szczegółowego planu.
 - Tryb wsadowy z raportem CSV
 - GUI: zakładka "Optymalizacja" z drag & drop, progress bar i wynikami
 
-**Faza 4 – edytor pikselowy**
-- Canvas z zoomem do 32x i widokiem siatki
-- Narzędzia: ołówek, gumka, wypełnianie, kroplomierz, prostokąt, linia, zaznaczenie
-- Undo/redo (command stack)
+**Faza 4 – edytor pikselowy** ✅
+- Canvas z zoomem 1×–64×, siatką pikselową i miniaturą nawigacyjną
+- 7 narzędzi: ołówek, gumka, kroplomierz, wypełnianie (BFS + tolerancja), linia (Bresenham), prostokąt, zaznaczenie (marching ants)
+- Undo/redo (QUndoStack) — Ctrl+Z / Ctrl+Shift+Z
+- Kopiuj/wytnij/wklej z obsługą przezroczystości (sprite-aware paste)
+- Paleta kolorów: siatka 32 kolorów, ekstrakcja z obrazu, zapis/wczytanie JSON
 - Edycja każdej rozdzielczości osobno w obrębie tego samego ICO
-- Paleta kolorów z importem z obrazu
+- Zapis (Ctrl+S) i Zapisz jako (Ctrl+Shift+S); dialog potwierdzenia przy zamykaniu
 
 **Faza 5 – tworzenie ICO od podstaw**
 - Kreator nowego ICO (wybór rozmiarów, kolor tła / transparent)
