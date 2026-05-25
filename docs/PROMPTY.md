@@ -634,6 +634,10 @@ Poczekaj na moje potwierdzenie, a następnie scal z main:
 *Każda z poniższych funkcji to osobny, niezależny krok. Implementuj w dowolnej
 kolejności po ukończeniu fazy 5.*
 
+
+
+
+
 ### Eksport ICNS (ikony macOS)
 
 ```
@@ -765,6 +769,36 @@ git push origin feature/extra-rembg
 git checkout main && git merge --no-ff feature/extra-rembg -m "feat: merge AI background removal" && git push origin main
 git branch -d feature/extra-rembg && git push origin --delete feature/extra-rembg
 ```
+
+
+### Funkcja portable
+
+Po ukończeniu fazy 5, przed krokiem z instalatorem, dodaj obsługę
+trybu portable jako osobny target buildu.
+
+WYKRYWANIE TRYBU PORTABLE w src/icoforge/utils/paths.py:
+- Funkcja get_settings_dir() -> Path:
+  - Sprawdź czy obok IcoForge.exe istnieje plik "portable.txt"
+    (sys.frozen = True gdy uruchomiony przez PyInstaller,
+     wtedy sys.executable daje ścieżkę do .exe)
+  - Jeśli portable.txt istnieje → zwróć Path(sys.executable).parent / "settings"
+  - Jeśli nie → zwróć Path(os.environ["APPDATA"]) / "IcoForge" (Windows)
+               lub Path.home() / ".config" / "icoforge" (Linux/macOS)
+- Użyj get_settings_dir() wszędzie gdzie aplikacja zapisuje/czyta ustawienia,
+  ostatnie pliki, presety, palety kolorów
+
+BUNDLE PORTABLE w scripts/build_windows.py:
+Po zbudowaniu przez PyInstaller (folder dist/IcoForge/):
+1. Skopiuj dist/IcoForge/ do dist/IcoForge-portable/
+2. Utwórz pusty plik dist/IcoForge-portable/portable.txt
+3. Spakuj dist/IcoForge-portable/ do dist/IcoForge-portable-x.x.x.zip
+   (użyj zipfile z biblioteki standardowej)
+
+GITHUB ACTIONS w .github/workflows/release.yml:
+Dodaj do artefaktów releasu obok instalatora .exe:
+- IcoForge-portable-x.x.x.zip
+
+Zrób commit: "feat: add portable mode with settings stored next to executable"
 
 ### Instalator Windows (PyInstaller + Inno Setup)
 

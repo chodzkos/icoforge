@@ -175,3 +175,87 @@ class TestSaveRoundTrip:
             if f.size == canvas_size:
                 assert f.getpixel((7, 7)) != (88, 77, 66, 255)
                 break
+
+
+# ---------------------------------------------------------------------------
+# Size synchronisation tests
+# ---------------------------------------------------------------------------
+
+
+def _make_frames(sizes: list[int]) -> list[tuple[Image.Image, SizeSpec]]:
+    return [(Image.new("RGBA", (s, s), (255, 0, 0, 255)), SizeSpec(s, s)) for s in sizes]
+
+
+class TestSyncDownscale:
+    def test_sync_enabled_downscales_smaller_frames(self, qtbot) -> None:
+        window = EditorWindow(Path("nienazwany.ico"), frames=_make_frames([32, 16]))
+        qtbot.addWidget(window)
+        window._sync_checkbox.setChecked(True)
+
+        # Draw a distinctive colour on the 32x32 frame (currently active)
+        from PySide6.QtGui import QColor
+
+        window._palette.set_foreground_color(QColor(0, 200, 100, 255))
+        window._canvas.load_image(Image.new("RGBA", (32, 32), (0, 200, 100, 255)))
+        # Switch to 16x16 - triggers _sync_canvas_to_frame with downscale
+        item = window._size_list.item(1)
+        assert item is not None
+        window._on_size_selected(item)
+
+        # The 16x16 frame should no longer be solid red
+        img_16, _ = window._frames[1]
+        # It should have been replaced with a downscaled version of the green image
+        unique = {p[:3] for p in img_16.getdata() if p[3] > 0}
+        assert any(g > 150 for _, g, _ in unique), "16x16 not downscaled from 32x32"
+
+    def test_sync_disabled_does_not_downscale(self, qtbot) -> None:
+        window = EditorWindow(Path("nienazwany.ico"), frames=_make_frames([32, 16]))
+        qtbot.addWidget(window)
+        window._sync_checkbox.setChecked(False)
+
+        original_16 = window._frames[1][0].copy()
+        window._canvas.load_image(Image.new("RGBA", (32, 32), (0, 200, 100, 255)))
+        item = window._size_list.item(1)
+        assert item is not None
+        window._on_size_selected(item)
+
+        new_16 = window._frames[1][0]
+        assert list(new_16.getdata()) == list(original_16.getdata())
+
+    def test_detached_size_not_downscaled(self, qtbot) -> None:
+        window = EditorWindow(Path("nienazwany.ico"), frames=_make_frames([32, 16]))
+        qtbot.addWidget(window)
+        window._sync_checkbox.setChecked(True)
+        window._set_sync(16, synced=False)
+
+        original_16 = window._frames[1][0].copy()
+        window._canvas.load_image(Image.new("RGBA", (32, 32), (0, 200, 100, 255)))
+        item = window._size_list.item(1)
+        assert item is not None
+        window._on_size_selected(item)
+
+        new_16 = window._frames[1][0]
+        assert list(new_16.getdata()) == list(original_16.getdata())
+
+    def test_synced_sizes_all_set_on_load(self, qtbot) -> None:
+        window = EditorWindow(Path("nienazwany.ico"), frames=_make_frames([16, 32, 48]))
+        qtbot.addWidget(window)
+        assert window._synced_sizes == {16, 32, 48}
+
+    def test_detach_removes_sync_icon_prefix(self, qtbot) -> None:
+        window = EditorWindow(Path("nienazwany.ico"), frames=_make_frames([32, 16]))
+        qtbot.addWidget(window)
+        assert "[S]" in (window._size_list.item(0).text() if window._size_list.item(0) else "")  # type: ignore[union-attr]
+        window._set_sync(32, synced=False)
+        item = window._size_list.item(0)
+        assert item is not None
+        assert "[S]" not in item.text()
+
+    def test_reattach_restores_sync_icon_prefix(self, qtbot) -> None:
+        window = EditorWindow(Path("nienazwany.ico"), frames=_make_frames([32]))
+        qtbot.addWidget(window)
+        window._set_sync(32, synced=False)
+        window._set_sync(32, synced=True)
+        item = window._size_list.item(0)
+        assert item is not None
+        assert "[S]" in item.text()

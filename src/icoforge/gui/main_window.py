@@ -60,6 +60,8 @@ class MainWindow(QMainWindow):
         menubar = self.menuBar()
 
         file_menu = menubar.addMenu("&File")
+        file_menu.addAction("&New ICO…\tCtrl+N", self._on_new_ico).setShortcut("Ctrl+N")
+        file_menu.addSeparator()
         file_menu.addAction("&Open…", self._on_open)
         file_menu.addAction("Save &As…", self._on_save_as)
         file_menu.addAction("Edit &ICO…", self._on_edit_ico)
@@ -246,6 +248,24 @@ class MainWindow(QMainWindow):
 
     def _on_open(self) -> None:
         self._drop_zone.open_file_dialog()
+
+    def _on_new_ico(self) -> None:
+        """Open NewIcoDialog and launch EditorWindow with a blank document."""
+        from PySide6.QtWidgets import QDialog
+
+        from icoforge.gui.editor.new_ico_dialog import NewIcoDialog
+
+        dlg = NewIcoDialog(self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        frames = dlg.get_frames()
+        if not frames:
+            return
+        try:
+            self._editor_window = EditorWindow(Path("nienazwany.ico"), frames=frames)
+            self._editor_window.show()
+        except Exception as e:
+            QMessageBox.critical(self, "Błąd", f"Nie można otworzyć edytora:\n{e}")
 
     def _on_edit_ico(self) -> None:
         """Open file dialog to select ICO for editing."""
