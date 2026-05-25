@@ -171,9 +171,21 @@ class MainWindow(QMainWindow):
         source = self.source_path
         if source is None:
             return
-        path, _ = QFileDialog.getSaveFileName(self, "Zapisz plik ICO", "", "ICO files (*.ico)")
+        path, selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "Zapisz plik",
+            "",
+            "ICO files (*.ico);;ICNS files (*.icns)",
+        )
         if not path:
             return
+
+        if "icns" in selected_filter.lower():
+            if not path.lower().endswith(".icns"):
+                path += ".icns"
+            self._save_icns(source, Path(path))
+            return
+
         if not path.lower().endswith(".ico"):
             path += ".ico"
         target = Path(path)
@@ -191,6 +203,32 @@ class MainWindow(QMainWindow):
         self._cancel_action.setEnabled(True)
 
         QThreadPool.globalInstance().start(worker)
+
+    def _save_icns(self, source: Path, target: Path) -> None:
+        """Render frames from *source* and save as ICNS using current settings."""
+        from icoforge.core.converter import render_frames
+        from icoforge.core.icns_writer import _VALID_SIZES, write_icns
+
+        config = self._settings_panel.get_config()
+        valid_specs = tuple(s for s in config.sizes if s.width in _VALID_SIZES)
+        if not valid_specs:
+            QMessageBox.warning(
+                self,
+                "ICNS",
+                "Żaden z wybranych rozmiarów nie jest obsługiwany przez ICNS.\n"
+                f"Obsługiwane rozmiary: {sorted(_VALID_SIZES)}",
+            )
+            return
+
+        from dataclasses import replace
+
+        icns_config = replace(config, sizes=valid_specs)
+        try:
+            images = render_frames(source, icns_config)
+            write_icns(target, images)
+            self.statusBar().showMessage(f"Zapisano {target.name}")
+        except Exception as exc:
+            QMessageBox.critical(self, "Błąd zapisu ICNS", str(exc))
 
     # ------------------------------------------------------------------
     # Cancellation
