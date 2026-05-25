@@ -45,11 +45,18 @@ if TYPE_CHECKING:
 class EditorWindow(QMainWindow):
     """Main window for the pixel editor."""
 
-    def __init__(self, ico_path: Path, parent: object | None = None) -> None:
+    def __init__(
+        self,
+        ico_path: Path,
+        parent: object | None = None,
+        *,
+        frames: list[tuple[Image.Image, SizeSpec]] | None = None,
+    ) -> None:
         super().__init__(parent)
         self.ico_path = ico_path
         self._save_path = ico_path
         self._unsaved_changes = False
+        self._is_new_file = frames is not None
         self.setWindowTitle(f"Editor - {ico_path.name}")
         self.resize(1000, 700)
 
@@ -116,7 +123,12 @@ class EditorWindow(QMainWindow):
         self.setStatusBar(self._status_bar)
         self._status_bar.showMessage("Ready")
 
-        self._load_ico(ico_path)
+        if frames is not None:
+            self._populate_frames(frames)
+            self._unsaved_changes = True
+            self._update_title()
+        else:
+            self._load_ico(ico_path)
 
     # ------------------------------------------------------------------
     # Setup
@@ -327,6 +339,22 @@ class EditorWindow(QMainWindow):
             self._status_bar.showMessage(f"Loaded ICO: {len(self._frames)} sizes")
         except Exception as e:
             self._status_bar.showMessage(f"Error loading ICO: {e}")
+
+    def _populate_frames(self, frames: list[tuple[Image.Image, SizeSpec]]) -> None:
+        """Populate the size list and canvas from pre-built frames (no disk I/O)."""
+        self._frames = frames
+        self._size_list.clear()
+        for i, (_, spec) in enumerate(frames):
+            item = QListWidgetItem(f"{spec.width}x{spec.height}")
+            item.setData(Qt.ItemDataRole.UserRole, i)
+            item.setFont(QFont("Courier"))
+            self._size_list.addItem(item)
+        if self._frames:
+            self._size_list.setCurrentRow(0)
+            first = self._size_list.item(0)
+            if first:
+                self._on_size_selected(first)
+        self._status_bar.showMessage(f"Nowy ICO: {len(self._frames)} rozmiarów")
 
     def _on_size_selected(self, item: QListWidgetItem) -> None:
         """Handle size selection from list."""
@@ -616,7 +644,11 @@ class EditorWindow(QMainWindow):
             self._update_title()
 
     def _on_save(self) -> None:
-        """Save all frames to self._save_path, overwriting the file."""
+        """Save all frames to self._save_path; redirects to Save As for new documents."""
+        if self._is_new_file:
+            self._on_save_as()
+            return
+
         from PySide6.QtWidgets import QMessageBox
 
         self._sync_canvas_to_frame()
@@ -638,6 +670,7 @@ class EditorWindow(QMainWindow):
         if not path_str:
             return
         self._save_path = Path(path_str)
+        self._is_new_file = False
         self._on_save()
 
     def closeEvent(self, event: object) -> None:
