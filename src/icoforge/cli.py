@@ -216,6 +216,19 @@ def main() -> None:
         "Required when TARGET is a .cur file; ignored otherwise."
     ),
 )
+@click.option(
+    "--auto-trim/--no-auto-trim",
+    default=False,
+    show_default=True,
+    help="Crop transparent borders from the source before resizing.",
+)
+@click.option(
+    "--trim-padding",
+    type=click.IntRange(0),
+    default=0,
+    show_default=True,
+    help="Pixels of transparent padding to add around the trimmed content.",
+)
 @_per_size_source_options
 def convert(
     source: Path,
@@ -226,6 +239,8 @@ def convert(
     bit_depth: str,
     keep_aspect: bool,
     hotspot: str | None,
+    auto_trim: bool,
+    trim_padding: int,
     **per_size_sources: Path | None,
 ) -> None:
     """Convert SOURCE image to a multi-size ICO, ICNS, or CUR file at TARGET.
@@ -261,6 +276,8 @@ def convert(
         resample=ResampleAlgorithm(resample),
         background=bg,
         preserve_aspect=keep_aspect,
+        auto_trim=auto_trim,
+        auto_trim_padding=trim_padding,
     )
 
     try:

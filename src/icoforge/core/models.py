@@ -114,6 +114,8 @@ class IcoConfig:
             into the target canvas rather than stretched.
         auto_trim: When ``True``, transparent borders are cropped before
             resizing.
+        auto_trim_padding: Pixels of transparent padding to add around the
+            trimmed content when ``auto_trim`` is ``True``.
     """
 
     sizes: tuple[SizeSpec, ...]
@@ -121,6 +123,7 @@ class IcoConfig:
     background: Background = TRANSPARENT
     preserve_aspect: bool = True
     auto_trim: bool = False
+    auto_trim_padding: int = 0
     cursor_hotspot: tuple[int, int] | None = None
 
     def __post_init__(self) -> None:
