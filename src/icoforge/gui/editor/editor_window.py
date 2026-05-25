@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QAction, QColor, QFont, QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QMenu,
     QSpinBox,
     QSplitter,
     QStatusBar,
@@ -79,6 +80,9 @@ class EditorWindow(QMainWindow):
         self._zoom_overrides: dict[tuple[int, int], float] = {}
         self._user_set_zoom = False
 
+        # Size synchronisation: set of sizes that receive auto-downscale
+        self._synced_sizes: set[int] = set()
+
         # Central widget
         central = QWidget()
         self.setCentralWidget(central)
@@ -103,7 +107,17 @@ class EditorWindow(QMainWindow):
 
         self._size_list = QListWidget()
         self._size_list.itemClicked.connect(self._on_size_selected)
+        self._size_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._size_list.customContextMenuRequested.connect(self._on_size_list_context_menu)
         left_layout.addWidget(self._size_list)
+
+        self._sync_checkbox = QCheckBox("Synchronizuj rozmiary")
+        self._sync_checkbox.setChecked(False)
+        self._sync_checkbox.setToolTip(
+            "Po edycji wiekszego rozmiaru mniejsze zsynchronizowane rozmiary\n"
+            "dostaja automatyczny downscale przy przelaczeniu ramki."
+        )
+        left_layout.addWidget(self._sync_checkbox)
 
         splitter.addWidget(left_widget)
         splitter.setStretchFactor(0, 1)
@@ -135,7 +149,9 @@ class EditorWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _setup_menu(self) -> None:
-        """Setup menu bar: File (Save/Save As) and Edit (Undo/Redo/Cut/Copy/Paste)."""
+        """Setup menu bar: File (Save/Save As/Export) and Edit (Undo/Redo/Cut/Copy/Paste)."""
+        from icoforge.gui.editor.export_utils import icns_available
+
         file_menu = self.menuBar().addMenu("&File")
 
         save_action = QAction("&Save", self)
@@ -149,6 +165,14 @@ class EditorWindow(QMainWindow):
         save_as_action.setToolTip("Save to a new file (Ctrl+Shift+S)")
         save_as_action.triggered.connect(self._on_save_as)
         file_menu.addAction(save_as_action)
+
+        file_menu.addSeparator()
+
+        export_menu = file_menu.addMenu("Export As")
+        export_menu.addAction("PNG spritesheet...", self._on_export_spritesheet)
+        export_menu.addAction("Separate PNGs...", self._on_export_pngs)
+        if icns_available():
+            export_menu.addAction("ICNS (macOS)...", self._on_export_icns)
 
         edit_menu = self.menuBar().addMenu("&Edit")
 
@@ -323,13 +347,12 @@ class EditorWindow(QMainWindow):
         """Load an ICO file and populate the UI."""
         try:
             self._frames = read_ico(path)
+            self._synced_sizes = {spec.width for _, spec in self._frames}
             self._size_list.clear()
             for i, (_image, spec) in enumerate(self._frames):
-                size_str = f"{spec.width}x{spec.height}"
-                item = QListWidgetItem(size_str)
+                item = QListWidgetItem(self._size_item_text(spec.width))
                 item.setData(Qt.ItemDataRole.UserRole, i)
-                font = QFont("Courier")
-                item.setFont(font)
+                item.setFont(QFont("Courier"))
                 self._size_list.addItem(item)
 
             if self._frames:
@@ -343,9 +366,10 @@ class EditorWindow(QMainWindow):
     def _populate_frames(self, frames: list[tuple[Image.Image, SizeSpec]]) -> None:
         """Populate the size list and canvas from pre-built frames (no disk I/O)."""
         self._frames = frames
+        self._synced_sizes = {spec.width for _, spec in frames}
         self._size_list.clear()
         for i, (_, spec) in enumerate(frames):
-            item = QListWidgetItem(f"{spec.width}x{spec.height}")
+            item = QListWidgetItem(self._size_item_text(spec.width))
             item.setData(Qt.ItemDataRole.UserRole, i)
             item.setFont(QFont("Courier"))
             self._size_list.addItem(item)
@@ -354,7 +378,24 @@ class EditorWindow(QMainWindow):
             first = self._size_list.item(0)
             if first:
                 self._on_size_selected(first)
-        self._status_bar.showMessage(f"Nowy ICO: {len(self._frames)} rozmiarów")
+        self._status_bar.showMessage(f"Nowy ICO: {len(self._frames)} rozmiarow")
+
+    def _size_item_text(self, size: int) -> str:
+        """Format list item label, prepending sync indicator when applicable."""
+        prefix = "[S] " if size in self._synced_sizes else "    "
+        return f"{prefix}{size}x{size}"
+
+    def _refresh_size_list_items(self) -> None:
+        """Re-render all size list labels to reflect current sync state."""
+        for i in range(self._size_list.count()):
+            item = self._size_list.item(i)
+            if item is None:
+                continue
+            idx = item.data(Qt.ItemDataRole.UserRole)
+            if not isinstance(idx, int) or idx >= len(self._frames):
+                continue
+            _, spec = self._frames[idx]
+            item.setText(self._size_item_text(spec.width))
 
     def _on_size_selected(self, item: QListWidgetItem) -> None:
         """Handle size selection from list."""
@@ -622,11 +663,32 @@ class EditorWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _sync_canvas_to_frame(self) -> None:
-        """Write the canvas's current image back into self._frames."""
+        """Write the canvas image back to self._frames, then downscale to synced frames."""
         img = self._canvas.get_current_image()
-        if img is not None and self._current_frame_index < len(self._frames):
-            _, spec = self._frames[self._current_frame_index]
-            self._frames[self._current_frame_index] = (img, spec)
+        if img is None or self._current_frame_index >= len(self._frames):
+            return
+        _, spec = self._frames[self._current_frame_index]
+        self._frames[self._current_frame_index] = (img, spec)
+
+        if not self._sync_checkbox.isChecked():
+            return
+
+        from icoforge.core.resampling import recommend_for_size, to_pillow
+
+        current_size = spec.width
+        for i, (_, target_spec) in enumerate(self._frames):
+            if i == self._current_frame_index:
+                continue
+            if target_spec.width >= current_size:
+                continue
+            if target_spec.width not in self._synced_sizes:
+                continue
+            algo = recommend_for_size(target_spec.width)
+            resampled = img.resize(
+                (target_spec.width, target_spec.height),
+                resample=to_pillow(algo),
+            )
+            self._frames[i] = (resampled, target_spec)
 
     def _update_title(self) -> None:
         """Refresh window title to reflect current frame and dirty state."""
@@ -697,6 +759,97 @@ class EditorWindow(QMainWindow):
             event.accept()  # type: ignore[attr-defined]
         else:
             event.ignore()  # type: ignore[attr-defined]
+
+    # ------------------------------------------------------------------
+    # Size list context menu (sync attach/detach)
+    # ------------------------------------------------------------------
+
+    def _on_size_list_context_menu(self, pos: QPoint) -> None:
+        """Show right-click menu for sync control on a specific size."""
+        item = self._size_list.itemAt(pos)
+        if item is None:
+            return
+        idx = item.data(Qt.ItemDataRole.UserRole)
+        if not isinstance(idx, int) or idx >= len(self._frames):
+            return
+        _, spec = self._frames[idx]
+        size = spec.width
+
+        menu = QMenu(self)
+        if size in self._synced_sizes:
+            act = menu.addAction("Odlacz od synchronizacji")
+            act.triggered.connect(lambda: self._set_sync(size, synced=False))
+        else:
+            act = menu.addAction("Przywroc synchronizacje")
+            act.triggered.connect(lambda: self._set_sync(size, synced=True))
+        menu.exec(self._size_list.viewport().mapToGlobal(pos))
+
+    def _set_sync(self, size: int, *, synced: bool) -> None:
+        if synced:
+            self._synced_sizes.add(size)
+        else:
+            self._synced_sizes.discard(size)
+        self._refresh_size_list_items()
+
+    # ------------------------------------------------------------------
+    # Export
+    # ------------------------------------------------------------------
+
+    def _export_collect_frames(self) -> list[tuple[Image.Image, SizeSpec]]:
+        """Return all frames with the current canvas flushed into its slot."""
+        self._sync_canvas_to_frame()
+        return list(self._frames)
+
+    def _on_export_pngs(self) -> None:
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+
+        from icoforge.gui.editor.export_utils import export_separate_pngs
+
+        directory = QFileDialog.getExistingDirectory(self, "Wybierz folder do eksportu PNG")
+        if not directory:
+            return
+        frames = self._export_collect_frames()
+        try:
+            saved = export_separate_pngs(frames, Path(directory))
+            self._status_bar.showMessage(f"Wyeksportowano {len(saved)} plikow PNG do {directory}")
+        except Exception as e:
+            QMessageBox.critical(self, "Blad eksportu", str(e))
+
+    def _on_export_spritesheet(self) -> None:
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+
+        from icoforge.gui.editor.export_utils import export_spritesheet
+
+        path_str, _ = QFileDialog.getSaveFileName(
+            self, "Zapisz spritesheet", "", "PNG files (*.png)"
+        )
+        if not path_str:
+            return
+        if not path_str.lower().endswith(".png"):
+            path_str += ".png"
+        frames = self._export_collect_frames()
+        try:
+            export_spritesheet(frames, Path(path_str))
+            self._status_bar.showMessage(f"Spritesheet zapisany: {Path(path_str).name}")
+        except Exception as e:
+            QMessageBox.critical(self, "Blad eksportu", str(e))
+
+    def _on_export_icns(self) -> None:
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+
+        from icoforge.gui.editor.export_utils import export_icns
+
+        path_str, _ = QFileDialog.getSaveFileName(self, "Zapisz ICNS", "", "ICNS files (*.icns)")
+        if not path_str:
+            return
+        if not path_str.lower().endswith(".icns"):
+            path_str += ".icns"
+        frames = self._export_collect_frames()
+        try:
+            export_icns(frames, Path(path_str))
+            self._status_bar.showMessage(f"ICNS zapisany: {Path(path_str).name}")
+        except Exception as e:
+            QMessageBox.critical(self, "Blad eksportu", str(e))
 
     # ------------------------------------------------------------------
     # Zoom

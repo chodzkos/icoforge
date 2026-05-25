@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QColorDialog,
     QDialog,
     QDialogButtonBox,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -26,6 +27,14 @@ from PySide6.QtWidgets import (
 )
 
 from icoforge.core.models import SizeSpec
+from icoforge.gui.editor.templates import (
+    _TEMPLATE_LABELS,
+    _TEMPLATE_SIZES,
+    TEMPLATE_CURSOR,
+    TEMPLATE_FAVICON,
+    TEMPLATE_WINDOWS_APP,
+    build_template_frames,
+)
 
 AVAILABLE_SIZES: list[int] = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256]
 _DEFAULT_SIZES: frozenset[int] = frozenset({16, 32, 48, 256})
@@ -79,7 +88,7 @@ class NewIcoDialog(QDialog):
         return box
 
     def _make_background_group(self) -> QGroupBox:
-        box = QGroupBox("Tło")
+        box = QGroupBox("Tlo")
         h = QHBoxLayout(box)
 
         self._rb_transparent = QRadioButton("Przezroczyste")
@@ -91,7 +100,7 @@ class NewIcoDialog(QDialog):
 
         self._color_btn = QPushButton()
         self._color_btn.setFixedSize(28, 20)
-        self._color_btn.setToolTip("Wybierz kolor tła")
+        self._color_btn.setToolTip("Wybierz kolor tla")
         self._color_btn.clicked.connect(self._pick_color)
         self._refresh_color_button()
 
@@ -110,7 +119,7 @@ class NewIcoDialog(QDialog):
         self._rb_blank.setChecked(True)
         self._rb_blank.toggled.connect(self._on_options_changed)
 
-        self._rb_filled = QRadioButton("Wypełniony kolorem tła")
+        self._rb_filled = QRadioButton("Wypelniony kolorem tla")
         self._rb_filled.toggled.connect(self._on_options_changed)
 
         self._rb_clipboard = QRadioButton("Skopiuj ze schowka")
@@ -119,10 +128,31 @@ class NewIcoDialog(QDialog):
         v.addWidget(self._rb_blank)
         v.addWidget(self._rb_filled)
         v.addWidget(self._rb_clipboard)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setFrameShadow(QFrame.Shadow.Sunken)
+        v.addWidget(sep)
+
+        v.addWidget(QLabel("Szablony startowe:"))
+
+        self._rb_tmpl_windows = QRadioButton(_TEMPLATE_LABELS[TEMPLATE_WINDOWS_APP])
+        self._rb_tmpl_windows.toggled.connect(self._on_startup_template_toggled)
+
+        self._rb_tmpl_favicon = QRadioButton(f"{_TEMPLATE_LABELS[TEMPLATE_FAVICON]} (16/32/48)")
+        self._rb_tmpl_favicon.toggled.connect(self._on_startup_template_toggled)
+
+        self._rb_tmpl_cursor = QRadioButton(f"{_TEMPLATE_LABELS[TEMPLATE_CURSOR]} (16/32)")
+        self._rb_tmpl_cursor.toggled.connect(self._on_startup_template_toggled)
+
+        v.addWidget(self._rb_tmpl_windows)
+        v.addWidget(self._rb_tmpl_favicon)
+        v.addWidget(self._rb_tmpl_cursor)
+
         return box
 
     def _make_preview_group(self) -> QGroupBox:
-        box = QGroupBox("Podgląd")
+        box = QGroupBox("Podglad")
         v = QVBoxLayout(box)
 
         self._preview_list = QListWidget()
@@ -155,11 +185,22 @@ class NewIcoDialog(QDialog):
             return
         self._on_options_changed()
 
+    def _on_startup_template_toggled(self, checked: bool) -> None:
+        if not checked:
+            return
+        template_id = self._active_startup_template()
+        if template_id is None:
+            return
+        sizes = _TEMPLATE_SIZES[template_id]
+        for s, cb in self._size_checkboxes.items():
+            cb.setChecked(s in sizes)
+        self._on_options_changed()
+
     def _pick_color(self) -> None:
         color = QColorDialog.getColor(
             self._bg_color,
             self,
-            "Kolor tła",
+            "Kolor tla",
             QColorDialog.ColorDialogOption.ShowAlphaChannel,
         )
         if color.isValid():
@@ -176,32 +217,52 @@ class NewIcoDialog(QDialog):
         )
 
     def _update_ok_state(self) -> None:
+        if self._active_startup_template() is not None:
+            self._ok_btn.setEnabled(True)
+            return
         self._ok_btn.setEnabled(any(cb.isChecked() for cb in self._size_checkboxes.values()))
 
     def _update_preview(self) -> None:
         self._preview_list.clear()
-        sizes = self._selected_sizes()
-        description = self._frame_description()
-        for s in sizes:
-            self._preview_list.addItem(f"{s}x{s}  -  {description}")
+        template_id = self._active_startup_template()
+        if template_id is not None:
+            label = _TEMPLATE_LABELS[template_id]
+            sizes = sorted(_TEMPLATE_SIZES[template_id])
+            for s in sizes:
+                self._preview_list.addItem(f"{s}x{s}  -  {label}")
+            n = len(sizes)
+        else:
+            sizes = self._selected_sizes()
+            description = self._frame_description()
+            for s in sizes:
+                self._preview_list.addItem(f"{s}x{s}  -  {description}")
+            n = len(sizes)
 
-        total = self._estimate_total_bytes(sizes)
+        total = self._estimate_total_bytes(sizes, template_id)
         size_str = f"{total} B" if total < 1024 else f"{total / 1024:.1f} KB"
 
-        n = len(sizes)
         if n == 0:
-            noun = "rozmiarów"
+            noun = "rozmiarow"
         elif n == 1:
             noun = "rozmiar"
         elif n <= 4:
             noun = "rozmiary"
         else:
-            noun = "rozmiarów"
-        self._size_label.setText(f"{n} {noun}  ·  ~{size_str}")
+            noun = "rozmiarow"
+        self._size_label.setText(f"{n} {noun}  *  ~{size_str}")
 
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
+
+    def _active_startup_template(self) -> str | None:
+        if self._rb_tmpl_windows.isChecked():
+            return TEMPLATE_WINDOWS_APP
+        if self._rb_tmpl_favicon.isChecked():
+            return TEMPLATE_FAVICON
+        if self._rb_tmpl_cursor.isChecked():
+            return TEMPLATE_CURSOR
+        return None
 
     def _selected_sizes(self) -> list[int]:
         return sorted(s for s, cb in self._size_checkboxes.items() if cb.isChecked())
@@ -214,11 +275,13 @@ class NewIcoDialog(QDialog):
             return "ze schowka (przeskalowany)"
         return "przezroczysty"
 
-    def _estimate_total_bytes(self, sizes: list[int]) -> int:
+    def _estimate_total_bytes(self, sizes: list[int], template_id: str | None) -> int:
         total = 0
         for s in sizes:
-            if self._rb_clipboard.isChecked():
+            if self._rb_clipboard.isChecked() and template_id is None:
                 total += s * s * 2  # rough estimate for photo-like content
+            elif template_id is not None:
+                total += s * s * 2  # rough estimate for gradient/template
             else:
                 img = self._build_frame(s)
                 buf = io.BytesIO()
@@ -250,4 +313,7 @@ class NewIcoDialog(QDialog):
 
     def get_frames(self) -> list[tuple[Image.Image, SizeSpec]]:
         """Build all ICO frames from current settings. Call after exec() returns Accepted."""
+        template_id = self._active_startup_template()
+        if template_id is not None:
+            return build_template_frames(template_id)
         return [(self._build_frame(s), SizeSpec(s, s)) for s in self._selected_sizes()]

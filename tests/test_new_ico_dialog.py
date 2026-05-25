@@ -9,6 +9,11 @@ from PIL import Image
 from icoforge.core.models import SizeSpec
 from icoforge.gui.editor.editor_window import EditorWindow
 from icoforge.gui.editor.new_ico_dialog import AVAILABLE_SIZES, NewIcoDialog
+from icoforge.gui.editor.templates import (
+    _TEMPLATE_SIZES,
+    TEMPLATE_CURSOR,
+    TEMPLATE_WINDOWS_APP,
+)
 
 # ---------------------------------------------------------------------------
 # NewIcoDialog - unit tests
@@ -133,6 +138,74 @@ class TestNewIcoDialogGetFrames:
         dlg._update_preview()
 
         assert dlg._preview_list.count() == 3
+
+
+class TestNewIcoDialogStartupTemplates:
+    def test_windows_template_checks_all_sizes(self, qtbot) -> None:
+        dlg = NewIcoDialog()
+        qtbot.addWidget(dlg)
+        dlg._rb_tmpl_windows.setChecked(True)
+        checked = {s for s, cb in dlg._size_checkboxes.items() if cb.isChecked()}
+        assert checked == set(_TEMPLATE_SIZES[TEMPLATE_WINDOWS_APP])
+
+    def test_favicon_template_checks_three_sizes(self, qtbot) -> None:
+        dlg = NewIcoDialog()
+        qtbot.addWidget(dlg)
+        dlg._rb_tmpl_favicon.setChecked(True)
+        checked = {s for s, cb in dlg._size_checkboxes.items() if cb.isChecked()}
+        assert checked == {16, 32, 48}
+
+    def test_cursor_template_checks_two_sizes(self, qtbot) -> None:
+        dlg = NewIcoDialog()
+        qtbot.addWidget(dlg)
+        dlg._rb_tmpl_cursor.setChecked(True)
+        checked = {s for s, cb in dlg._size_checkboxes.items() if cb.isChecked()}
+        assert checked == {16, 32}
+
+    def test_get_frames_returns_template_frames(self, qtbot) -> None:
+        dlg = NewIcoDialog()
+        qtbot.addWidget(dlg)
+        dlg._rb_tmpl_favicon.setChecked(True)
+        frames = dlg.get_frames()
+        widths = [spec.width for _, spec in frames]
+        assert widths == [16, 32, 48]
+
+    def test_template_frames_are_opaque(self, qtbot) -> None:
+        dlg = NewIcoDialog()
+        qtbot.addWidget(dlg)
+        dlg._rb_tmpl_windows.setChecked(True)
+        frames = dlg.get_frames()
+        for img, _ in frames:
+            alphas = {p[3] for p in img.getdata()}
+            assert alphas == {255}
+
+    def test_ok_enabled_for_startup_template(self, qtbot) -> None:
+        dlg = NewIcoDialog()
+        qtbot.addWidget(dlg)
+        # Deselect all sizes first
+        for cb in dlg._size_checkboxes.values():
+            cb.setChecked(False)
+        # Selecting a startup template re-enables OK
+        dlg._rb_tmpl_favicon.setChecked(True)
+        assert dlg._ok_btn.isEnabled()
+
+    def test_preview_count_matches_template_sizes(self, qtbot) -> None:
+        dlg = NewIcoDialog()
+        qtbot.addWidget(dlg)
+        dlg._rb_tmpl_cursor.setChecked(True)
+        dlg._update_preview()
+        assert dlg._preview_list.count() == len(_TEMPLATE_SIZES[TEMPLATE_CURSOR])
+
+    def test_active_startup_template_none_by_default(self, qtbot) -> None:
+        dlg = NewIcoDialog()
+        qtbot.addWidget(dlg)
+        assert dlg._active_startup_template() is None
+
+    def test_active_startup_template_detects_selection(self, qtbot) -> None:
+        dlg = NewIcoDialog()
+        qtbot.addWidget(dlg)
+        dlg._rb_tmpl_windows.setChecked(True)
+        assert dlg._active_startup_template() == TEMPLATE_WINDOWS_APP
 
 
 # ---------------------------------------------------------------------------
