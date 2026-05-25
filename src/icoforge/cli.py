@@ -505,5 +505,53 @@ def _convert_cur(
     click.secho(f"Wrote {target}", fg="green")
 
 
+@main.command()
+@click.argument("source", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.argument("output_dir", type=click.Path(file_okay=False, path_type=Path))
+@click.option(
+    "--resample",
+    type=click.Choice([a.value for a in ResampleAlgorithm]),
+    default=ResampleAlgorithm.LANCZOS.value,
+    show_default=True,
+    help="Resampling algorithm used when scaling the source image.",
+)
+def favicon(
+    source: Path,
+    output_dir: Path,
+    resample: str,
+) -> None:
+    """Generate a complete web favicon set from SOURCE into OUTPUT_DIR.
+
+    Creates five files: favicon.ico (16/32/48 px), apple-touch-icon.png
+    (180x180, white background), icon-192.png, icon-512.png (PWA icons),
+    and site.webmanifest.
+    """
+    from icoforge.core.favicon_generator import generate_favicon_set
+    from icoforge.core.resampling import to_pillow
+
+    pil_resample = to_pillow(ResampleAlgorithm(resample))
+
+    try:
+        generated = generate_favicon_set(
+            source,
+            output_dir,
+            resample=pil_resample,
+            progress=_progress_callback,
+        )
+    except FileNotFoundError as exc:
+        click.echo()
+        click.secho(f"Error: source file not found: {exc}", fg="red", err=True)
+        raise SystemExit(1) from exc
+    except ValueError as exc:
+        click.echo()
+        click.secho(f"Error: {exc}", fg="red", err=True)
+        raise SystemExit(1) from exc
+
+    click.echo()
+    click.secho(f"Favicon set written to {output_dir}/", fg="green")
+    for path in generated:
+        click.echo(f"  {path.name}")
+
+
 if __name__ == "__main__":
     main()

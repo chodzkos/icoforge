@@ -50,6 +50,7 @@ class MainWindow(QMainWindow):
         self._optimization_panel: OptimizationPanel
         self._save_action: QAction
         self._cancel_action: QAction
+        self._favicon_action: QAction
         self._progress_bar: QProgressBar
 
         self._setup_menu()
@@ -90,6 +91,16 @@ class MainWindow(QMainWindow):
         self._cancel_action.setEnabled(False)
         self._cancel_action.triggered.connect(self._on_cancel)
         toolbar.addAction(self._cancel_action)
+
+        toolbar.addSeparator()
+
+        self._favicon_action = QAction("Favicon Set…", self)
+        self._favicon_action.setEnabled(False)
+        self._favicon_action.setToolTip(
+            "Generate a complete web favicon set (favicon.ico, PWA icons, webmanifest)"
+        )
+        self._favicon_action.triggered.connect(self._on_favicon_set)
+        toolbar.addAction(self._favicon_action)
 
     def _setup_central(self) -> None:
         tabs = QTabWidget()
@@ -160,6 +171,7 @@ class MainWindow(QMainWindow):
         self.source_path = path
         self.statusBar().showMessage(f"Załadowano: {path.name}")
         self._save_action.setEnabled(True)
+        self._favicon_action.setEnabled(True)
         self._update_preview()
 
     def _update_preview(self) -> None:
@@ -293,6 +305,47 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Błąd zapisu CUR", str(exc))
 
     # ------------------------------------------------------------------
+    # Favicon set
+    # ------------------------------------------------------------------
+
+    def _on_favicon_set(self) -> None:
+        """Pick output folder, then generate a complete web favicon set."""
+        source = self.source_path
+        if source is None:
+            return
+
+        output_dir = QFileDialog.getExistingDirectory(
+            self,
+            "Wybierz folder wyjściowy dla Favicon Set",
+            "",
+        )
+        if not output_dir:
+            return
+
+        from icoforge.core.favicon_generator import generate_favicon_set
+        from icoforge.core.models import ResampleAlgorithm
+        from icoforge.core.resampling import to_pillow
+
+        try:
+            generated = generate_favicon_set(
+                source,
+                Path(output_dir),
+                resample=to_pillow(ResampleAlgorithm.LANCZOS),
+            )
+            self.statusBar().showMessage(
+                f"Favicon set zapisany do: {output_dir}  ({len(generated)} plików)"
+            )
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Favicon Set")
+            msg.setText(
+                f"Wygenerowano {len(generated)} pliki w:\n{output_dir}\n\n"
+                + "\n".join(p.name for p in generated)
+            )
+            msg.exec()
+        except Exception as exc:
+            QMessageBox.critical(self, "Błąd Favicon Set", str(exc))
+
+    # ------------------------------------------------------------------
     # Cancellation
     # ------------------------------------------------------------------
 
@@ -364,6 +417,8 @@ class MainWindow(QMainWindow):
         try:
             self._editor_window = EditorWindow(Path("nienazwany.ico"), frames=frames)
             self._editor_window.show()
+            self._editor_window.raise_()
+            self._editor_window.activateWindow()
         except Exception as e:
             QMessageBox.critical(self, "Błąd", f"Nie można otworzyć edytora:\n{e}")
 
@@ -379,6 +434,8 @@ class MainWindow(QMainWindow):
             try:
                 self._editor_window = EditorWindow(Path(path))
                 self._editor_window.show()
+                self._editor_window.raise_()
+                self._editor_window.activateWindow()
             except Exception as e:
                 QMessageBox.critical(
                     self,
