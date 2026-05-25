@@ -6,8 +6,19 @@ import contextlib
 from typing import TYPE_CHECKING
 
 from PIL import Image
-from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPen, QPixmap, QUndoStack
+from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, QTimer, Signal
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QImage,
+    QMouseEvent,
+    QPainter,
+    QPen,
+    QPixmap,
+    QResizeEvent,
+    QUndoStack,
+    QWheelEvent,
+)
 from PySide6.QtWidgets import (
     QGraphicsItem,
     QGraphicsPixmapItem,
@@ -34,8 +45,8 @@ class CheckerboardBackground(QGraphicsItem):
         self.square_size = square_size
         self.setZValue(-1)
 
-    def boundingRect(self) -> QRect:
-        return QRect(0, 0, self.width, self.height)
+    def boundingRect(self) -> QRectF:
+        return QRectF(0, 0, self.width, self.height)
 
     def paint(self, painter: QPainter, option: object, widget: object | None = None) -> None:
         """Draw checkerboard pattern."""
@@ -59,8 +70,8 @@ class GridOverlay(QGraphicsItem):
         self.height = height
         self.setZValue(100)
 
-    def boundingRect(self) -> QRect:
-        return QRect(0, 0, self.width, self.height)
+    def boundingRect(self) -> QRectF:
+        return QRectF(0, 0, self.width, self.height)
 
     def paint(self, painter: QPainter, option: object, widget: object | None = None) -> None:
         """Draw grid lines."""
@@ -183,7 +194,7 @@ class EditorCanvas(QGraphicsView):
     MIN_ZOOM = 1.0
     MAX_ZOOM = 64.0
 
-    def __init__(self, parent: object | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.scene_obj = QGraphicsScene()
         self.setScene(self.scene_obj)
@@ -419,22 +430,16 @@ class EditorCanvas(QGraphicsView):
     # Events
     # ------------------------------------------------------------------
 
-    def resizeEvent(self, event: object) -> None:
-        super().resizeEvent(event)  # type: ignore[arg-type]
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
         self._reposition_nav()
 
     def scrollContentsBy(self, dx: int, dy: int) -> None:
         super().scrollContentsBy(dx, dy)
         self._update_nav_overlay()
 
-    def wheelEvent(self, event: object) -> None:
+    def wheelEvent(self, event: QWheelEvent) -> None:
         """Handle Ctrl+wheel for zoom."""
-        from PySide6.QtGui import QWheelEvent
-
-        if not isinstance(event, QWheelEvent):
-            super().wheelEvent(event)
-            return
-
         if not (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
             super().wheelEvent(event)
             return
@@ -446,14 +451,8 @@ class EditorCanvas(QGraphicsView):
             self.zoom_out()
         event.accept()
 
-    def mousePressEvent(self, event: object) -> None:
+    def mousePressEvent(self, event: QMouseEvent) -> None:
         """Handle mouse press for drawing or panning."""
-        from PySide6.QtGui import QMouseEvent
-
-        if not isinstance(event, QMouseEvent):
-            super().mousePressEvent(event)
-            return
-
         if event.button() == Qt.MouseButton.MiddleButton:
             self._pan_start = event.pos()
             event.accept()
@@ -470,14 +469,8 @@ class EditorCanvas(QGraphicsView):
         else:
             super().mousePressEvent(event)
 
-    def mouseMoveEvent(self, event: object) -> None:
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
         """Handle mouse move for drawing or panning."""
-        from PySide6.QtGui import QMouseEvent
-
-        if not isinstance(event, QMouseEvent):
-            super().mouseMoveEvent(event)
-            return
-
         if self._pan_start is not None:
             delta = event.pos() - self._pan_start
             self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - delta.x())
@@ -498,14 +491,8 @@ class EditorCanvas(QGraphicsView):
             self.pixel_hovered.emit(int(scene_pos.x()), int(scene_pos.y()))
             super().mouseMoveEvent(event)
 
-    def mouseReleaseEvent(self, event: object) -> None:
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         """Handle mouse release."""
-        from PySide6.QtGui import QMouseEvent
-
-        if not isinstance(event, QMouseEvent):
-            super().mouseReleaseEvent(event)
-            return
-
         if event.button() == Qt.MouseButton.MiddleButton:
             self._pan_start = None
             event.accept()
@@ -558,7 +545,7 @@ class EditorCanvas(QGraphicsView):
     def _tick_selection(self) -> None:
         """Advance marching-ants animation one step."""
         if self._current_tool is not None and hasattr(self._current_tool, "tick_animation"):
-            self._current_tool.tick_animation()  # type: ignore[union-attr]
+            self._current_tool.tick_animation()
             self._update_overlay_from_tool()
 
     def _update_grid_visibility(self) -> None:
