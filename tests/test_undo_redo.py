@@ -255,7 +255,7 @@ class TestEditorWindowUndoRedo:
         original = img.getpixel((5, 5))
 
         canvas._pre_stroke_image = img.copy()
-        window._color_indicator.set_foreground_color(QColor(200, 50, 10, 255))
+        window._palette.set_foreground_color(QColor(200, 50, 10, 255))
         window._tools["pencil"].set_color((200, 50, 10, 255))
         window._tools["pencil"].on_press(5, 5)
         canvas._commit_stroke("Pencil stroke")

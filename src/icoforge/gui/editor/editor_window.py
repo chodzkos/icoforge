@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 from icoforge.core.ico_reader import read_ico
 from icoforge.core.models import SizeSpec
 from icoforge.gui.editor.canvas import ZOOM_LEVELS, EditorCanvas
-from icoforge.gui.editor.color_indicator import ColorIndicator
+from icoforge.gui.editor.palette import PaletteWidget
 from icoforge.gui.editor.tools import EraserTool, EyedropperTool, PixelTool, Tool
 
 if TYPE_CHECKING:
@@ -62,15 +62,16 @@ class EditorWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         layout.addWidget(splitter)
 
-        # Left panel: color indicator + size list
+        # Left panel: palette + size list
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
         left_layout.setContentsMargins(4, 4, 4, 4)
         left_layout.setSpacing(6)
 
-        self._color_indicator = ColorIndicator()
-        self._color_indicator.color_changed.connect(self._on_color_changed)
-        left_layout.addWidget(self._color_indicator, alignment=Qt.AlignmentFlag.AlignHCenter)
+        self._palette = PaletteWidget()
+        self._palette.color_changed.connect(self._on_color_changed)
+        self._palette.extract_requested.connect(self._on_extract_requested)
+        left_layout.addWidget(self._palette, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         left_layout.addWidget(QLabel("Rozmiary:"))
 
@@ -144,6 +145,12 @@ class EditorWindow(QMainWindow):
         swap_action.triggered.connect(self._on_swap_colors)
         swap_action.setShortcut("X")
         toolbar.addAction(swap_action)
+
+        # Reset colors shortcut (D key)
+        reset_colors_action = QAction("Reset Colors (D)", self)
+        reset_colors_action.triggered.connect(self._on_reset_colors)
+        reset_colors_action.setShortcut("D")
+        toolbar.addAction(reset_colors_action)
 
         toolbar.addSeparator()
 
@@ -267,7 +274,7 @@ class EditorWindow(QMainWindow):
         if self._canvas._current_image is None:
             return
         image = self._canvas._current_image
-        fg = self._color_indicator.foreground_color
+        fg = self._palette.foreground_color
         color = (fg.red(), fg.green(), fg.blue(), fg.alpha())
         self._tools = {
             "pencil": PixelTool(image, color, self._current_size),
@@ -281,7 +288,7 @@ class EditorWindow(QMainWindow):
             self._create_tools()
         tool = self._tools["pencil"]
         assert isinstance(tool, PixelTool)
-        fg = self._color_indicator.foreground_color
+        fg = self._palette.foreground_color
         tool.set_color((fg.red(), fg.green(), fg.blue(), fg.alpha()))
         tool.set_size(self._current_size)
         self._canvas.set_tool(tool)
@@ -306,7 +313,7 @@ class EditorWindow(QMainWindow):
         self._status_bar.showMessage("Tool: Eyedropper (click to pick color)")
 
     def _on_color_changed(self, color: QColor, is_foreground: bool) -> None:
-        """Handle color change from ColorIndicator."""
+        """Handle color change from PaletteWidget."""
         if is_foreground and "pencil" in self._tools:
             tool = self._tools["pencil"]
             assert isinstance(tool, PixelTool)
@@ -317,12 +324,25 @@ class EditorWindow(QMainWindow):
         )
 
     def _on_color_sampled(self, r: int, g: int, b: int, a: int) -> None:
-        """Handle color picked by eyedropper tool — update ColorIndicator."""
-        self._color_indicator.set_foreground_color(QColor(r, g, b, a))
+        """Handle color picked by eyedropper tool — update palette."""
+        self._palette.set_foreground_color(QColor(r, g, b, a))
 
     def _on_swap_colors(self) -> None:
         """Swap foreground and background colors."""
-        self._color_indicator.swap_colors()
+        self._palette.swap_colors()
+
+    def _on_reset_colors(self) -> None:
+        """Reset foreground/background to default black/white."""
+        self._palette.reset_to_default()
+
+    def _on_extract_requested(self) -> None:
+        """Extract dominant colours from the current canvas image into the palette."""
+        img = self._canvas.get_current_image()
+        if img is None:
+            return
+        from icoforge.core.color_utils import extract_dominant_colors
+
+        self._palette.set_colors(extract_dominant_colors(img))
 
     def _on_zoom_in(self) -> None:
         self._user_set_zoom = True
