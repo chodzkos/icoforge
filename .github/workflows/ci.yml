@@ -46,7 +46,9 @@ jobs:
 
       - name: Run tests (Linux)
         if: runner.os == 'Linux'
-        run: xvfb-run -a pytest --cov=icoforge --cov-report=term-missing
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: pytest --cov=icoforge --cov-report=term-missing
 
       - name: Run tests (Windows)
         if: runner.os == 'Windows'
