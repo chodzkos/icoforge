@@ -8,14 +8,17 @@ from PySide6.QtCore import QEvent, QObject, QPoint, Qt, Signal
 from PySide6.QtGui import QColor, QDragEnterEvent, QDragMoveEvent, QDropEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QColorDialog,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
+    QLabel,
     QMenu,
     QPushButton,
     QRadioButton,
+    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -315,6 +318,8 @@ class SettingsPanel(QWidget):
         self._radio_transparent: QRadioButton
         self._radio_color: QRadioButton
         self._color_btn: QPushButton
+        self._auto_trim_check: QCheckBox
+        self._trim_padding_spin: QSpinBox
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -324,6 +329,7 @@ class SettingsPanel(QWidget):
         layout.addWidget(self._make_preset_group())
         layout.addWidget(self._make_resample_group())
         layout.addWidget(self._make_background_group())
+        layout.addWidget(self._make_trim_group())
         layout.addStretch()
 
     # ------------------------------------------------------------------
@@ -408,6 +414,38 @@ class SettingsPanel(QWidget):
 
         return group
 
+    def _make_trim_group(self) -> QGroupBox:
+        group = QGroupBox("Przycinanie")
+        vbox = QVBoxLayout(group)
+        vbox.setContentsMargins(8, 8, 8, 8)
+        vbox.setSpacing(4)
+
+        self._auto_trim_check = QCheckBox("Auto-trim (usuń przezroczyste krawędzie)")
+        self._auto_trim_check.setToolTip(
+            "Automatycznie przycina przezroczyste obramowanie źródła przed skalowaniem."
+        )
+        self._auto_trim_check.toggled.connect(self._on_trim_toggled)
+        vbox.addWidget(self._auto_trim_check)
+
+        hbox = QHBoxLayout()
+        hbox.setContentsMargins(0, 0, 0, 0)
+        padding_label = QLabel("Padding:")
+        self._trim_padding_spin = QSpinBox()
+        self._trim_padding_spin.setRange(0, 128)
+        self._trim_padding_spin.setValue(0)
+        self._trim_padding_spin.setSuffix(" px")
+        self._trim_padding_spin.setEnabled(False)
+        self._trim_padding_spin.setToolTip(
+            "Piksele przezroczystego marginesu dodawane po każdej stronie przyciętego obrazu."
+        )
+        self._trim_padding_spin.valueChanged.connect(self._on_trim_padding_changed)
+        hbox.addWidget(padding_label)
+        hbox.addWidget(self._trim_padding_spin)
+        hbox.addStretch()
+        vbox.addLayout(hbox)
+
+        return group
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -425,7 +463,16 @@ class SettingsPanel(QWidget):
             TRANSPARENT if self._radio_transparent.isChecked() else self._bg_color
         )
 
-        return IcoConfig(sizes=sizes, resample=resample, background=background)
+        auto_trim = self._auto_trim_check.isChecked()
+        trim_padding = self._trim_padding_spin.value() if auto_trim else 0
+
+        return IcoConfig(
+            sizes=sizes,
+            resample=resample,
+            background=background,
+            auto_trim=auto_trim,
+            auto_trim_padding=trim_padding,
+        )
 
     # ------------------------------------------------------------------
     # Slots
@@ -452,6 +499,13 @@ class SettingsPanel(QWidget):
         self.settings_changed.emit()
 
     def _on_resample_changed(self, _algo: ResampleAlgorithm) -> None:
+        self.settings_changed.emit()
+
+    def _on_trim_toggled(self, checked: bool) -> None:
+        self._trim_padding_spin.setEnabled(checked)
+        self.settings_changed.emit()
+
+    def _on_trim_padding_changed(self, _value: int) -> None:
         self.settings_changed.emit()
 
     def _on_bg_radio_toggled(self, checked: bool) -> None:
