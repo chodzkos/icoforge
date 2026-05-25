@@ -116,6 +116,8 @@ class IcoConfig:
             resizing.
         auto_trim_padding: Pixels of transparent padding to add around the
             trimmed content when ``auto_trim`` is ``True``.
+        remove_bg: When ``True``, remove the image background using the U2-Net
+            AI model via rembg (requires ``icoforge[bgremove]``).
     """
 
     sizes: tuple[SizeSpec, ...]
@@ -124,6 +126,7 @@ class IcoConfig:
     preserve_aspect: bool = True
     auto_trim: bool = False
     auto_trim_padding: int = 0
+    remove_bg: bool = False
     cursor_hotspot: tuple[int, int] | None = None
 
     def __post_init__(self) -> None:
