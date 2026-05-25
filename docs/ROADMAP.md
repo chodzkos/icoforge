@@ -53,7 +53,7 @@ Każda faza ma kryteria zakończenia. Nie przechodź do następnej fazy bez uko�
 - [x] CLI: `--source-16 file1.png --source-32 file2.png ...` (flagi dla standardowych rozmiarów: 16, 20, 24, 32, 40, 48, 64, 96, 128, 256)
 - [x] GUI: `SizeTable` (QTableWidget) z kolumnami ✓/Rozmiar/Źródło/Wybierz…, drag&drop per wiersz, podświetlenie override, context menu "Usuń override"
 
-**Kryteria zakończenia:**
+**Kryteria zakończenia:** ✅ SPEŁNIONE
 - ✅ Konwersja z każdego z formatów: PNG, JPG, BMP, GIF, WEBP, TIFF, SVG
 - ✅ Per-size source działa w CLI i GUI
 - ✅ Brak alpha → przezroczyste tło lub wybrany kolor (test)
