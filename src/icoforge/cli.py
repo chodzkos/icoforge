@@ -570,5 +570,45 @@ def favicon(
         click.echo(f"  {path.name}")
 
 
+@main.command("extract-icons")
+@click.argument("source", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.argument("output_dir", type=click.Path(file_okay=False, path_type=Path))
+def extract_icons(source: Path, output_dir: Path) -> None:
+    """Extract icon groups from a Windows PE file (EXE, DLL, OCX, …).
+
+    SOURCE must be a valid Windows PE binary that contains RT_GROUP_ICON
+    resources.  Each icon group is saved as a separate .ico file inside
+    OUTPUT_DIR.
+
+    Requires the optional ``exe`` extra::
+
+        pip install icoforge[exe]
+    """
+    from icoforge.core.exe_extractor import ExeExtractError, extract_icons_from_exe
+
+    try:
+        icons = extract_icons_from_exe(source)
+    except FileNotFoundError as exc:
+        click.secho(f"Error: file not found: {exc}", fg="red", err=True)
+        raise SystemExit(1) from exc
+    except ExeExtractError as exc:
+        click.secho(f"Error: {exc}", fg="red", err=True)
+        raise SystemExit(1) from exc
+
+    if not icons:
+        click.secho("No icon resources found in the file.", fg="yellow")
+        return
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    stem = source.stem
+    for i, ico_bytes in enumerate(icons):
+        out = output_dir / f"{stem}_icon{i + 1}.ico"
+        out.write_bytes(ico_bytes)
+        click.echo(f"  {out.name}  ({len(ico_bytes):,} bytes)")
+
+    click.echo()
+    click.secho(f"{len(icons)} icon(s) saved to {output_dir}/", fg="green")
+
+
 if __name__ == "__main__":
     main()

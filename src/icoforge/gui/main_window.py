@@ -5,8 +5,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QThreadPool, QUrl
-from PySide6.QtGui import QAction, QDesktopServices
+from PySide6.QtCore import QSize, QThreadPool, QUrl
+from PySide6.QtGui import QAction, QDesktopServices, QIcon, QImage, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMessageBox,
     QProgressBar,
@@ -33,6 +35,74 @@ from icoforge.gui.widgets.optimization_panel import OptimizationPanel
 from icoforge.gui.widgets.preview_panel import PreviewPanel
 from icoforge.gui.widgets.settings_panel import SettingsPanel
 from icoforge.gui.workers import ConversionWorker
+
+
+class _ExeIconPickerDialog(QDialog):
+    """Modal dialog showing a grid of extracted PE icons for the user to pick."""
+
+    _THUMB_SIZE = 64
+
+    def __init__(self, icons: list[bytes], filename: str, parent: QWidget) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(f"Ikony w pliku: {filename}")
+        self.resize(480, 360)
+        self._icons = icons
+
+        layout = QVBoxLayout(self)
+
+        info = QLabel(
+            f"Znaleziono {len(icons)} grupę/grup ikon. "
+            "Zaznacz ikony do zapisania (Ctrl+A - wszystkie)."
+        )
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        self._list = QListWidget()
+        self._list.setViewMode(QListWidget.ViewMode.IconMode)
+        self._list.setIconSize(QSize(self._THUMB_SIZE, self._THUMB_SIZE))
+        self._list.setResizeMode(QListWidget.ResizeMode.Adjust)
+        self._list.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
+        self._list.setSpacing(4)
+        layout.addWidget(self._list)
+
+        self._populate(icons)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        # Pre-select all items
+        self._list.selectAll()
+
+    def _populate(self, icons: list[bytes]) -> None:
+        import io
+
+        from PIL import Image
+
+        for i, ico_bytes in enumerate(icons):
+            try:
+                img = Image.open(io.BytesIO(ico_bytes)).convert("RGBA")
+                img.thumbnail((self._THUMB_SIZE, self._THUMB_SIZE), Image.LANCZOS)
+                w, h = img.size
+                data = img.tobytes("raw", "RGBA")
+                pixmap = QPixmap.fromImage(QImage(data, w, h, w * 4, QImage.Format.Format_RGBA8888))
+            except Exception:
+                pixmap = QPixmap(self._THUMB_SIZE, self._THUMB_SIZE)
+                pixmap.fill()
+
+            item = QListWidgetItem(QIcon(pixmap), f"Ikona {i + 1}")
+            item.setData(256, i)  # store original index in UserRole+0
+            self._list.addItem(item)
+
+    def selected_icons(self) -> list[tuple[int, bytes]]:
+        result = []
+        for item in self._list.selectedItems():
+            idx: int = item.data(256)
+            result.append((idx, self._icons[idx]))
+        return result
 
 
 class MainWindow(QMainWindow):
@@ -71,6 +141,7 @@ class MainWindow(QMainWindow):
         file_menu.addAction("&Open…", self._on_open)
         file_menu.addAction("Save &As…", self._on_save_as)
         file_menu.addAction("Edit &ICO…", self._on_edit_ico)
+        file_menu.addAction("&Wyciągnij ikony z EXE/DLL…", self._on_extract_exe)
         file_menu.addSeparator()
         file_menu.addAction("E&xit", self.close)
 
@@ -442,6 +513,67 @@ class MainWindow(QMainWindow):
                     "Błąd",
                     f"Nie można otworzyć pliku ICO:\n{e}",
                 )
+
+    def _on_extract_exe(self) -> None:
+        """Pick an EXE/DLL, extract icons, show a selection grid, save chosen files."""
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Wybierz plik EXE/DLL/OCX",
+            "",
+            "Windows PE files (*.exe *.dll *.ocx);;All files (*)",
+        )
+        if not path:
+            return
+
+        try:
+            from icoforge.core.exe_extractor import ExeExtractError, extract_icons_from_exe
+
+            icons = extract_icons_from_exe(Path(path))
+        except ImportError:
+            QMessageBox.critical(
+                self,
+                "Brak biblioteki",
+                "Wyciąganie ikon wymaga biblioteki pefile.\n"
+                "Zainstaluj ją: pip install icoforge[exe]",
+            )
+            return
+        except ExeExtractError as exc:
+            QMessageBox.critical(self, "Błąd odczytu PE", str(exc))
+            return
+
+        if not icons:
+            QMessageBox.information(
+                self,
+                "Brak ikon",
+                f"Plik '{Path(path).name}' nie zawiera zasobów RT_GROUP_ICON.",
+            )
+            return
+
+        dlg = _ExeIconPickerDialog(icons, Path(path).name, self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        selected = dlg.selected_icons()
+        if not selected:
+            return
+
+        output_dir = QFileDialog.getExistingDirectory(self, "Wybierz folder zapisu", "")
+        if not output_dir:
+            return
+
+        stem = Path(path).stem
+        saved = 0
+        for idx, ico_bytes in selected:
+            out = Path(output_dir) / f"{stem}_icon{idx + 1}.ico"
+            out.write_bytes(ico_bytes)
+            saved += 1
+
+        self.statusBar().showMessage(f"Zapisano {saved} ikonę/ikon do: {output_dir}")
+        QMessageBox.information(
+            self,
+            "Zapisano",
+            f"Zapisano {saved} plik(ów) ICO do:\n{output_dir}",
+        )
 
     def _on_about(self) -> None:
         QMessageBox.about(
