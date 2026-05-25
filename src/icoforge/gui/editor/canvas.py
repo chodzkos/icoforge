@@ -381,15 +381,14 @@ class EditorCanvas(QGraphicsView):
             return
 
         w, h = self._current_image.size
-        scene_rect = self.sceneRect()
-        if scene_rect.width() == 0 or scene_rect.height() == 0:
+        if w == 0 or h == 0:
             return
 
         visible = self.mapToScene(self.viewport().rect()).boundingRect()
-        nx = (visible.x() - scene_rect.x()) / scene_rect.width()
-        ny = (visible.y() - scene_rect.y()) / scene_rect.height()
-        nw = visible.width() / scene_rect.width()
-        nh = visible.height() / scene_rect.height()
+        nx = visible.x() / w
+        ny = visible.y() / h
+        nw = visible.width() / w
+        nh = visible.height() / h
         view_rect_norm = QRectF(nx, ny, nw, nh)
 
         only_large = max(w, h) >= 64
