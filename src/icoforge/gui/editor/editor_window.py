@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from icoforge.core.ico_reader import read_ico
+from icoforge.core.ico_writer import write_ico
 from icoforge.core.models import SizeSpec
 from icoforge.gui.editor.canvas import ZOOM_LEVELS, EditorCanvas
 from icoforge.gui.editor.palette import PaletteWidget
@@ -47,6 +48,8 @@ class EditorWindow(QMainWindow):
     def __init__(self, ico_path: Path, parent: object | None = None) -> None:
         super().__init__(parent)
         self.ico_path = ico_path
+        self._save_path = ico_path
+        self._unsaved_changes = False
         self.setWindowTitle(f"Editor - {ico_path.name}")
         self.resize(1000, 700)
 
@@ -102,6 +105,7 @@ class EditorWindow(QMainWindow):
         self._canvas = EditorCanvas()
         self._canvas.zoom_changed.connect(self._on_zoom_changed)
         self._canvas.color_sampled.connect(self._on_color_sampled)
+        self._canvas.undo_stack.indexChanged.connect(self._on_undo_index_changed)
         splitter.addWidget(self._canvas)
         splitter.setStretchFactor(1, 3)
 
@@ -119,7 +123,21 @@ class EditorWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _setup_menu(self) -> None:
-        """Setup menu bar: Edit with Undo/Redo and Cut/Copy/Paste."""
+        """Setup menu bar: File (Save/Save As) and Edit (Undo/Redo/Cut/Copy/Paste)."""
+        file_menu = self.menuBar().addMenu("&File")
+
+        save_action = QAction("&Save", self)
+        save_action.setShortcut(QKeySequence.StandardKey.Save)
+        save_action.setToolTip("Save to original file (Ctrl+S)")
+        save_action.triggered.connect(self._on_save)
+        file_menu.addAction(save_action)
+
+        save_as_action = QAction("Save &As...", self)
+        save_as_action.setShortcut(QKeySequence("Ctrl+Shift+S"))
+        save_as_action.setToolTip("Save to a new file (Ctrl+Shift+S)")
+        save_as_action.triggered.connect(self._on_save_as)
+        file_menu.addAction(save_as_action)
+
         edit_menu = self.menuBar().addMenu("&Edit")
 
         undo_action = self._canvas.undo_stack.createUndoAction(self, "Undo:")
@@ -314,6 +332,7 @@ class EditorWindow(QMainWindow):
         """Handle size selection from list."""
         frame_index = item.data(Qt.ItemDataRole.UserRole)
         if frame_index is not None and 0 <= frame_index < len(self._frames):
+            self._sync_canvas_to_frame()
             self._current_frame_index = frame_index
             image, spec = self._frames[frame_index]
             size_key = (spec.width, spec.height)
@@ -325,7 +344,7 @@ class EditorWindow(QMainWindow):
             if has_override:
                 self._canvas._apply_zoom(self._zoom_overrides[size_key])
 
-            self.setWindowTitle(f"Editor - {self.ico_path.name} [{spec.width}x{spec.height}]")
+            self._update_title()
 
             self._tools = {}
             self._on_tool_pencil()
@@ -493,6 +512,8 @@ class EditorWindow(QMainWindow):
         self._clipboard = img
         self._clipboard_origin = (tool.selection[0], tool.selection[1])
         canvas = self._canvas
+        if canvas._current_image is None:
+            return
         canvas._pre_stroke_image = canvas._current_image.copy()
         tool.clear_selection_area()
         canvas._refresh_pixmap()
@@ -509,6 +530,8 @@ class EditorWindow(QMainWindow):
         if not isinstance(tool, SelectTool):
             return
         canvas = self._canvas
+        if canvas._current_image is None:
+            return
         canvas._pre_stroke_image = canvas._current_image.copy()
         tool.paste(self._clipboard, *self._clipboard_origin)
         canvas._refresh_pixmap()
@@ -565,6 +588,82 @@ class EditorWindow(QMainWindow):
         from icoforge.core.color_utils import extract_dominant_colors
 
         self._palette.set_colors(extract_dominant_colors(img))
+
+    # ------------------------------------------------------------------
+    # Save
+    # ------------------------------------------------------------------
+
+    def _sync_canvas_to_frame(self) -> None:
+        """Write the canvas's current image back into self._frames."""
+        img = self._canvas.get_current_image()
+        if img is not None and self._current_frame_index < len(self._frames):
+            _, spec = self._frames[self._current_frame_index]
+            self._frames[self._current_frame_index] = (img, spec)
+
+    def _update_title(self) -> None:
+        """Refresh window title to reflect current frame and dirty state."""
+        spec = None
+        if self._current_frame_index < len(self._frames):
+            _, spec = self._frames[self._current_frame_index]
+        size_str = f" [{spec.width}x{spec.height}]" if spec else ""
+        dirty = " *" if self._unsaved_changes else ""
+        self.setWindowTitle(f"Editor - {self._save_path.name}{size_str}{dirty}")
+
+    def _on_undo_index_changed(self, _index: int) -> None:
+        """Mark window as dirty when a command is pushed or redone."""
+        if self._canvas.undo_stack.canUndo() and not self._unsaved_changes:
+            self._unsaved_changes = True
+            self._update_title()
+
+    def _on_save(self) -> None:
+        """Save all frames to self._save_path, overwriting the file."""
+        from PySide6.QtWidgets import QMessageBox
+
+        self._sync_canvas_to_frame()
+        try:
+            write_ico(self._save_path, self._frames)
+            self._unsaved_changes = False
+            self._update_title()
+            self._status_bar.showMessage(f"Saved: {self._save_path.name}")
+        except Exception as e:
+            QMessageBox.critical(self, "Save Error", f"Could not save:\n{e}")
+
+    def _on_save_as(self) -> None:
+        """Prompt for a new path and save there."""
+        from PySide6.QtWidgets import QFileDialog
+
+        path_str, _ = QFileDialog.getSaveFileName(
+            self, "Save As", str(self._save_path), "ICO files (*.ico)"
+        )
+        if not path_str:
+            return
+        self._save_path = Path(path_str)
+        self._on_save()
+
+    def closeEvent(self, event: object) -> None:
+        """Intercept close to offer save when there are unsaved changes."""
+        from PySide6.QtWidgets import QMessageBox
+
+        if not self._unsaved_changes:
+            super().closeEvent(event)  # type: ignore[arg-type]
+            return
+
+        reply = QMessageBox.question(
+            self,
+            "Unsaved Changes",
+            "There are unsaved changes. Save before closing?",
+            QMessageBox.StandardButton.Save
+            | QMessageBox.StandardButton.Discard
+            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Save,
+        )
+        if reply == QMessageBox.StandardButton.Save:
+            self._on_save()
+            event.accept()  # type: ignore[attr-defined]
+        elif reply == QMessageBox.StandardButton.Discard:
+            event.accept()  # type: ignore[attr-defined]
+        else:
+            event.ignore()  # type: ignore[attr-defined]
 
     # ------------------------------------------------------------------
     # Zoom
