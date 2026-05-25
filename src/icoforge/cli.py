@@ -218,7 +218,15 @@ def convert(
     keep_aspect: bool,
     **per_size_sources: Path | None,
 ) -> None:
-    """Convert SOURCE image to a multi-size ICO file at TARGET."""
+    """Convert SOURCE image to a multi-size ICO or ICNS file at TARGET.
+
+    When TARGET ends with .icns the output is a macOS ICNS file.
+    Supported ICNS sizes: 16, 32, 64, 128, 256, 512, 1024.
+    """
+    if target.suffix.lower() == ".icns":
+        _convert_icns(source, target, sizes, resample, background, keep_aspect)
+        return
+
     parsed_sizes = _parse_sizes(sizes)
     source_overrides = _collect_source_overrides(per_size_sources, parsed_sizes)
     bd = cast(Literal[8, 24, 32], int(bit_depth))
@@ -251,6 +259,70 @@ def convert(
         click.secho(f"Error: {exc}", fg="red", err=True)
         raise SystemExit(1) from exc
 
+    click.echo()
+    click.secho(f"Wrote {target}", fg="green")
+
+
+def _convert_icns(
+    source: Path,
+    target: Path,
+    sizes: str,
+    resample: str,
+    background: str,
+    keep_aspect: bool,
+) -> None:
+    """Render frames from *source* and write an ICNS file to *target*."""
+
+    from icoforge.core.icns_writer import _VALID_SIZES, render_and_write_icns
+    from icoforge.core.resampling import to_pillow
+
+    # Parse sizes as plain ints (bypassing SizeSpec's 1-256 ICO restriction).
+    raw_sizes: list[int] = []
+    for chunk in sizes.split(","):
+        chunk = chunk.strip()
+        try:
+            raw_sizes.append(int(chunk))
+        except ValueError:
+            click.secho(
+                f"Error: expected an integer size, got {chunk!r}.",
+                fg="red",
+                err=True,
+            )
+            raise SystemExit(1) from None
+
+    invalid = [s for s in raw_sizes if s not in _VALID_SIZES]
+    if invalid:
+        click.secho(
+            f"Error: ICNS does not support size(s) {invalid}. Supported: {sorted(_VALID_SIZES)}.",
+            fg="red",
+            err=True,
+        )
+        raise SystemExit(1)
+
+    pil_resample = to_pillow(ResampleAlgorithm(resample))
+    bg = _parse_background(background)
+    bg_tuple: tuple[int, int, int, int] = (
+        (0, 0, 0, 0) if isinstance(bg, str) else (bg.r, bg.g, bg.b, bg.a)
+    )
+
+    try:
+        render_and_write_icns(
+            source,
+            target,
+            raw_sizes,
+            resample=pil_resample,
+            background=bg_tuple,
+            preserve_aspect=keep_aspect,
+            progress=_progress_callback,
+        )
+    except FileNotFoundError as exc:
+        click.echo()
+        click.secho(f"Error: source file not found: {exc}", fg="red", err=True)
+        raise SystemExit(1) from exc
+    except ValueError as exc:
+        click.echo()
+        click.secho(f"Error: {exc}", fg="red", err=True)
+        raise SystemExit(1) from exc
     click.echo()
     click.secho(f"Wrote {target}", fg="green")
 
