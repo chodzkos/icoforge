@@ -8,9 +8,8 @@ from PIL import Image
 
 def trim_transparency(
     image: Image.Image,
-    *,
-    threshold: int = 0,
     padding: int = 0,
+    threshold: int = 0,
 ) -> Image.Image:
     """Crop transparent borders from *image*.
 
@@ -18,39 +17,36 @@ def trim_transparency(
     region, then adds *padding* transparent pixels on each side.
 
     Args:
-        image: RGBA source image.
+        image: Source image (any mode; converted to RGBA internally).
+        padding: Pixels of transparent padding to add on each side after trim.
         threshold: Pixels with alpha <= threshold are treated as transparent
             (0 = only fully transparent pixels are trimmed).
-        padding: Pixels of transparent padding to add on each side after trim.
 
     Returns:
-        Cropped and padded RGBA image.  Returns *image* unchanged if all
-        pixels are fully transparent or no opaque content exists.
+        Cropped and padded RGBA image.  Result size is (content + 2*padding).
+        Returns a 1x1 transparent image if all pixels are transparent.
     """
-    if image.mode != "RGBA":
-        image = image.convert("RGBA")
+    rgba = image.convert("RGBA")
+    alpha = np.array(rgba)[:, :, 3]
 
-    arr = np.asarray(image)
-    alpha = arr[:, :, 3]
-    mask = alpha > threshold
+    rows = np.any(alpha > threshold, axis=1)
+    cols = np.any(alpha > threshold, axis=0)
 
-    if not mask.any():
-        return image
+    if not rows.any():
+        return Image.new("RGBA", (1, 1), (0, 0, 0, 0))
 
-    rows = np.any(mask, axis=1)
-    cols = np.any(mask, axis=0)
-    row_min = int(np.argmax(rows))
-    row_max = int(len(rows) - 1 - int(np.argmax(rows[::-1])))
-    col_min = int(np.argmax(cols))
-    col_max = int(len(cols) - 1 - int(np.argmax(cols[::-1])))
+    top = int(np.argmax(rows))
+    bottom = int(len(rows) - np.argmax(rows[::-1]))
+    left = int(np.argmax(cols))
+    right = int(len(cols) - np.argmax(cols[::-1]))
 
-    cropped = image.crop((col_min, row_min, col_max + 1, row_max + 1))
+    cropped = rgba.crop((left, top, right, bottom))
 
-    if padding <= 0:
+    if padding == 0:
         return cropped
 
-    pw = cropped.width + 2 * padding
-    ph = cropped.height + 2 * padding
-    canvas = Image.new("RGBA", (pw, ph), (0, 0, 0, 0))
-    canvas.paste(cropped, (padding, padding))
-    return canvas
+    new_w = cropped.width + 2 * padding
+    new_h = cropped.height + 2 * padding
+    result = Image.new("RGBA", (new_w, new_h), (0, 0, 0, 0))
+    result.paste(cropped, (padding, padding))
+    return result

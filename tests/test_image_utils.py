@@ -44,15 +44,35 @@ class TestTrimBasic:
         result = trim_transparency(img)
         assert result.size == (32, 32)
 
-    def test_fully_transparent_returns_original(self) -> None:
+    def test_fully_transparent_returns_1x1(self) -> None:
         img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
         result = trim_transparency(img)
-        assert result.size == (32, 32)
+        assert result.size == (1, 1)
 
     def test_non_rgba_input_converted(self) -> None:
         img = Image.new("RGB", (32, 32), (255, 0, 0))
         result = trim_transparency(img)
         assert result.mode == "RGBA"
+
+    def test_32x32_with_20x20_content_gives_20x20(self) -> None:
+        """32x32 image with 20x20 opaque content in center → trim gives 20x20."""
+        img = _make_padded(content_size=20, pad=6)
+        assert img.size == (32, 32)
+        result = trim_transparency(img)
+        assert result.size == (20, 20)
+
+    def test_32x32_with_20x20_content_padding4_gives_28x28(self) -> None:
+        """Same image with padding=4 → 20 + 2*4 = 28x28."""
+        img = _make_padded(content_size=20, pad=6)
+        result = trim_transparency(img, padding=4)
+        assert result.size == (28, 28)
+
+    def test_result_never_larger_than_input(self) -> None:
+        """trim_transparency must never grow the image beyond original size."""
+        img = _make_padded(content_size=20, pad=6)
+        result = trim_transparency(img)
+        assert result.width <= img.width
+        assert result.height <= img.height
 
 
 # ---------------------------------------------------------------------------
@@ -93,12 +113,12 @@ class TestTrimThreshold:
         result = trim_transparency(img, threshold=0)
         assert result.size == (1, 1)
 
-    def test_semi_transparent_kept_with_high_threshold(self) -> None:
-        """Pixel alpha=128 is kept when threshold=200 means alpha>200 is 'opaque'."""
+    def test_all_transparent_with_high_threshold_returns_1x1(self) -> None:
+        """With threshold=200, alpha=128 is treated as transparent → 1x1 result."""
         img = Image.new("RGBA", (10, 10), (0, 0, 0, 0))
         img.putpixel((5, 5), (255, 0, 0, 128))
         result = trim_transparency(img, threshold=200)
-        assert result.size == (10, 10)
+        assert result.size == (1, 1)
 
 
 # ---------------------------------------------------------------------------
