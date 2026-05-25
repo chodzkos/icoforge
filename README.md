@@ -10,7 +10,7 @@ Konwerter i edytor plików ICO. Konwersja z PNG/JPG/WEBP/SVG/HEIC do `.ico` z pe
 | Faza 2 | Więcej formatów wejściowych | ✅ Ukończona |
 | Faza 3 | Optymalizacja PNG | ✅ Ukończona |
 | Faza 4 | Edytor pikselowy | ✅ Ukończona |
-| Faza 5 | Tworzenie ICO od podstaw | 📋 Planowana |
+| Faza 5 | Tworzenie ICO od podstaw | ✅ Ukończona |
 
 Patrz [docs/ROADMAP.md](docs/ROADMAP.md) dla szczegółowego planu.
 
@@ -46,7 +46,8 @@ Patrz [docs/ROADMAP.md](docs/ROADMAP.md) dla szczegółowego planu.
 - Edycja każdej rozdzielczości osobno w obrębie tego samego ICO
 - Zapis (Ctrl+S) i Zapisz jako (Ctrl+Shift+S); dialog potwierdzenia przy zamykaniu
 
-**Faza 5 – tworzenie ICO od podstaw**
+**Faza 5 – tworzenie ICO 
+od podstaw** ✅
 - Kreator nowego ICO (wybór rozmiarów, kolor tła / transparent)
 - Synchronizacja warstw między rozmiarami (opcjonalna)
 
