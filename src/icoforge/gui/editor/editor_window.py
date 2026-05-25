@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QColor, QFont, QKeySequence
+from PySide6.QtGui import QAction, QCloseEvent, QColor, QFont, QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -45,7 +45,7 @@ if TYPE_CHECKING:
 class EditorWindow(QMainWindow):
     """Main window for the pixel editor."""
 
-    def __init__(self, ico_path: Path, parent: object | None = None) -> None:
+    def __init__(self, ico_path: Path, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.ico_path = ico_path
         self._save_path = ico_path
@@ -640,12 +640,12 @@ class EditorWindow(QMainWindow):
         self._save_path = Path(path_str)
         self._on_save()
 
-    def closeEvent(self, event: object) -> None:
+    def closeEvent(self, event: QCloseEvent) -> None:
         """Intercept close to offer save when there are unsaved changes."""
         from PySide6.QtWidgets import QMessageBox
 
         if not self._unsaved_changes:
-            super().closeEvent(event)  # type: ignore[arg-type]
+            super().closeEvent(event)
             return
 
         reply = QMessageBox.question(
@@ -659,11 +659,11 @@ class EditorWindow(QMainWindow):
         )
         if reply == QMessageBox.StandardButton.Save:
             self._on_save()
-            event.accept()  # type: ignore[attr-defined]
+            event.accept()
         elif reply == QMessageBox.StandardButton.Discard:
-            event.accept()  # type: ignore[attr-defined]
+            event.accept()
         else:
-            event.ignore()  # type: ignore[attr-defined]
+            event.ignore()
 
     # ------------------------------------------------------------------
     # Zoom
