@@ -57,6 +57,8 @@ od podstaw** ✅
 - Auto-trim przezroczystych obrzeży
 - Ekstrakcja ikon z `.exe` / `.dll`
 - Drag & drop, batch processing
+- Lokalizacja PL/EN z przełącznikiem języka
+- Instalator Windows + wersja portable
 
 ## Instalacja (dev)
 

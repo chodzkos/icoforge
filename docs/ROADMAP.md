@@ -150,5 +150,6 @@ Każda faza ma kryteria zakończenia. Nie przechodź do następnej fazy bez uko�
 - [ ] Auto-trim przezroczystych obrzeży
 - [ ] Ekstrakcja ikon z `.exe` / `.dll` (`pefile`)
 - [ ] Wsadowe usuwanie tła (`rembg`)
+- [ ] Lokalizacja PL/EN – ujednolicony polski interfejs + przełącznik języka
 - [ ] Pakiet PyInstaller / Nuitka z installerem (Inno Setup)
 - [ ] Auto-update (mała aplikacja, raczej GitHub Releases + ręczne)

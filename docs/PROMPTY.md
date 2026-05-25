@@ -773,6 +773,7 @@ git branch -d feature/extra-rembg && git push origin --delete feature/extra-remb
 
 ### Funkcja portable
 
+```
 Po ukończeniu fazy 5, przed krokiem z instalatorem, dodaj obsługę
 trybu portable jako osobny target buildu.
 
@@ -799,6 +800,9 @@ Dodaj do artefaktów releasu obok instalatora .exe:
 - IcoForge-portable-x.x.x.zip
 
 Zrób commit: "feat: add portable mode with settings stored next to executable"
+
+```
+
 
 ### Instalator Windows (PyInstaller + Inno Setup)
 
@@ -831,6 +835,119 @@ git add . && git commit -m "feat: add Windows installer via PyInstaller and Inno
 git push origin feature/extra-installer
 git checkout main && git merge --no-ff feature/extra-installer -m "feat: merge Windows installer build" && git push origin main
 git branch -d feature/extra-installer && git push origin --delete feature/extra-installer
+```
+
+### PL/EN – ujednolicenie języka interfejsu
+
+```
+Jesteśmy na gałęzi main po ukończeniu fazy 5.
+Utwórz gałąź: git checkout main && git pull && git checkout -b feature/lang-pl-en && git push -u origin feature/lang-pl-en
+
+CEL: ujednolicić język interfejsu (domyślnie polski wszędzie gdzie
+istnieje odpowiednik) i dodać przełącznik PL/EN.
+
+── KROK 1: AUDYT STRINGÓW ──────────────────────────────────────────
+Znajdź wszystkie hardcoded stringi UI w projekcie (przyciski, etykiety,
+menu, tooltips, komunikaty błędów, tytuły okien, nagłówki kolumn).
+Owiń każdy w self.tr():
+
+  # Zamiast:
+  QPushButton("Save As...")
+  # Powinno być:
+  QPushButton(self.tr("Zapisz jako..."))
+
+── KROK 2: UJEDNOLICONA TERMINOLOGIA POLSKA ────────────────────────
+Zastosuj konsekwentnie w całej aplikacji:
+
+  File            → Plik
+  Edit            → Edycja
+  View            → Widok
+  Help            → Pomoc
+  Tools           → Narzędzia
+  Settings        → Ustawienia
+  Open            → Otwórz
+  Save / Save As  → Zapisz / Zapisz jako...
+  Export          → Eksportuj
+  Close           → Zamknij
+  Cancel          → Anuluj
+  Apply           → Zastosuj
+  About           → O programie
+  Error           → Błąd
+  Warning         → Ostrzeżenie
+  Ready           → Gotowy
+  New             → Nowy
+  Undo / Redo     → Cofnij / Ponów
+  Copy/Cut/Paste  → Kopiuj / Wytnij / Wklej
+  Select All      → Zaznacz wszystko
+  Zoom In/Out     → Powiększ / Pomniejsz
+  Fit to window   → Dopasuj do okna
+  Pencil          → Ołówek
+  Eraser          → Gumka
+  Fill            → Wypełnienie
+  Eyedropper      → Kroplomierz
+  Line            → Linia
+  Rectangle       → Prostokąt
+  Selection       → Zaznaczenie
+  Size            → Rozmiar
+  Color           → Kolor
+  Palette         → Paleta
+  Preview         → Podgląd
+  Progress        → Postęp
+  Background      → Tło
+  Transparent     → Przezroczyste
+  Compression level → Poziom kompresji
+  Strip metadata  → Usuń metadane
+  Resample        → Algorytm skalowania
+
+── KROK 3: PLIKI TŁUMACZEŃ ─────────────────────────────────────────
+Stwórz folder src/icoforge/translations/
+Wygeneruj pliki .ts:
+  pylupdate6 src/icoforge/**/*.py -ts src/icoforge/translations/icoforge_pl.ts
+  pylupdate6 src/icoforge/**/*.py -ts src/icoforge/translations/icoforge_en.ts
+
+W icoforge_pl.ts: tłumaczenia = polska wersja (język domyślny)
+W icoforge_en.ts: tłumaczenia = angielska wersja
+
+Skompiluj:
+  lrelease src/icoforge/translations/icoforge_pl.ts
+  lrelease src/icoforge/translations/icoforge_en.ts
+
+── KROK 4: ŁADOWANIE TŁUMACZENIA ───────────────────────────────────
+W src/icoforge/utils/settings.py dodaj:
+  get_language() -> str   # zwraca "pl" lub "en", default "pl"
+  set_language(lang: str) # zapisuje do settings.json
+
+W __main__.py przed QApplication.exec():
+  translator = QTranslator()
+  lang = get_language()
+  qm = Path(__file__).parent / "translations" / f"icoforge_{lang}.qm"
+  if qm.exists():
+      translator.load(str(qm))
+      app.installTranslator(translator)
+
+── KROK 5: PRZEŁĄCZNIK W MENU ──────────────────────────────────────
+Menu Pomoc → "Język / Language" → podmenu:
+  ● Polski        (kropka gdy aktywny)
+    English
+
+Po wyborze:
+- Zapisz przez set_language()
+- Pokaż informację: "Zmiana zostanie zastosowana po restarcie aplikacji."
+- NIE restartuj automatycznie
+
+── KROK 6: WERYFIKACJA ─────────────────────────────────────────────
+1. Uruchom aplikację – cały interfejs powinien być po polsku
+2. Przełącz na angielski, zrestartuj – całość po angielsku
+3. Sprawdź że żaden hardcoded string nie ominął tr()
+   (szukaj wzorcem: grep -r '"[A-Z][a-z]' src/icoforge/gui/)
+4. pytest -v && ruff check . && mypy src/
+
+Po zakończeniu i przetestowaniu – poczekaj na moje potwierdzenie, potem:
+git add . && git commit -m "feat: add PL/EN localization with unified Polish UI"
+git push origin feature/lang-pl-en
+git checkout main && git merge --no-ff feature/lang-pl-en -m "feat: merge PL/EN localization" && git push origin main
+git branch -d feature/lang-pl-en && git push origin --delete feature/lang-pl-en
+
 ```
 
 ---
