@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING
 
 from PIL import Image
-from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt, Signal
+from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPen, QPixmap, QUndoStack
 from PySide6.QtWidgets import (
     QGraphicsItem,
@@ -189,6 +190,7 @@ class EditorCanvas(QGraphicsView):
 
         self._current_image: Image.Image | None = None
         self._pixmap_item: QGraphicsPixmapItem | None = None
+        self._overlay_item: QGraphicsPixmapItem | None = None
         self._checkerboard: CheckerboardBackground | None = None
         self._grid: GridOverlay | None = None
         self._zoom_level = 1.0
@@ -198,6 +200,11 @@ class EditorCanvas(QGraphicsView):
 
         self._undo_stack = QUndoStack(self)
         self._undo_stack.indexChanged.connect(lambda _: self._refresh_pixmap())
+
+        # Drives marching-ants animation for SelectTool
+        self._selection_timer = QTimer(self)
+        self._selection_timer.setInterval(80)
+        self._selection_timer.timeout.connect(self._tick_selection)
 
         self.setBackgroundBrush(QBrush(QColor(50, 50, 50)))
         self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
@@ -237,6 +244,12 @@ class EditorCanvas(QGraphicsView):
         self._pixmap_item = self.scene_obj.addPixmap(pixmap)
         self._pixmap_item.setZValue(50)
 
+        # Transparent overlay for tool previews (line, rect, select marching ants)
+        transparent = QPixmap(width, height)
+        transparent.fill(QColor(0, 0, 0, 0))
+        self._overlay_item = self.scene_obj.addPixmap(transparent)
+        self._overlay_item.setZValue(75)
+
         self._grid = GridOverlay(width, height)
         self.scene_obj.addItem(self._grid)
 
@@ -252,6 +265,12 @@ class EditorCanvas(QGraphicsView):
     def set_tool(self, tool: Tool) -> None:
         """Set the active drawing tool."""
         self._current_tool = tool
+        if hasattr(tool, "tick_animation"):
+            self._selection_timer.start()
+            self._update_overlay_from_tool()
+        else:
+            self._selection_timer.stop()
+            self._clear_overlay()
 
     def _commit_stroke(self, description: str) -> None:
         """Diff against pre-stroke snapshot and push a DrawCommand if pixels changed."""
@@ -446,6 +465,7 @@ class EditorCanvas(QGraphicsView):
             px, py = int(scene_pos.x()), int(scene_pos.y())
             self._current_tool.on_press(px, py)
             self._refresh_pixmap()
+            self._update_overlay_from_tool()
             self._maybe_emit_color_sampled()
             event.accept()
         else:
@@ -471,6 +491,7 @@ class EditorCanvas(QGraphicsView):
             px, py = int(scene_pos.x()), int(scene_pos.y())
             self._current_tool.on_move(px, py)
             self._refresh_pixmap()
+            self._update_overlay_from_tool()
             self._maybe_emit_color_sampled()
             event.accept()
         else:
@@ -494,6 +515,7 @@ class EditorCanvas(QGraphicsView):
             px, py = int(scene_pos.x()), int(scene_pos.y())
             self._current_tool.on_release(px, py)
             self._refresh_pixmap()
+            self._update_overlay_from_tool()
             tool_name = getattr(self._current_tool, "name", "Draw")
             self._commit_stroke(f"{tool_name} stroke")
             event.accept()
@@ -510,6 +532,35 @@ class EditorCanvas(QGraphicsView):
         if picked is not None:
             r, g, b, a = picked
             self.color_sampled.emit(r, g, b, a)
+
+    def _update_overlay_from_tool(self) -> None:
+        """Sync the scene overlay pixmap with the current tool's overlay_image."""
+        if self._overlay_item is None:
+            return
+        overlay = getattr(self._current_tool, "overlay_image", None)
+        if overlay is not None:
+            data = overlay.convert("RGBA").tobytes()
+            w, h = overlay.size
+            qimg = QImage(data, w, h, 4 * w, QImage.Format.Format_RGBA8888)
+            self._overlay_item.setPixmap(QPixmap.fromImage(qimg))
+        else:
+            self._clear_overlay()
+
+    def _clear_overlay(self) -> None:
+        """Reset overlay to fully transparent."""
+        if self._overlay_item is None or self._current_image is None:
+            return
+        w, h = self._current_image.size
+        clear = QPixmap(w, h)
+        clear.fill(QColor(0, 0, 0, 0))
+        with contextlib.suppress(RuntimeError):  # C++ object deleted during teardown
+            self._overlay_item.setPixmap(clear)
+
+    def _tick_selection(self) -> None:
+        """Advance marching-ants animation one step."""
+        if self._current_tool is not None and hasattr(self._current_tool, "tick_animation"):
+            self._current_tool.tick_animation()  # type: ignore[union-attr]
+            self._update_overlay_from_tool()
 
     def _update_grid_visibility(self) -> None:
         """Show/hide grid based on zoom level."""

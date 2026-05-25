@@ -278,7 +278,6 @@ def main() -> int:
     app = QApplication.instance() or QApplication(sys.argv)
     window = MainWindow()
     window.show()
-    # On WSLg/XWayland the window may not receive focus automatically.
     window.raise_()
     window.activateWindow()
     return int(app.exec())
