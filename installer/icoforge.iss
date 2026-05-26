@@ -53,10 +53,14 @@ Source: "..\dist\{#AppName}\*"; \
 
 [Icons]
 ; Start Menu
-Name: "{group}\{#AppName}";               Filename: "{app}\{#AppExeName}"
+Name: "{group}\{#AppName}"; \
+  Filename: "{app}\{#AppExeName}"; \
+  IconFilename: "{app}\icoforge.ico"
 Name: "{group}\{cm:UninstallProgram,{#AppName}}"; Filename: "{uninstallexe}"
 ; Desktop (optional task)
-Name: "{autodesktop}\{#AppName}";         Filename: "{app}\{#AppExeName}"; \
+Name: "{autodesktop}\{#AppName}"; \
+  Filename: "{app}\{#AppExeName}"; \
+  IconFilename: "{app}\icoforge.ico"; \
   Tasks: desktopicon
 
 [Registry]

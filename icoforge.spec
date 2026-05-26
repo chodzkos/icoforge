@@ -18,6 +18,13 @@ _assets = ROOT / "assets"
 if any(p for p in _assets.iterdir() if p.name != ".gitkeep"):
     datas.append((str(_assets), "assets"))
 
+# Also place icoforge.ico at the bundle root so the Inno Setup installer can
+# reference it as {app}\icoforge.ico for shortcut IconFilename (avoids Windows
+# icon-cache issues when a fresh EXE is installed).
+_app_ico = ROOT / "assets" / "icoforge.ico"
+if _app_ico.exists():
+    datas.append((str(_app_ico), "."))
+
 # ---------------------------------------------------------------------------
 # Cairo DLLs (collected from MSYS2 by scripts/collect_cairo_dlls.py)
 # Placed in the root of the bundle so cairocffi / ctypes can find them.

@@ -36,13 +36,7 @@ from icoforge.gui.widgets.optimization_panel import OptimizationPanel
 from icoforge.gui.widgets.preview_panel import PreviewPanel
 from icoforge.gui.widgets.settings_panel import SettingsPanel
 from icoforge.gui.workers import ConversionWorker
-
-
-def _asset(name: str) -> Path:
-    """Return the path to a bundled asset, works both frozen and in dev."""
-    if hasattr(sys, "_MEIPASS"):
-        return Path(sys._MEIPASS) / "assets" / name
-    return Path(__file__).resolve().parents[3] / "assets" / name
+from icoforge.utils.paths import get_resource_path
 
 
 class _ExeIconPickerDialog(QDialog):
@@ -121,7 +115,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("IcoForge")
         self.resize(900, 600)
-        icon_path = _asset("icoforge.ico")
+        icon_path = get_resource_path("assets/icoforge.ico")
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
 
@@ -642,7 +636,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(20, 20, 20, 20)
 
         logo_label = QLabel()
-        logo_path = _asset("logo.png")
+        logo_path = get_resource_path("assets/logo.png")
         if logo_path.exists():
             pixmap = QPixmap(str(logo_path))
             logo_label.setPixmap(
