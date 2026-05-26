@@ -127,7 +127,7 @@ def main() -> None:
         sys.exit(1)
 
     CAIRO_DLLS_DIR.mkdir(parents=True, exist_ok=True)
-    print(f"Collecting Cairo DLLs from {msys2_bin} → {CAIRO_DLLS_DIR}")
+    print(f"Collecting Cairo DLLs from {msys2_bin} -> {CAIRO_DLLS_DIR}")
     collect(entry, msys2_bin, CAIRO_DLLS_DIR, set())
 
     dlls = list(CAIRO_DLLS_DIR.glob("*.dll"))
