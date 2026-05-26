@@ -122,7 +122,7 @@ class PreviewPanel(QScrollArea):
 
     def _show_placeholder(self) -> None:
         self._clear_grid()
-        lbl = QLabel("Załaduj plik, aby zobaczyć podgląd")
+        lbl = QLabel(self.tr("Załaduj plik, aby zobaczyć podgląd"))
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl.setEnabled(False)
         self._grid.addWidget(lbl, 0, 0)

@@ -44,15 +44,16 @@ class _ExeIconPickerDialog(QDialog):
 
     def __init__(self, icons: list[bytes], filename: str, parent: QWidget) -> None:
         super().__init__(parent)
-        self.setWindowTitle(f"Ikony w pliku: {filename}")
+        self.setWindowTitle(self.tr("Ikony w pliku: %1").replace("%1", filename))
         self.resize(480, 360)
         self._icons = icons
 
         layout = QVBoxLayout(self)
 
         info = QLabel(
-            f"Znaleziono {len(icons)} grupę/grup ikon. "
-            "Zaznacz ikony do zapisania (Ctrl+A - wszystkie)."
+            self.tr(
+                "Znaleziono %1 grupę/grup ikon. Zaznacz ikony do zapisania (Ctrl+A - wszystkie)."
+            ).replace("%1", str(len(icons)))
         )
         info.setWordWrap(True)
         layout.addWidget(info)
@@ -74,7 +75,6 @@ class _ExeIconPickerDialog(QDialog):
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
-        # Pre-select all items
         self._list.selectAll()
 
     def _populate(self, icons: list[bytes]) -> None:
@@ -93,8 +93,11 @@ class _ExeIconPickerDialog(QDialog):
                 pixmap = QPixmap(self._THUMB_SIZE, self._THUMB_SIZE)
                 pixmap.fill()
 
-            item = QListWidgetItem(QIcon(pixmap), f"Ikona {i + 1}")
-            item.setData(256, i)  # store original index in UserRole+0
+            item = QListWidgetItem(
+                QIcon(pixmap),
+                self.tr("Ikona %1").replace("%1", str(i + 1)),
+            )
+            item.setData(256, i)
             self._list.addItem(item)
 
     def selected_icons(self) -> list[tuple[int, bytes]]:
@@ -122,6 +125,8 @@ class MainWindow(QMainWindow):
         self._cancel_action: QAction
         self._favicon_action: QAction
         self._progress_bar: QProgressBar
+        self._lang_pl_action: QAction
+        self._lang_en_action: QAction
 
         self._setup_menu()
         self._setup_toolbar()
@@ -133,42 +138,59 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _setup_menu(self) -> None:
+        from icoforge.utils.settings import get_language
+
         menubar = self.menuBar()
 
-        file_menu = menubar.addMenu("&File")
-        file_menu.addAction("&New ICO…\tCtrl+N", self._on_new_ico).setShortcut("Ctrl+N")
+        file_menu = menubar.addMenu(self.tr("&Plik"))
+        file_menu.addAction(self.tr("&Nowe ICO…"), self._on_new_ico).setShortcut("Ctrl+N")
         file_menu.addSeparator()
-        file_menu.addAction("&Open…", self._on_open)
-        file_menu.addAction("Save &As…", self._on_save_as)
-        file_menu.addAction("Edit &ICO…", self._on_edit_ico)
-        file_menu.addAction("&Wyciągnij ikony z EXE/DLL…", self._on_extract_exe)
+        file_menu.addAction(self.tr("&Otwórz…"), self._on_open)
+        file_menu.addAction(self.tr("Zapisz &jako…"), self._on_save_as)
+        file_menu.addAction(self.tr("Edytuj &ICO…"), self._on_edit_ico)
+        file_menu.addAction(self.tr("&Wyciągnij ikony z EXE/DLL…"), self._on_extract_exe)
         file_menu.addSeparator()
-        file_menu.addAction("E&xit", self.close)
+        file_menu.addAction(self.tr("Za&kończ"), self.close)
 
-        help_menu = menubar.addMenu("&Help")
-        help_menu.addAction("&About", self._on_about)
+        help_menu = menubar.addMenu(self.tr("P&omoc"))
+        help_menu.addAction(self.tr("&O programie"), self._on_about)
+        help_menu.addSeparator()
+
+        lang_menu = help_menu.addMenu(self.tr("Język / Language"))
+        current_lang = get_language()
+
+        self._lang_pl_action = QAction(("● " if current_lang == "pl" else "  ") + "Polski", self)
+        self._lang_pl_action.triggered.connect(lambda: self._on_language_changed("pl"))
+        lang_menu.addAction(self._lang_pl_action)
+
+        self._lang_en_action = QAction(("● " if current_lang == "en" else "  ") + "English", self)
+        self._lang_en_action.triggered.connect(lambda: self._on_language_changed("en"))
+        lang_menu.addAction(self._lang_en_action)
 
     def _setup_toolbar(self) -> None:
-        toolbar = QToolBar("Actions")
+        toolbar = QToolBar(self.tr("Akcje"))
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
 
-        self._save_action = QAction("Zapisz jako…", self)
+        self._save_action = QAction(self.tr("Zapisz jako…"), self)
         self._save_action.setEnabled(False)
         self._save_action.triggered.connect(self._on_save_as)
         toolbar.addAction(self._save_action)
 
-        self._cancel_action = QAction("Anuluj", self)
+        self._cancel_action = QAction(self.tr("Anuluj"), self)
         self._cancel_action.setEnabled(False)
         self._cancel_action.triggered.connect(self._on_cancel)
         toolbar.addAction(self._cancel_action)
 
         toolbar.addSeparator()
 
-        self._favicon_action = QAction("Favicon Set…", self)
+        self._favicon_action = QAction(self.tr("Zestaw Favicon…"), self)
         self._favicon_action.setEnabled(False)
         self._favicon_action.setToolTip(
-            "Generate a complete web favicon set (favicon.ico, PWA icons, webmanifest)"
+            self.tr(
+                "Generuj kompletny zestaw favicon dla stron www"
+                " (favicon.ico, ikony PWA, webmanifest)"
+            )
         )
         self._favicon_action.triggered.connect(self._on_favicon_set)
         toolbar.addAction(self._favicon_action)
@@ -177,7 +199,6 @@ class MainWindow(QMainWindow):
         tabs = QTabWidget()
         self.setCentralWidget(tabs)
 
-        # Conversion tab
         conversion_widget = QWidget()
         layout = QHBoxLayout(conversion_widget)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -192,11 +213,10 @@ class MainWindow(QMainWindow):
         self._settings_panel.settings_changed.connect(self._update_preview)
         self._preview_panel.render_error.connect(self._on_preview_error)
 
-        tabs.addTab(conversion_widget, "Konwersja")
+        tabs.addTab(conversion_widget, self.tr("Konwersja"))
 
-        # Optimization tab
         self._optimization_panel = OptimizationPanel()
-        tabs.addTab(self._optimization_panel, "Optymalizacja")
+        tabs.addTab(self._optimization_panel, self.tr("Optymalizacja"))
 
     def _make_settings_panel(self) -> QWidget:
         panel = QFrame()
@@ -217,7 +237,7 @@ class MainWindow(QMainWindow):
     def _setup_statusbar(self) -> None:
         bar = QStatusBar()
         self.setStatusBar(bar)
-        bar.showMessage("Ready")
+        bar.showMessage(self.tr("Gotowy"))
 
         self._progress_bar = QProgressBar()
         self._progress_bar.setMaximumWidth(200)
@@ -233,14 +253,16 @@ class MainWindow(QMainWindow):
         if path.suffix.lower() not in SUPPORTED_SUFFIXES:
             QMessageBox.warning(
                 self,
-                "Unsupported format",
-                f"Format pliku '{path.suffix}' nie jest obsługiwany.\n"
-                "Obsługiwane formaty: PNG, JPG, BMP, GIF, WEBP, TIFF.",
+                self.tr("Nieobsługiwany format"),
+                self.tr(
+                    "Format pliku '%1' nie jest obsługiwany.\n"
+                    "Obsługiwane formaty: PNG, JPG, BMP, GIF, WEBP, TIFF."
+                ).replace("%1", path.suffix),
             )
             return
 
         self.source_path = path
-        self.statusBar().showMessage(f"Załadowano: {path.name}")
+        self.statusBar().showMessage(self.tr("Załadowano: %1").replace("%1", path.name))
         self._save_action.setEnabled(True)
         self._favicon_action.setEnabled(True)
         self._update_preview()
@@ -261,9 +283,9 @@ class MainWindow(QMainWindow):
             return
         path, selected_filter = QFileDialog.getSaveFileName(
             self,
-            "Zapisz plik",
+            self.tr("Zapisz plik"),
             "",
-            "ICO files (*.ico);;ICNS files (*.icns);;CUR cursor files (*.cur)",
+            self.tr("Pliki ICO (*.ico);;Pliki ICNS (*.icns);;Pliki kursora CUR (*.cur)"),
         )
         if not path:
             return
@@ -299,7 +321,6 @@ class MainWindow(QMainWindow):
         QThreadPool.globalInstance().start(worker)
 
     def _save_icns(self, source: Path, target: Path) -> None:
-        """Render frames from *source* and save as ICNS using current settings."""
         from icoforge.core.converter import render_frames
         from icoforge.core.icns_writer import _VALID_SIZES, write_icns
 
@@ -309,8 +330,10 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self,
                 "ICNS",
-                "Żaden z wybranych rozmiarów nie jest obsługiwany przez ICNS.\n"
-                f"Obsługiwane rozmiary: {sorted(_VALID_SIZES)}",
+                self.tr(
+                    "Żaden z wybranych rozmiarów nie jest obsługiwany przez ICNS.\n"
+                    "Obsługiwane rozmiary: %1"
+                ).replace("%1", str(sorted(_VALID_SIZES))),
             )
             return
 
@@ -320,25 +343,25 @@ class MainWindow(QMainWindow):
         try:
             images = render_frames(source, icns_config)
             write_icns(target, images)
-            self.statusBar().showMessage(f"Zapisano {target.name}")
+            self.statusBar().showMessage(self.tr("Zapisano %1").replace("%1", target.name))
         except Exception as exc:
-            QMessageBox.critical(self, "Błąd zapisu ICNS", str(exc))
+            QMessageBox.critical(self, self.tr("Błąd zapisu ICNS"), str(exc))
 
     def _save_cur(self, source: Path, target: Path) -> None:
-        """Ask for hotspot, then render frames and save as a Windows .cur file."""
         from icoforge.core.converter import render_frames
         from icoforge.core.cur_writer import write_cur
 
         config = self._settings_panel.get_config()
 
-        # --- hotspot dialog ---
         dlg = QDialog(self)
-        dlg.setWindowTitle("Hotspot kursora")
+        dlg.setWindowTitle(self.tr("Hotspot kursora"))
         layout = QVBoxLayout(dlg)
 
         info = QLabel(
-            "Podaj współrzędne aktywnego piksela (hotspot) kursora.\n"
-            "Punkt (0, 0) to lewy górny róg obrazu."
+            self.tr(
+                "Podaj współrzędne aktywnego piksela (hotspot) kursora.\n"
+                "Punkt (0, 0) to lewy górny róg obrazu."
+            )
         )
         info.setWordWrap(True)
         layout.addWidget(info)
@@ -371,23 +394,26 @@ class MainWindow(QMainWindow):
             images = render_frames(source, config)
             pairs = list(zip(images, config.sizes, strict=False))
             write_cur(target, pairs, hotspot=hotspot)
-            self.statusBar().showMessage(f"Zapisano {target.name}  hotspot={hotspot}")
+            self.statusBar().showMessage(
+                self.tr("Zapisano %1  hotspot=%2")
+                .replace("%1", target.name)
+                .replace("%2", str(hotspot))
+            )
         except Exception as exc:
-            QMessageBox.critical(self, "Błąd zapisu CUR", str(exc))
+            QMessageBox.critical(self, self.tr("Błąd zapisu CUR"), str(exc))
 
     # ------------------------------------------------------------------
     # Favicon set
     # ------------------------------------------------------------------
 
     def _on_favicon_set(self) -> None:
-        """Pick output folder, then generate a complete web favicon set."""
         source = self.source_path
         if source is None:
             return
 
         output_dir = QFileDialog.getExistingDirectory(
             self,
-            "Wybierz folder wyjściowy dla Favicon Set",
+            self.tr("Wybierz folder wyjściowy dla Favicon Set"),
             "",
         )
         if not output_dir:
@@ -404,17 +430,21 @@ class MainWindow(QMainWindow):
                 resample=to_pillow(ResampleAlgorithm.LANCZOS),
             )
             self.statusBar().showMessage(
-                f"Favicon set zapisany do: {output_dir}  ({len(generated)} plików)"
+                self.tr("Zestaw Favicon zapisany do: %1  (%2 plików)")
+                .replace("%1", output_dir)
+                .replace("%2", str(len(generated)))
             )
             msg = QMessageBox(self)
             msg.setWindowTitle("Favicon Set")
             msg.setText(
-                f"Wygenerowano {len(generated)} pliki w:\n{output_dir}\n\n"
-                + "\n".join(p.name for p in generated)
+                self.tr("Wygenerowano %1 pliki w:\n%2\n\n%3")
+                .replace("%1", str(len(generated)))
+                .replace("%2", output_dir)
+                .replace("%3", "\n".join(p.name for p in generated))
             )
             msg.exec()
         except Exception as exc:
-            QMessageBox.critical(self, "Błąd Favicon Set", str(exc))
+            QMessageBox.critical(self, self.tr("Błąd Favicon Set"), str(exc))
 
     # ------------------------------------------------------------------
     # Cancellation
@@ -427,7 +457,7 @@ class MainWindow(QMainWindow):
         self._cancel_action.setEnabled(False)
         self._save_action.setEnabled(True)
         self._progress_bar.setVisible(False)
-        self.statusBar().showMessage("Konwersja anulowana")
+        self.statusBar().showMessage(self.tr("Konwersja anulowana"))
 
     # ------------------------------------------------------------------
     # Convert worker slots
@@ -441,12 +471,12 @@ class MainWindow(QMainWindow):
         self._progress_bar.setVisible(False)
         self._save_action.setEnabled(True)
         self._cancel_action.setEnabled(False)
-        self.statusBar().showMessage(f"Zapisano: {path.name}")
+        self.statusBar().showMessage(self.tr("Zapisano: %1").replace("%1", path.name))
 
         msg = QMessageBox(self)
-        msg.setWindowTitle("Zapisano")
-        msg.setText(f"Plik zapisany:\n{path}")
-        open_btn = msg.addButton("Otwórz folder", QMessageBox.ButtonRole.ActionRole)
+        msg.setWindowTitle(self.tr("Zapisano"))
+        msg.setText(self.tr("Plik zapisany:\n%1").replace("%1", str(path)))
+        open_btn = msg.addButton(self.tr("Otwórz folder"), QMessageBox.ButtonRole.ActionRole)
         msg.addButton(QMessageBox.StandardButton.Ok)
         msg.exec()
         if msg.clickedButton() is open_btn:
@@ -459,12 +489,12 @@ class MainWindow(QMainWindow):
         self._cancel_action.setEnabled(False)
         QMessageBox.critical(
             self,
-            "Błąd konwersji",
-            f"Nie udało się zapisać pliku ICO:\n{message}",
+            self.tr("Błąd konwersji"),
+            self.tr("Nie udało się zapisać pliku ICO:\n%1").replace("%1", message),
         )
 
     def _on_preview_error(self, message: str) -> None:
-        self.statusBar().showMessage(f"Błąd podglądu: {message}")
+        self.statusBar().showMessage(self.tr("Błąd podglądu: %1").replace("%1", message))
 
     # ------------------------------------------------------------------
     # Other slots
@@ -474,7 +504,6 @@ class MainWindow(QMainWindow):
         self._drop_zone.open_file_dialog()
 
     def _on_new_ico(self) -> None:
-        """Open NewIcoDialog and launch EditorWindow with a blank document."""
         from PySide6.QtWidgets import QDialog
 
         from icoforge.gui.editor.new_ico_dialog import NewIcoDialog
@@ -491,15 +520,18 @@ class MainWindow(QMainWindow):
             self._editor_window.raise_()
             self._editor_window.activateWindow()
         except Exception as e:
-            QMessageBox.critical(self, "Błąd", f"Nie można otworzyć edytora:\n{e}")
+            QMessageBox.critical(
+                self,
+                self.tr("Błąd"),
+                self.tr("Nie można otworzyć edytora:\n%1").replace("%1", str(e)),
+            )
 
     def _on_edit_ico(self) -> None:
-        """Open file dialog to select ICO for editing."""
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Otwórz plik ICO do edycji",
+            self.tr("Otwórz plik ICO do edycji"),
             "",
-            "ICO files (*.ico)",
+            self.tr("Pliki ICO (*.ico)"),
         )
         if path:
             try:
@@ -510,17 +542,16 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(
                     self,
-                    "Błąd",
-                    f"Nie można otworzyć pliku ICO:\n{e}",
+                    self.tr("Błąd"),
+                    self.tr("Nie można otworzyć pliku ICO:\n%1").replace("%1", str(e)),
                 )
 
     def _on_extract_exe(self) -> None:
-        """Pick an EXE/DLL, extract icons, show a selection grid, save chosen files."""
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Wybierz plik EXE/DLL/OCX",
+            self.tr("Wybierz plik EXE/DLL/OCX"),
             "",
-            "Windows PE files (*.exe *.dll *.ocx);;All files (*)",
+            self.tr("Pliki Windows PE (*.exe *.dll *.ocx);;Wszystkie pliki (*)"),
         )
         if not path:
             return
@@ -532,20 +563,24 @@ class MainWindow(QMainWindow):
         except ImportError:
             QMessageBox.critical(
                 self,
-                "Brak biblioteki",
-                "Wyciąganie ikon wymaga biblioteki pefile.\n"
-                "Zainstaluj ją: pip install icoforge[exe]",
+                self.tr("Brak biblioteki"),
+                self.tr(
+                    "Wyciąganie ikon wymaga biblioteki pefile.\n"
+                    "Zainstaluj ją: pip install icoforge[exe]"
+                ),
             )
             return
         except ExeExtractError as exc:
-            QMessageBox.critical(self, "Błąd odczytu PE", str(exc))
+            QMessageBox.critical(self, self.tr("Błąd odczytu PE"), str(exc))
             return
 
         if not icons:
             QMessageBox.information(
                 self,
-                "Brak ikon",
-                f"Plik '{Path(path).name}' nie zawiera zasobów RT_GROUP_ICON.",
+                self.tr("Brak ikon"),
+                self.tr("Plik '%1' nie zawiera zasobów RT_GROUP_ICON.").replace(
+                    "%1", Path(path).name
+                ),
             )
             return
 
@@ -557,7 +592,7 @@ class MainWindow(QMainWindow):
         if not selected:
             return
 
-        output_dir = QFileDialog.getExistingDirectory(self, "Wybierz folder zapisu", "")
+        output_dir = QFileDialog.getExistingDirectory(self, self.tr("Wybierz folder zapisu"), "")
         if not output_dir:
             return
 
@@ -568,25 +603,45 @@ class MainWindow(QMainWindow):
             out.write_bytes(ico_bytes)
             saved += 1
 
-        self.statusBar().showMessage(f"Zapisano {saved} ikonę/ikon do: {output_dir}")
+        self.statusBar().showMessage(
+            self.tr("Zapisano %1 ikonę/ikon do: %2")
+            .replace("%1", str(saved))
+            .replace("%2", output_dir)
+        )
         QMessageBox.information(
             self,
-            "Zapisano",
-            f"Zapisano {saved} plik(ów) ICO do:\n{output_dir}",
+            self.tr("Zapisano"),
+            self.tr("Zapisano %1 plik(ów) ICO do:\n%2")
+            .replace("%1", str(saved))
+            .replace("%2", output_dir),
         )
 
     def _on_about(self) -> None:
         QMessageBox.about(
             self,
-            "About IcoForge",
-            "<b>IcoForge</b><br>ICO converter, optimizer and pixel editor.",
+            self.tr("O IcoForge"),
+            self.tr("<b>IcoForge</b><br>Konwerter, optymalizator i edytor pikseli dla ikon ICO."),
+        )
+
+    def _on_language_changed(self, lang: str) -> None:
+        from icoforge.utils.settings import set_language
+
+        set_language(lang)
+
+        self._lang_pl_action.setText(("● " if lang == "pl" else "  ") + "Polski")
+        self._lang_en_action.setText(("● " if lang == "en" else "  ") + "English")
+
+        QMessageBox.information(
+            self,
+            "Język / Language",
+            self.tr("Zmiana zostanie zastosowana po restarcie aplikacji."),
         )
 
 
-def main() -> int:
-    app = QApplication.instance() or QApplication(sys.argv)
+def main(app: QApplication | None = None) -> int:
+    _app = app or QApplication.instance() or QApplication(sys.argv)
     window = MainWindow()
     window.show()
     window.raise_()
     window.activateWindow()
-    return int(app.exec())
+    return int(_app.exec())

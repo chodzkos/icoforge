@@ -47,7 +47,7 @@ class FileDropZone(QFrame):
         vbox = QVBoxLayout(self)
         vbox.setContentsMargins(12, 12, 12, 12)
 
-        self._label = QLabel("Przeciągnij plik PNG tutaj\nlub kliknij aby wybrać")
+        self._label = QLabel(self.tr("Przeciągnij plik PNG tutaj\nlub kliknij aby wybrać"))
         self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._label.setWordWrap(True)
         vbox.addWidget(self._label)
@@ -58,7 +58,9 @@ class FileDropZone(QFrame):
 
     def open_file_dialog(self) -> None:
         """Open the native file-chooser dialog."""
-        path, _ = QFileDialog.getOpenFileName(self, "Wybierz plik źródłowy", "", _DIALOG_FILTER)
+        path, _ = QFileDialog.getOpenFileName(
+            self, self.tr("Wybierz plik źródłowy"), "", _DIALOG_FILTER
+        )
         if path:
             self.file_loaded.emit(Path(path))
 

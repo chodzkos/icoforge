@@ -242,7 +242,7 @@ class TestEditorWindowUndoRedo:
         window = EditorWindow(small_ico)
         qtbot.addWidget(window)
         titles = [a.text() for a in window.menuBar().actions()]
-        assert any("Edit" in t for t in titles)
+        assert any("Edycja" in t for t in titles)
 
     def test_draw_then_undo_restores_pixel(self, qtbot, small_ico: Path) -> None:
         window = EditorWindow(small_ico)

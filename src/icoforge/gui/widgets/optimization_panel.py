@@ -67,7 +67,10 @@ class DropZoneFrame(QFrame):
         """Handle click to open file selection dialog."""
         if event.button() == Qt.MouseButton.LeftButton:
             dialog = QFileDialog(
-                self, "Wybierz pliki PNG do optymalizacji", "", "PNG Images (*.png);;All Files (*)"
+                self,
+                self.tr("Wybierz pliki PNG do optymalizacji"),
+                "",
+                self.tr("Pliki PNG (*.png);;Wszystkie pliki (*)"),
             )
             dialog.setFileMode(QFileDialog.FileMode.ExistingFiles)
             dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
@@ -77,9 +80,9 @@ class DropZoneFrame(QFrame):
                 " QSplitter::handle { background: palette(mid); }"
             )
             if dialog.exec():
-                paths = dialog.selectedFiles()
-                if paths:
-                    self.files_dropped.emit([Path(p) for p in paths])
+                selected = dialog.selectedFiles()
+                if selected:
+                    self.files_dropped.emit([Path(p) for p in selected])
 
 
 class OptimizationPanel(QWidget):
@@ -109,7 +112,7 @@ class OptimizationPanel(QWidget):
         self._drop_area.files_dropped.connect(self._on_files_dropped)
 
         drop_layout = QVBoxLayout(self._drop_area)
-        drop_label = QLabel("Przeciągnij pliki PNG lub folder\nlub kliknij aby wybrać")
+        drop_label = QLabel(self.tr("Przeciągnij pliki PNG lub folder\nlub kliknij aby wybrać"))
         drop_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         drop_layout.addWidget(drop_label)
 
@@ -119,31 +122,31 @@ class OptimizationPanel(QWidget):
         self._file_list = QListWidget()
         self._file_list.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
         self._file_list.setMaximumHeight(150)
-        layout.addWidget(QLabel("Kolejka plików:"))
+        layout.addWidget(QLabel(self.tr("Kolejka plików:")))
         layout.addWidget(self._file_list)
 
         # Options panel
-        options_group = QGroupBox("Opcje optymalizacji")
+        options_group = QGroupBox(self.tr("Opcje optymalizacji"))
         options_layout = QVBoxLayout()
 
         # Compression level
         level_layout = QHBoxLayout()
-        level_layout.addWidget(QLabel("Poziom kompresji:"))
-        level_layout.addWidget(QLabel("Szybszy"))
+        level_layout.addWidget(QLabel(self.tr("Poziom kompresji:")))
+        level_layout.addWidget(QLabel(self.tr("Szybszy")))
         self._level_slider = QSlider(Qt.Orientation.Horizontal)
         self._level_slider.setRange(0, 6)
         self._level_slider.setValue(4)
         self._level_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         self._level_slider.setTickInterval(1)
         level_layout.addWidget(self._level_slider)
-        level_layout.addWidget(QLabel("Mniejszy"))
+        level_layout.addWidget(QLabel(self.tr("Mniejszy")))
         options_layout.addLayout(level_layout)
 
         # Checkboxes
-        self._zopfli_checkbox = QCheckBox("Tryb Zopfli (wolny, maksymalna kompresja)")
-        self._strip_metadata_checkbox = QCheckBox("Usuń metadane (GPS, data, aparat)")
+        self._zopfli_checkbox = QCheckBox(self.tr("Tryb Zopfli (wolny, maksymalna kompresja)"))
+        self._strip_metadata_checkbox = QCheckBox(self.tr("Usuń metadane (GPS, data, aparat)"))
         self._strip_metadata_checkbox.setChecked(True)
-        self._preserve_icc_checkbox = QCheckBox("Zachowaj profil kolorów ICC")
+        self._preserve_icc_checkbox = QCheckBox(self.tr("Zachowaj profil kolorów ICC"))
 
         options_layout.addWidget(self._zopfli_checkbox)
         options_layout.addWidget(self._strip_metadata_checkbox)
@@ -151,10 +154,10 @@ class OptimizationPanel(QWidget):
 
         # Save location
         save_layout = QHBoxLayout()
-        self._inplace_radio = QRadioButton("Zapisz w miejscu")
+        self._inplace_radio = QRadioButton(self.tr("Zapisz w miejscu"))
         self._inplace_radio.setChecked(True)
-        self._folder_radio = QRadioButton("Zapisz do folderu:")
-        self._folder_button = QPushButton("Wybierz...")
+        self._folder_radio = QRadioButton(self.tr("Zapisz do folderu:"))
+        self._folder_button = QPushButton(self.tr("Wybierz..."))
         self._folder_button.setEnabled(False)
         self._folder_button.clicked.connect(self._on_choose_folder)
         self._folder_radio.toggled.connect(self._folder_button.setEnabled)
@@ -171,7 +174,7 @@ class OptimizationPanel(QWidget):
 
         # Optimize button
         button_layout = QHBoxLayout()
-        self._optimize_button = QPushButton("Optymalizuj")
+        self._optimize_button = QPushButton(self.tr("Optymalizuj"))
         self._optimize_button.setMinimumHeight(40)
         self._optimize_button.clicked.connect(self._on_optimize_clicked)
         button_layout.addStretch()
@@ -182,13 +185,15 @@ class OptimizationPanel(QWidget):
         # Progress bars
         self._global_progress = QProgressBar()
         self._global_progress.setVisible(False)
-        layout.addWidget(QLabel("Postęp:"))
+        layout.addWidget(QLabel(self.tr("Postęp:")))
         layout.addWidget(self._global_progress)
 
         # Results table
         self._results_table = QTableWidget()
         self._results_table.setColumnCount(4)
-        self._results_table.setHorizontalHeaderLabels(["Plik", "Przed", "Po", "Oszczędność %"])
+        self._results_table.setHorizontalHeaderLabels(
+            [self.tr("Plik"), self.tr("Przed"), self.tr("Po"), self.tr("Oszczędność %")]
+        )
         self._results_table.horizontalHeader().setSectionResizeMode(
             0, QHeaderView.ResizeMode.Stretch
         )
@@ -198,7 +203,7 @@ class OptimizationPanel(QWidget):
 
         # Export CSV button
         export_layout = QHBoxLayout()
-        self._export_button = QPushButton("Eksportuj raport CSV")
+        self._export_button = QPushButton(self.tr("Eksportuj raport CSV"))
         self._export_button.setVisible(False)
         self._export_button.clicked.connect(self._on_export_csv)
         export_layout.addStretch()
@@ -230,7 +235,7 @@ class OptimizationPanel(QWidget):
 
     def _on_choose_folder(self) -> None:
         """Open folder selection dialog."""
-        folder = QFileDialog.getExistingDirectory(self, "Wybierz folder wyjściowy")
+        folder = QFileDialog.getExistingDirectory(self, self.tr("Wybierz folder wyjściowy"))
         if folder:
             self._selected_folder = Path(folder)
             self._folder_button.setText(f".../{self._selected_folder.name}")
@@ -238,7 +243,11 @@ class OptimizationPanel(QWidget):
     def _on_optimize_clicked(self) -> None:
         """Start batch optimization."""
         if not self._file_queue:
-            QMessageBox.warning(self, "Brak plików", "Dodaj pliki PNG do optymalizacji")
+            QMessageBox.warning(
+                self,
+                self.tr("Brak plików"),
+                self.tr("Dodaj pliki PNG do optymalizacji"),
+            )
             return
 
         self._optimize_button.setEnabled(False)
@@ -264,10 +273,16 @@ class OptimizationPanel(QWidget):
             self._results = optimize_batch(self._file_queue, config=config, progress=progress_cb)
             self._show_results()
             QMessageBox.information(
-                self, "Gotowe", f"Zoptymalizowano {len(self._results)} plik(ów)"
+                self,
+                self.tr("Gotowe"),
+                self.tr("Zoptymalizowano %1 plik(ów)").replace("%1", str(len(self._results))),
             )
         except Exception as e:
-            QMessageBox.critical(self, "Błąd", f"Błąd optymalizacji: {e}")
+            QMessageBox.critical(
+                self,
+                self.tr("Błąd"),
+                self.tr("Błąd optymalizacji: %1").replace("%1", str(e)),
+            )
         finally:
             self._optimize_button.setEnabled(True)
             self._global_progress.setVisible(False)
@@ -299,7 +314,7 @@ class OptimizationPanel(QWidget):
         total_ratio = (total_before - total_after) / total_before * 100 if total_before > 0 else 0
 
         summary_items = [
-            QTableWidgetItem("RAZEM"),
+            QTableWidgetItem(self.tr("RAZEM")),
             QTableWidgetItem(self._format_bytes(total_before)),
             QTableWidgetItem(self._format_bytes(total_after)),
             QTableWidgetItem(f"{total_ratio:.1f}%"),
@@ -314,7 +329,9 @@ class OptimizationPanel(QWidget):
 
     def _on_export_csv(self) -> None:
         """Export results to CSV file."""
-        path_str, _ = QFileDialog.getSaveFileName(self, "Zapisz raport", "", "CSV (*.csv)")
+        path_str, _ = QFileDialog.getSaveFileName(
+            self, self.tr("Zapisz raport"), "", self.tr("CSV (*.csv)")
+        )
         if not path_str:
             return
 
@@ -322,7 +339,14 @@ class OptimizationPanel(QWidget):
             path = Path(path_str)
             with path.open("w", newline="") as f:
                 writer = csv.writer(f)
-                writer.writerow(["Plik", "Przed (B)", "Po (B)", "Oszczędność %"])
+                writer.writerow(
+                    [
+                        self.tr("Plik"),
+                        self.tr("Przed (B)"),
+                        self.tr("Po (B)"),
+                        self.tr("Oszczędność %"),
+                    ]
+                )
                 for result in self._results:
                     writer.writerow(
                         [
@@ -332,9 +356,17 @@ class OptimizationPanel(QWidget):
                             f"{result.saved_ratio * 100:.1f}",
                         ]
                     )
-            QMessageBox.information(self, "Eksportowano", f"Raport zapisany: {path_str}")
+            QMessageBox.information(
+                self,
+                self.tr("Eksportowano"),
+                self.tr("Raport zapisany: %1").replace("%1", path_str),
+            )
         except Exception as e:
-            QMessageBox.critical(self, "Błąd", f"Błąd eksportu: {e}")
+            QMessageBox.critical(
+                self,
+                self.tr("Błąd"),
+                self.tr("Błąd eksportu: %1").replace("%1", str(e)),
+            )
 
     @staticmethod
     def _format_bytes(size: int) -> str:

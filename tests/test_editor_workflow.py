@@ -50,7 +50,7 @@ def test_full_editor_workflow(qtbot, test_ico: Path) -> None:
     # Verify editor window is created and visible
     assert main._editor_window is not None
     assert main._editor_window.isVisible()
-    assert main._editor_window.windowTitle().startswith("Editor")
+    assert main._editor_window.windowTitle().startswith("Edytor")
 
     # Verify frames are loaded
     assert len(main._editor_window._frames) == 3
