@@ -59,6 +59,7 @@ coverage.xml
 
 # Build artifacts
 *.spec
+!icoforge.spec
 build/
 dist/
 

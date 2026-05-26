@@ -18,36 +18,43 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[all]"
           pip install pyinstaller
 
-      - name: Build onedir + portable
-        run: python scripts/build_windows.py
+      - name: Install Inno Setup 6
+        run: choco install innosetup --no-progress -y
 
-      - name: Build installer (Inno Setup)
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build onedir + portable ZIP
+        run: python scripts/build_windows.py --no-installer
+
+      - name: Build installer EXE
         run: |
-          iscc /DAppVersion=${{ github.ref_name }} installer/icoforge.iss
-        continue-on-error: true  # installer step optional until .iss is added
+          iscc /DAppVersion=${{ steps.version.outputs.version }} installer\icoforge.iss
 
-      - name: Upload portable ZIP
+      - name: Upload portable ZIP artifact
         uses: actions/upload-artifact@v4
         with:
           name: portable-zip
           path: dist/IcoForge-portable-*.zip
 
-      - name: Upload installer EXE
+      - name: Upload installer EXE artifact
         uses: actions/upload-artifact@v4
         with:
           name: installer-exe
           path: dist/IcoForge-*-setup.exe
-        continue-on-error: true  # not yet present
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          generate_release_notes: true
           files: |
             dist/IcoForge-portable-*.zip
             dist/IcoForge-*-setup.exe
