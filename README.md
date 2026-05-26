@@ -4,9 +4,157 @@
 
 # IcoForge
 
-Konwerter i edytor plików ICO. Konwersja z PNG/JPG/WEBP/SVG/HEIC do `.ico` z pełną kontrolą nad rozdzielczościami i głębią bitową, bezstratna optymalizacja PNG oraz edytor pikselowy do tworzenia ikon od podstaw.
+Konwerter i edytor plików ICO dla Windows. Konwersja z PNG/JPG/WEBP/SVG/HEIC do `.ico`
+z pełną kontrolą nad rozdzielczościami, bezstratna optymalizacja PNG oraz edytor pikselowy
+do tworzenia ikon od podstaw.
 
-## Status
+## Funkcje
+
+### Konwersja
+- Formaty wejściowe: PNG, JPG, BMP, GIF, WEBP, TIFF, SVG, HEIC/AVIF
+- Wybór zestawu rozdzielczości (16–256 px), presety Windows / Favicon / Game
+- 5 algorytmów resamplingu (Lanczos, Bicubic, Bilinear, Nearest, Box)
+- Zachowanie kanału alpha i przezroczystości; letterboxing z wypełnieniem kolorem
+- Per-size source — inny plik źródłowy dla każdego rozmiaru
+- Usuwanie tła AI (U2-Net / rembg, opcjonalny extra)
+- Auto-trim przezroczystych obrzeży
+- Eksport: `.ico`, `.icns` (macOS), `.cur` (kursor Windows), Favicon Set (`.ico` + PWA icons + `webmanifest`)
+- Ekstrakcja ikon z `.exe` / `.dll`
+
+### Optymalizacja PNG
+- Bezstratna kompresja z oxipng (poziomy 0–6) i opcją Zopfli
+- Usuwanie metadanych (tEXt, iTXt, zTXt, eXIf, tIME)
+- Tryb wsadowy z raportem oszczędności (%)
+
+### Edytor pikselowy
+- Canvas z zoomem 1×–64×, siatką i miniaturą nawigacyjną
+- Narzędzia: ołówek, gumka, kroplomierz, wypełnianie (BFS + tolerancja), linia, prostokąt, zaznaczenie
+- Undo/redo (Ctrl+Z / Ctrl+Shift+Z), kopiuj/wytnij/wklej
+- Paleta 32 kolorów z ekstrakcją z obrazu i zapisem/wczytaniem JSON
+- Edycja każdej rozdzielczości osobno w obrębie tego samego ICO
+- Kreator nowego ICO (wybór rozmiarów, kolor tła, synchronizacja warstw)
+
+### Interfejs
+- GUI (PySide6): drag & drop, podgląd każdego rozmiaru, pasek postępu
+- CLI: `icoforge-cli convert`, `icoforge-cli optimize`
+- Lokalizacja PL/EN z przełącznikiem języka (Pomoc → Język)
+- Instalator Windows + wersja portable
+
+---
+
+## Instalacja
+
+### Instalator Windows (zalecane)
+
+Pobierz `IcoForge-X.Y.Z-setup.exe` ze strony [Releases](https://github.com/chodzkos/icoforge/releases)
+i uruchom instalator. Nie wymaga dodatkowych zależności.
+
+### Wersja portable
+
+Pobierz `IcoForge-portable-X.Y.Z.zip`, rozpakuj w dowolne miejsce i uruchom `IcoForge.exe`.
+
+### Instalacja deweloperska
+
+```bash
+git clone https://github.com/chodzkos/icoforge.git
+cd icoforge
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+```
+
+---
+
+## Opcjonalne zależności
+
+### SVG
+
+```bash
+pip install resvg-py            # zalecane — czyste koła Rust, bez DLL
+# lub
+pip install "icoforge[svg]"     # cairosvg (wymaga libcairo-2.dll)
+```
+
+### HEIC / AVIF
+
+```bash
+pip install "icoforge[heic]"
+```
+
+### Ekstrakcja ikon z EXE/DLL
+
+```bash
+pip install "icoforge[exe]"
+```
+
+---
+
+## Usuwanie tła AI na Windows
+
+Funkcja "Usuń tło (AI)" używa modelu U2-Net przez bibliotekę `rembg`.
+Pojawia się w panelu ustawień konwersji po poprawnej instalacji.
+
+### Wymagania
+
+- Python 3.10–3.12 (64-bit)
+- Windows 10 / 11 (64-bit)
+- Microsoft Visual C++ Redistributable 2019 lub nowszy
+  ([pobierz tutaj](https://aka.ms/vs/17/release/vc_redist.x64.exe))
+
+### Instalacja
+
+**Krok 1** — zainstaluj `onnxruntime` i `rembg`:
+
+```bat
+pip install "icoforge[bgremove]"
+```
+
+lub bez wirtualnego środowiska:
+
+```bat
+pip install onnxruntime rembg
+```
+
+> Jeśli pojawi się błąd `Microsoft Visual C++ Redistributable is not installed`,
+> pobierz i zainstaluj plik z linku powyżej, a następnie powtórz polecenie pip.
+
+**Krok 2** — uruchom IcoForge. W panelu ustawień konwersji pojawi się sekcja
+**"Usuwanie tła (AI)"** z checkboxem "Usuń tło (U2-Net)".
+
+**Krok 3** — przy pierwszym użyciu checkboxa aplikacja automatycznie pobiera model
+AI U2-Net (~170 MB) do katalogu `%USERPROFILE%\.u2net\`. Pobieranie odbywa się
+jednorazowo — kolejne uruchomienia używają zapisanego modelu.
+
+### Rozwiązywanie problemów
+
+| Problem | Rozwiązanie |
+|---------|-------------|
+| Sekcja "Usuwanie tła (AI)" nie pojawia się | Sprawdź czy `pip install` przebiegło bez błędów: `python -c "import rembg"` |
+| `DLL load failed` przy imporcie onnxruntime | Zainstaluj [Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) |
+| Błąd przy pierwszym użyciu (brak modelu) | Sprawdź połączenie internetowe; model pobierany jest z GitHub przy pierwszym uruchomieniu |
+| `pip install` kończy się błędem kompilacji | Zainstaluj [Python 3.11 64-bit](https://www.python.org/downloads/) — onnxruntime wymaga 64-bit |
+
+---
+
+## Uruchomienie (dev)
+
+```bash
+# GUI
+icoforge
+
+# CLI — konwersja
+icoforge-cli convert input.png output.ico --sizes 16,32,48,256
+
+# CLI — optymalizacja
+icoforge-cli optimize input.png --output input.min.png
+
+# CLI — usuwanie tła
+icoforge-cli convert input.png output.ico --sizes 256 --remove-bg
+```
+
+---
+
+## Status projektu
 
 | Faza | Opis | Stan |
 |------|------|------|
@@ -15,79 +163,11 @@ Konwerter i edytor plików ICO. Konwersja z PNG/JPG/WEBP/SVG/HEIC do `.ico` z pe
 | Faza 3 | Optymalizacja PNG | ✅ Ukończona |
 | Faza 4 | Edytor pikselowy | ✅ Ukończona |
 | Faza 5 | Tworzenie ICO od podstaw | ✅ Ukończona |
+| Funkcje dodatkowe | AI bg removal, eksport ICNS/CUR/Favicon, lokalizacja, installer | ✅ Wdrożone |
 
-Patrz [docs/ROADMAP.md](docs/ROADMAP.md) dla szczegółowego planu.
+Patrz [docs/ROADMAP.md](docs/ROADMAP.md) i [docs/FEATURES.md](docs/FEATURES.md).
 
-## Funkcje
-
-**Faza 1 – fundament (MVP)** ✅
-- Konwersja PNG/JPG/BMP/GIF/WEBP/TIFF → ICO z wyborem zestawu rozdzielczości
-- Zachowanie kanału alpha i przezroczystości
-- Wybór algorytmu resamplingu (Lanczos, Bicubic, Bilinear, Nearest, Box)
-- Zachowanie proporcji (letterboxing)
-- GUI (PySide6): drag & drop, podgląd każdego rozmiaru, zapis z paskiem postępu
-- CLI: `icoforge-cli convert`
-
-**Faza 2 – więcej formatów wejściowych** ✅
-- JPG, BMP, GIF, WEBP, TIFF (przez Pillow)
-- SVG (rasteryzacja resvg / cairosvg)
-- HEIC, AVIF (pillow-heif)
-- Per-size source – inny plik źródłowy na każdy rozmiar
-
-**Faza 3 – optymalizacja PNG (bezstratna)** ✅
-- oxipng jako główny silnik (level 0–6)
-- Usuwanie metadanych (`tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`)
-- Zopfli compression (wolniej, mniejszy rozmiar)
-- Tryb wsadowy z raportem CSV
-- GUI: zakładka "Optymalizacja" z drag & drop, progress bar i wynikami
-
-**Faza 4 – edytor pikselowy** ✅
-- Canvas z zoomem 1×–64×, siatką pikselową i miniaturą nawigacyjną
-- 7 narzędzi: ołówek, gumka, kroplomierz, wypełnianie (BFS + tolerancja), linia (Bresenham), prostokąt, zaznaczenie (marching ants)
-- Undo/redo (QUndoStack) — Ctrl+Z / Ctrl+Shift+Z
-- Kopiuj/wytnij/wklej z obsługą przezroczystości (sprite-aware paste)
-- Paleta kolorów: siatka 32 kolorów, ekstrakcja z obrazu, zapis/wczytanie JSON
-- Edycja każdej rozdzielczości osobno w obrębie tego samego ICO
-- Zapis (Ctrl+S) i Zapisz jako (Ctrl+Shift+S); dialog potwierdzenia przy zamykaniu
-
-**Faza 5 – tworzenie ICO 
-od podstaw** ✅
-- Kreator nowego ICO (wybór rozmiarów, kolor tła / transparent)
-- Synchronizacja warstw między rozmiarami (opcjonalna)
-
-**Funkcje dodatkowe**
-- Eksport ICNS (macOS) i CUR (kursory Windows)
-- Preset Favicon (`.ico` + `apple-touch-icon` + manifest PWA)
-- Auto-trim przezroczystych obrzeży
-- Ekstrakcja ikon z `.exe` / `.dll`
-- Drag & drop, batch processing
-- Lokalizacja PL/EN z przełącznikiem języka
-- Instalator Windows + wersja portable
-
-## Instalacja (dev)
-
-```bash
-git clone https://github.com/<your-user>/icoforge.git
-cd icoforge
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -e ".[dev]"
-```
-
-## Uruchomienie
-
-```bash
-# GUI
-icoforge
-
-# CLI
-icoforge-cli convert input.png output.ico --sizes 16,32,48,256
-icoforge-cli optimize input.png --output input.min.png
-```
-
-## Architektura
-
-Patrz [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+---
 
 ## Licencja
 

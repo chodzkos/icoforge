@@ -4,81 +4,82 @@ Status: `[ ]` planowane, `[~]` w trakcie, `[x]` gotowe.
 
 ## Konwersja
 
-- [ ] PNG → ICO (multi-resolution)
-- [ ] Wybór rozdzielczości: 16, 20, 24, 32, 40, 48, 64, 96, 128, 256
-- [ ] Wybór głębi bitowej: 8 / 24 / 32-bit per rozmiar
-- [ ] Kanał alpha (RGBA) i przezroczystość
-- [ ] Wybór algorytmu resamplingu per rozmiar
-- [ ] JPG → ICO (z opcją tła dla braku alpha)
-- [ ] BMP, GIF, WEBP, TIFF → ICO
-- [ ] SVG → ICO (rasteryzacja per rozmiar)
-- [ ] HEIC, AVIF → ICO (opcjonalny extra)
-- [ ] Per-size source – inny plik źródłowy na każdy rozmiar
-- [ ] Eksport ICNS (macOS)
-- [ ] Eksport CUR / ANI (kursory Windows)
-- [ ] Favicon preset (`.ico` + `.png` + manifest)
+- [x] PNG → ICO (multi-resolution)
+- [x] Wybór rozdzielczości: 16, 20, 24, 32, 40, 48, 64, 96, 128, 256
+- [x] Wybór głębi bitowej: 8 / 24 / 32-bit per rozmiar
+- [x] Kanał alpha (RGBA) i przezroczystość
+- [x] Wybór algorytmu resamplingu per rozmiar
+- [x] JPG → ICO (z opcją tła dla braku alpha)
+- [x] BMP, GIF, WEBP, TIFF → ICO
+- [x] SVG → ICO (rasteryzacja per rozmiar, resvg-py lub cairosvg)
+- [x] HEIC, AVIF → ICO (opcjonalny extra `pillow-heif`)
+- [x] Per-size source – inny plik źródłowy na każdy rozmiar
+- [x] Eksport ICNS (macOS)
+- [x] Eksport CUR (kursory Windows)
+- [x] Favicon preset (`.ico` + `apple-touch-icon` + manifest PWA)
+- [x] Auto-trim przezroczystych obrzeży
+- [x] Ekstrakcja ikon z `.exe` / `.dll` (`pefile`)
+- [x] Usuwanie tła AI (rembg / U2-Net, opcjonalny extra)
 
 ## Edytor
 
-- [ ] Otwieranie istniejącego ICO
-- [ ] Canvas z zoomem do 64x
-- [ ] Siatka pikseli w zoomie >= 8x
-- [ ] Tło w szachownicę dla przezroczystości
-- [ ] Tab/lista dla każdego rozmiaru w ICO
-- [ ] Ołówek (rozmiar 1–8)
-- [ ] Gumka
-- [ ] Wypełnianie (flood fill, z tolerancją)
-- [ ] Kroplomierz (Alt jako shortcut)
-- [ ] Linia
-- [ ] Prostokąt (kontur i wypełniony)
-- [ ] Zaznaczenie prostokątne
-- [ ] Kopiuj / wklej / wytnij
-- [ ] Undo / Redo (Ctrl+Z, Ctrl+Shift+Z)
-- [ ] Paleta kolorów (podstawowy + zapasowy)
-- [ ] Ekstrakcja palety z obrazu
-- [ ] Zapis/wczytanie palety
-- [ ] Synchronizacja warstw między rozmiarami (opcjonalna)
-- [ ] Tworzenie ICO od zera (kreator)
+- [x] Otwieranie istniejącego ICO
+- [x] Canvas z zoomem do 64×
+- [x] Siatka pikseli w zoomie ≥ 8×
+- [x] Tło w szachownicę dla przezroczystości
+- [x] Tab / lista dla każdego rozmiaru w ICO
+- [x] Ołówek (rozmiar 1–8)
+- [x] Gumka
+- [x] Wypełnianie (flood fill, z tolerancją)
+- [x] Kroplomierz (Alt jako skrót)
+- [x] Linia (algorytm Bresenhama)
+- [x] Prostokąt (kontur i wypełniony)
+- [x] Zaznaczenie prostokątne (marching ants)
+- [x] Kopiuj / wklej / wytnij
+- [x] Undo / Redo (Ctrl+Z, Ctrl+Shift+Z)
+- [x] Paleta kolorów (pierwszoplanowy + tła, swap X, reset D)
+- [x] Ekstrakcja palety z obrazu
+- [x] Zapis / wczytanie palety (JSON)
+- [x] Synchronizacja warstw między rozmiarami (opcjonalna)
+- [x] Tworzenie ICO od zera (kreator z wyborem rozmiarów i tła)
 
 ## Optymalizacja PNG
 
-- [ ] Bezstratna kompresja (oxipng)
-- [ ] Tryb Zopfli (wolniejszy, mniejszy)
-- [ ] Usuwanie metadanych (`tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`)
-- [ ] Walidacja bezstratności (hash pikseli)
-- [ ] Batch processing (folder, glob)
-- [ ] Raport oszczędności (przed / po, MB i %)
-- [ ] Opcja in-place lub do nowego pliku
+- [x] Bezstratna kompresja (oxipng, poziomy 0–6)
+- [x] Tryb Zopfli (wolniejszy, mniejszy)
+- [x] Usuwanie metadanych (`tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`)
+- [x] Walidacja bezstratności (hash pikseli)
+- [x] Batch processing (folder, glob)
+- [x] Raport oszczędności (przed / po, MB i %)
+- [x] Opcja in-place lub do nowego pliku
 
 ## Funkcje wspierające
 
-- [ ] Drag & drop plików i folderów
-- [ ] Podgląd ICO w 1:1 i powiększeniu
-- [ ] Preset systeem (zapis konfiguracji jako JSON)
-- [ ] CLI równolegle do GUI dla każdej funkcji
-- [ ] Auto-trim przezroczystych obrzeży
-- [ ] Wymuszanie aspektu (centrowanie z paddingiem)
-- [ ] Ekstrakcja ikon z `.exe` / `.dll`
-- [ ] Wsadowe usuwanie tła (rembg, opcjonalny extra)
+- [x] Drag & drop plików i folderów
+- [x] Podgląd ICO w 1:1 i powiększeniu
+- [ ] Preset system (zapis konfiguracji jako JSON)
+- [x] CLI równolegle do GUI dla każdej funkcji
+- [x] Wymuszanie aspektu (centrowanie z paddingiem)
 
 ## Interfejs i UX
 
-- [ ] Ikona aplikacji (własna, stworzona w icoforge – ostateczny dogfooding)
-- [ ] Tryb ciemny / jasny (auto-detekcja z systemu + ręczny przełącznik)
-- [ ] Lokalizacja PL/EN (system tłumaczeń Qt – `tr()`)
+- [x] Ikona aplikacji
+- [ ] Tryb ciemny / jasny (auto-detekcja z systemu)
+- [x] Lokalizacja PL/EN (system tłumaczeń Qt — `tr()`)
 - [ ] Lista ostatnio otwartych plików (Recent Files, max 10)
 - [ ] Zapamiętywanie pozycji i rozmiaru okna między uruchomieniami
 - [ ] Konfigurowalne skróty klawiszowe
-- [ ] Toolbar z głównymi akcjami
-- [ ] Pasek statusu z informacją o aktualnym pliku
+- [x] Toolbar z głównymi akcjami
+- [x] Pasek statusu z informacją o aktualnym pliku
 - [ ] Powiadomienia systemowe po zakończeniu długich operacji
-- [ ] Ekran "O programie" (About) z wersją i linkami
+- [x] Ekran "O programie" z logo
 
 ## Dystrybucja
 
-- [ ] PyInstaller bundle dla Windows
+- [x] PyInstaller bundle dla Windows (onedir + portable ZIP)
+- [x] Bundlowanie Cairo DLL dla wsparcia SVG (cairosvg) w paczce Windows
 - [ ] Nuitka jako alternatywa (mniejszy rozmiar)
-- [ ] Installer Inno Setup
+- [x] Installer Inno Setup
 - [ ] AppImage dla Linux
-- [ ] DMG dla macOS (jeśli ktoś będzie potrzebował)
-- [ ] GitHub Actions: build releases na tag
+- [ ] DMG dla macOS
+- [x] GitHub Actions: build i release na tag (`v*.*.*`)
