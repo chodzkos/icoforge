@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QProgressBar,
+    QScrollArea,
     QSpinBox,
     QStatusBar,
     QTabWidget,
@@ -240,7 +241,13 @@ class MainWindow(QMainWindow):
         vbox.addWidget(self._drop_zone)
 
         self._settings_panel = SettingsPanel()
-        vbox.addWidget(self._settings_panel)
+
+        scroll = QScrollArea()
+        scroll.setWidget(self._settings_panel)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        vbox.addWidget(scroll)
 
         return panel
 
