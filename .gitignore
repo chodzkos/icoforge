@@ -57,6 +57,9 @@ coverage.xml
 # Claude Code
 .claude/
 
+# Cairo DLLs collected from MSYS2 – generated locally, not committed
+scripts/cairo_dlls/
+
 # Build artifacts
 *.spec
 !icoforge.spec

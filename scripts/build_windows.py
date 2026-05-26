@@ -33,6 +33,38 @@ def _version() -> str:
         return "0.0.0"
 
 
+def _collect_cairo_dlls(msys2_bin: Path | None = None) -> None:
+    """Collect Cairo DLLs from MSYS2 into scripts/cairo_dlls/.
+
+    Skipped gracefully when MSYS2 is not available (SVG will rely on resvg-py).
+    """
+    if msys2_bin is None:
+        msys2_bin = Path("C:/msys64/mingw64/bin")
+
+    cairo_dll = msys2_bin / "libcairo-2.dll"
+    if not cairo_dll.exists():
+        print(f"  Cairo DLLs not collected: {cairo_dll} not found")
+        print("  SVG support will use resvg-py only (no cairosvg DLL bundle)")
+        return
+
+    if not shutil.which("ldd"):
+        print("  ldd not found - skipping Cairo DLL collection")
+        return
+
+    collector = REPO_ROOT / "scripts" / "collect_cairo_dlls.py"
+    dst = REPO_ROOT / "scripts" / "cairo_dlls"
+    subprocess.run(
+        [sys.executable, str(collector), "--msys2-bin", str(msys2_bin)],
+        check=True,
+        cwd=REPO_ROOT,
+    )
+    dlls = list(dst.glob("*.dll"))
+    if not dlls:
+        print("  WARNING: cairo_dlls/ is empty after collection")
+    else:
+        print(f"  Collected {len(dlls)} DLL(s) into {dst.relative_to(REPO_ROOT)}")
+
+
 def _run_pyinstaller() -> None:
     """Build the onedir bundle using icoforge.spec."""
     cmd = [
@@ -99,6 +131,9 @@ def main() -> None:
 
     version = _version()
     print(f"Building IcoForge {version}")
+
+    print("Collecting Cairo DLLs...")
+    _collect_cairo_dlls()
 
     print("Running PyInstaller...")
     _run_pyinstaller()
