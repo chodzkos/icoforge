@@ -57,12 +57,12 @@ def transparent_svg(tmp_path: Path) -> Path:
 
 
 class TestMissingCairosvg:
-    """Verify the user-facing error path when cairosvg is unavailable."""
+    """Verify the user-facing error path when no SVG backend is available."""
 
     def test_rasterize_raises_descriptive_error(
         self, simple_svg: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(svg_loader, "cairosvg", None)
+        monkeypatch.setattr(svg_loader, "_ENGINE", None)
         with pytest.raises(SvgSupportMissingError) as exc_info:
             rasterize_svg(simple_svg, 32, 32)
         message = str(exc_info.value)
@@ -72,27 +72,27 @@ class TestMissingCairosvg:
     def test_convert_svg_raises_when_cairosvg_missing(
         self, simple_svg: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(svg_loader, "cairosvg", None)
+        monkeypatch.setattr(svg_loader, "_ENGINE", None)
         with pytest.raises(SvgSupportMissingError):
             convert(simple_svg, tmp_path / "out.ico", IcoConfig(sizes=(SizeSpec(32, 32),)))
 
     def test_render_frames_svg_raises_when_cairosvg_missing(
         self, simple_svg: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(svg_loader, "cairosvg", None)
+        monkeypatch.setattr(svg_loader, "_ENGINE", None)
         with pytest.raises(SvgSupportMissingError):
             render_frames(simple_svg, IcoConfig(sizes=(SizeSpec(32, 32),)))
 
     def test_raster_path_unaffected_when_cairosvg_missing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Disabling cairosvg must not break the raster pipeline."""
+        """Disabling SVG backend must not break the raster pipeline."""
         from PIL import Image
 
         src = tmp_path / "in.png"
         Image.new("RGBA", (32, 32), (255, 0, 0, 255)).save(src)
 
-        monkeypatch.setattr(svg_loader, "cairosvg", None)
+        monkeypatch.setattr(svg_loader, "_ENGINE", None)
         convert(src, tmp_path / "out.ico", IcoConfig(sizes=(SizeSpec(32, 32),)))
         assert (tmp_path / "out.ico").exists()
 
@@ -126,8 +126,8 @@ class TestSvgValidation:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         if not svg_loader.HAS_CAIROSVG:
-            # Pretend cairosvg is available so the FileNotFoundError path runs.
-            monkeypatch.setattr(svg_loader, "cairosvg", object())
+            # Pretend an SVG backend is available so the FileNotFoundError path runs.
+            monkeypatch.setattr(svg_loader, "_ENGINE", "cairosvg")
         with pytest.raises(FileNotFoundError):
             rasterize_svg(tmp_path / "missing.svg", 32, 32)
 

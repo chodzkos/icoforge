@@ -33,6 +33,7 @@ dependencies = [
 
 [project.optional-dependencies]
 svg = ["cairosvg>=2.7.0"]
+svg-resvg = ["resvg-py"]
 heic = ["pillow-heif>=0.16.0"]
 bgremove = ["rembg>=2.0.50"]
 exe = ["pefile>=2023.2.7"]
@@ -99,7 +100,7 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
-module = ["oxipng.*", "cairosvg.*", "rembg.*", "pillow_heif.*", "pefile.*"]
+module = ["oxipng.*", "cairosvg.*", "resvg_py.*", "rembg.*", "pillow_heif.*", "pefile.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
