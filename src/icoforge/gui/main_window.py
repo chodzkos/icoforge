@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QSize, QThreadPool, QUrl
+from PySide6.QtCore import QSize, Qt, QThreadPool, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QImage, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -35,6 +35,13 @@ from icoforge.gui.widgets.optimization_panel import OptimizationPanel
 from icoforge.gui.widgets.preview_panel import PreviewPanel
 from icoforge.gui.widgets.settings_panel import SettingsPanel
 from icoforge.gui.workers import ConversionWorker
+
+
+def _asset(name: str) -> Path:
+    """Return the path to a bundled asset, works both frozen and in dev."""
+    if hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS) / "assets" / name
+    return Path(__file__).resolve().parents[3] / "assets" / name
 
 
 class _ExeIconPickerDialog(QDialog):
@@ -113,6 +120,9 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("IcoForge")
         self.resize(900, 600)
+        icon_path = _asset("icoforge.ico")
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
 
         self.source_path: Path | None = None
         self._current_worker: ConversionWorker | None = None
@@ -617,11 +627,35 @@ class MainWindow(QMainWindow):
         )
 
     def _on_about(self) -> None:
-        QMessageBox.about(
-            self,
-            self.tr("O IcoForge"),
-            self.tr("<b>IcoForge</b><br>Konwerter, optymalizator i edytor pikseli dla ikon ICO."),
+        dlg = QDialog(self)
+        dlg.setWindowTitle(self.tr("O IcoForge"))
+        dlg.setFixedWidth(320)
+        layout = QVBoxLayout(dlg)
+        layout.setSpacing(12)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        logo_label = QLabel()
+        logo_path = _asset("logo.png")
+        if logo_path.exists():
+            pixmap = QPixmap(str(logo_path))
+            logo_label.setPixmap(
+                pixmap.scaledToWidth(200, Qt.TransformationMode.SmoothTransformation)
+            )
+        logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(logo_label)
+
+        text_label = QLabel(
+            self.tr("<b>IcoForge</b><br>Konwerter, optymalizator i edytor pikseli dla ikon ICO.")
         )
+        text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        text_label.setWordWrap(True)
+        layout.addWidget(text_label)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+        buttons.accepted.connect(dlg.accept)
+        layout.addWidget(buttons)
+
+        dlg.exec()
 
     def _on_language_changed(self, lang: str) -> None:
         from icoforge.utils.settings import set_language

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="IcoForge" width="300"/>
+</p>
+
 # IcoForge
 
 Konwerter i edytor plików ICO. Konwersja z PNG/JPG/WEBP/SVG/HEIC do `.ico` z pełną kontrolą nad rozdzielczościami i głębią bitową, bezstratna optymalizacja PNG oraz edytor pikselowy do tworzenia ikon od podstaw.
