@@ -45,7 +45,7 @@ class NewIcoDialog(QDialog):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Nowe ICO")
+        self.setWindowTitle(self.tr("Nowe ICO"))
         self.setMinimumWidth(440)
 
         self._bg_color = QColor(255, 255, 255, 255)
@@ -75,7 +75,7 @@ class NewIcoDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _make_sizes_group(self) -> QGroupBox:
-        box = QGroupBox("Rozmiary")
+        box = QGroupBox(self.tr("Rozmiary"))
         grid = QGridLayout(box)
         grid.setSpacing(4)
         cols = 5
@@ -88,19 +88,19 @@ class NewIcoDialog(QDialog):
         return box
 
     def _make_background_group(self) -> QGroupBox:
-        box = QGroupBox("Tlo")
+        box = QGroupBox(self.tr("Tło"))
         h = QHBoxLayout(box)
 
-        self._rb_transparent = QRadioButton("Przezroczyste")
+        self._rb_transparent = QRadioButton(self.tr("Przezroczyste"))
         self._rb_transparent.setChecked(True)
         self._rb_transparent.toggled.connect(self._on_options_changed)
 
-        self._rb_color_bg = QRadioButton("Kolor:")
+        self._rb_color_bg = QRadioButton(self.tr("Kolor:"))
         self._rb_color_bg.toggled.connect(self._on_options_changed)
 
         self._color_btn = QPushButton()
         self._color_btn.setFixedSize(28, 20)
-        self._color_btn.setToolTip("Wybierz kolor tla")
+        self._color_btn.setToolTip(self.tr("Wybierz kolor tła"))
         self._color_btn.clicked.connect(self._pick_color)
         self._refresh_color_button()
 
@@ -112,17 +112,17 @@ class NewIcoDialog(QDialog):
         return box
 
     def _make_template_group(self) -> QGroupBox:
-        box = QGroupBox("Szablon")
+        box = QGroupBox(self.tr("Szablon"))
         v = QVBoxLayout(box)
 
-        self._rb_blank = QRadioButton("Pusty (przezroczysty)")
+        self._rb_blank = QRadioButton(self.tr("Pusty (przezroczysty)"))
         self._rb_blank.setChecked(True)
         self._rb_blank.toggled.connect(self._on_options_changed)
 
-        self._rb_filled = QRadioButton("Wypelniony kolorem tla")
+        self._rb_filled = QRadioButton(self.tr("Wypełniony kolorem tła"))
         self._rb_filled.toggled.connect(self._on_options_changed)
 
-        self._rb_clipboard = QRadioButton("Skopiuj ze schowka")
+        self._rb_clipboard = QRadioButton(self.tr("Skopiuj ze schowka"))
         self._rb_clipboard.toggled.connect(self._on_clipboard_toggled)
 
         v.addWidget(self._rb_blank)
@@ -134,7 +134,7 @@ class NewIcoDialog(QDialog):
         sep.setFrameShadow(QFrame.Shadow.Sunken)
         v.addWidget(sep)
 
-        v.addWidget(QLabel("Szablony startowe:"))
+        v.addWidget(QLabel(self.tr("Szablony startowe:")))
 
         self._rb_tmpl_windows = QRadioButton(_TEMPLATE_LABELS[TEMPLATE_WINDOWS_APP])
         self._rb_tmpl_windows.toggled.connect(self._on_startup_template_toggled)
@@ -152,7 +152,7 @@ class NewIcoDialog(QDialog):
         return box
 
     def _make_preview_group(self) -> QGroupBox:
-        box = QGroupBox("Podglad")
+        box = QGroupBox(self.tr("Podgląd"))
         v = QVBoxLayout(box)
 
         self._preview_list = QListWidget()
@@ -178,8 +178,8 @@ class NewIcoDialog(QDialog):
         if checked and QApplication.clipboard().image().isNull():
             QMessageBox.warning(
                 self,
-                "Schowek pusty",
-                "Schowek nie zawiera obrazu.\nWybrano szablon 'Pusty'.",
+                self.tr("Schowek pusty"),
+                self.tr("Schowek nie zawiera obrazu.\nWybrano szablon 'Pusty'."),
             )
             self._rb_blank.setChecked(True)
             return
@@ -200,7 +200,7 @@ class NewIcoDialog(QDialog):
         color = QColorDialog.getColor(
             self._bg_color,
             self,
-            "Kolor tla",
+            self.tr("Kolor tła"),
             QColorDialog.ColorDialogOption.ShowAlphaChannel,
         )
         if color.isValid():
@@ -241,14 +241,12 @@ class NewIcoDialog(QDialog):
         total = self._estimate_total_bytes(sizes, template_id)
         size_str = f"{total} B" if total < 1024 else f"{total / 1024:.1f} KB"
 
-        if n == 0:
-            noun = "rozmiarow"
-        elif n == 1:
-            noun = "rozmiar"
+        if n == 1:
+            noun = self.tr("rozmiar")
         elif n <= 4:
-            noun = "rozmiary"
+            noun = self.tr("rozmiary")
         else:
-            noun = "rozmiarow"
+            noun = self.tr("rozmiarów")
         self._size_label.setText(f"{n} {noun}  *  ~{size_str}")
 
     # ------------------------------------------------------------------
@@ -270,10 +268,10 @@ class NewIcoDialog(QDialog):
     def _frame_description(self) -> str:
         if self._rb_filled.isChecked():
             c = self._bg_color
-            return f"kolor #{c.red():02x}{c.green():02x}{c.blue():02x}"
+            return self.tr("kolor %1").replace("%1", f"#{c.red():02x}{c.green():02x}{c.blue():02x}")
         if self._rb_clipboard.isChecked():
-            return "ze schowka (przeskalowany)"
-        return "przezroczysty"
+            return self.tr("ze schowka (przeskalowany)")
+        return self.tr("przezroczysty")
 
     def _estimate_total_bytes(self, sizes: list[int], template_id: str | None) -> int:
         total = 0

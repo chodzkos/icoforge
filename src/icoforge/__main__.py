@@ -26,9 +26,34 @@ def run_gui() -> int:
 
     heic_loader.register_heif_opener()
 
+    import sys
+
+    from PySide6.QtCore import QTranslator
+    from PySide6.QtWidgets import QApplication
+
+    from icoforge.utils.settings import get_language
+
+    app = QApplication(sys.argv)
+
+    lang = get_language()
+
+    # Load Qt base translations (buttons like Save/Discard/Cancel) for non-English
+    if lang != "en":
+        from PySide6.QtCore import QLibraryInfo
+
+        qt_translator = QTranslator()
+        qt_translations_dir = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
+        if qt_translator.load(f"qtbase_{lang}", qt_translations_dir):
+            app.installTranslator(qt_translator)
+
+    translator = QTranslator()
+    qm_path = Path(__file__).parent / "translations" / f"icoforge_{lang}.qm"
+    if qm_path.exists() and translator.load(str(qm_path)):
+        app.installTranslator(translator)
+
     from icoforge.gui.main_window import main as gui_main
 
-    return gui_main()
+    return gui_main(app)
 
 
 if __name__ == "__main__":

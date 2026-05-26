@@ -14,7 +14,7 @@ TEMPLATE_CURSOR = "cursor"
 _TEMPLATE_LABELS: dict[str, str] = {
     TEMPLATE_WINDOWS_APP: "Windows App Icon",
     TEMPLATE_FAVICON: "Favicon",
-    TEMPLATE_CURSOR: "Kursor",
+    TEMPLATE_CURSOR: "Cursor",
 }
 
 _TEMPLATE_SIZES: dict[str, list[int]] = {

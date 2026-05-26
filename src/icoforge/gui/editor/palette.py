@@ -113,7 +113,11 @@ class _FGBGBar(QWidget):
         self._fg = QColor(0, 0, 0, 255)
         self._bg = QColor(255, 255, 255, 255)
         self.setFixedSize(_BAR_W, _BAR_H)
-        self.setToolTip("Foreground/background colour\nClick square to change · ⇄ swap · D reset")
+        self.setToolTip(
+            self.tr(
+                "Kolor pierwszego/drugiego planu\nKliknij kwadrat aby zmienić · ⇄ zamień · D reset"
+            )
+        )
 
     # ------------------------------------------------------------------
     # Public API
@@ -221,7 +225,7 @@ class _FGBGBar(QWidget):
 
     def _pick_color(self, *, foreground: bool) -> None:
         current = self._fg if foreground else self._bg
-        label = "Kolor pierwszego planu" if foreground else "Kolor tła"
+        label = self.tr("Kolor pierwszego planu") if foreground else self.tr("Kolor tła")
         color = QColorDialog.getColor(
             current,
             self,
@@ -369,10 +373,10 @@ class _ColorGrid(QWidget):
         if idx < 0:
             return
         menu = QMenu(self)
-        fg_act = menu.addAction("Ustaw jako kolor podstawowy")
-        bg_act = menu.addAction("Ustaw jako kolor zapasowy")
+        fg_act = menu.addAction(self.tr("Ustaw jako kolor podstawowy"))
+        bg_act = menu.addAction(self.tr("Ustaw jako kolor zapasowy"))
         menu.addSeparator()
-        edit_act = menu.addAction("Edytuj kolor…")
+        edit_act = menu.addAction(self.tr("Edytuj kolor…"))
 
         chosen = menu.exec(event.globalPos())
         if chosen is fg_act:
@@ -387,7 +391,7 @@ class _ColorGrid(QWidget):
         new_color = QColorDialog.getColor(
             QColor(r, g, b, a),
             self,
-            "Edytuj kolor palety",
+            self.tr("Edytuj kolor palety"),
             QColorDialog.ColorDialogOption.ShowAlphaChannel,
         )
         if new_color.isValid():
@@ -447,11 +451,11 @@ class PaletteWidget(QWidget):
         self._grid.color_set_bg.connect(self._on_grid_set_bg)
         layout.addWidget(self._grid, alignment=Qt.AlignmentFlag.AlignHCenter)
 
-        extract_btn = QPushButton("Pobierz paletę z obrazu")
+        extract_btn = QPushButton(self.tr("Pobierz paletę z obrazu"))
         extract_btn.clicked.connect(self._on_extract_clicked)
         layout.addWidget(extract_btn)
 
-        self._menu_btn = QPushButton("Paleta ▾")
+        self._menu_btn = QPushButton(self.tr("Paleta ▾"))
         self._menu_btn.clicked.connect(self._show_palette_menu)
         layout.addWidget(self._menu_btn)
 
@@ -526,10 +530,10 @@ class PaletteWidget(QWidget):
 
     def _show_palette_menu(self) -> None:
         menu = QMenu(self)
-        save_act = menu.addAction("Zapisz paletę…")
-        load_act = menu.addAction("Wczytaj paletę…")
+        save_act = menu.addAction(self.tr("Zapisz paletę…"))
+        load_act = menu.addAction(self.tr("Wczytaj paletę…"))
         menu.addSeparator()
-        reset_act = menu.addAction("Resetuj do domyślnej")
+        reset_act = menu.addAction(self.tr("Resetuj do domyślnej"))
 
         pos = self._menu_btn.mapToGlobal(self._menu_btn.rect().bottomLeft())
         chosen = menu.exec(pos)
@@ -542,14 +546,20 @@ class PaletteWidget(QWidget):
 
     def _on_save_palette(self) -> None:
         path_str, _ = QFileDialog.getSaveFileName(
-            self, "Zapisz paletę", "", "JSON (*.json);;All Files (*)"
+            self,
+            self.tr("Zapisz paletę"),
+            "",
+            self.tr("JSON (*.json);;Wszystkie pliki (*)"),
         )
         if path_str:
             self.save_palette(Path(path_str))
 
     def _on_load_palette(self) -> None:
         path_str, _ = QFileDialog.getOpenFileName(
-            self, "Wczytaj paletę", "", "JSON (*.json);;All Files (*)"
+            self,
+            self.tr("Wczytaj paletę"),
+            "",
+            self.tr("JSON (*.json);;Wszystkie pliki (*)"),
         )
         if path_str:
             self.load_palette(Path(path_str))

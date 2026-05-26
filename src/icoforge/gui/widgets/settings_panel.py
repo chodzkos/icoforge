@@ -38,9 +38,9 @@ _ALL_SIZES: tuple[int, ...] = (16, 20, 24, 32, 40, 48, 64, 96, 128, 256)
 _DEFAULT_SIZES: frozenset[int] = frozenset({16, 32, 48, 256})
 
 _PRESETS: dict[str, frozenset[int] | None] = {
-    "Custom": None,
+    "Niestandardowy": None,
     "Favicon (16/32/48)": frozenset({16, 32, 48}),
-    "Windows App (all)": frozenset({16, 20, 24, 32, 40, 48, 64, 96, 128, 256}),
+    "Windows App (wszystkie)": frozenset({16, 20, 24, 32, 40, 48, 64, 96, 128, 256}),
     "Web (16/32/64/128)": frozenset({16, 32, 64, 128}),
 }
 
@@ -98,7 +98,7 @@ class SizeTable(QTableWidget):
     # ------------------------------------------------------------------
 
     def _setup(self) -> None:
-        self.setHorizontalHeaderLabels(["✓", "Rozmiar", "Źródło", ""])
+        self.setHorizontalHeaderLabels(["✓", self.tr("Rozmiar"), self.tr("Źródło"), ""])
         self.verticalHeader().setVisible(False)
         self.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -137,13 +137,13 @@ class SizeTable(QTableWidget):
             self.setItem(row, _COL_SIZE, size_item)
 
             # Column 2 — source path (or default placeholder)
-            src_item = QTableWidgetItem("(domyslne)")
+            src_item = QTableWidgetItem(self.tr("(domyślne)"))
             src_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
             src_item.setForeground(QColor(150, 150, 150))
             self.setItem(row, _COL_SOURCE, src_item)
 
             # Column 3 — browse button
-            btn = QPushButton("Wybierz…")
+            btn = QPushButton(self.tr("Wybierz…"))
             btn.setFixedHeight(22)
             btn.clicked.connect(lambda _checked, s=size: self._on_browse(s))
             self.setCellWidget(row, _COL_BTN, btn)
@@ -183,7 +183,7 @@ class SizeTable(QTableWidget):
         try:
             item = self.item(row, _COL_SOURCE)
             if item:
-                item.setText("(domyslne)")
+                item.setText(self.tr("(domyślne)"))
                 item.setToolTip("")
                 item.setForeground(QColor(150, 150, 150))
             self._set_row_highlight(row, active=False)
@@ -210,7 +210,10 @@ class SizeTable(QTableWidget):
         # Parent to the top-level window so focus returns there after close.
         # Using self (a child widget) as parent can break focus on WSLg.
         path, _ = QFileDialog.getOpenFileName(
-            self.window(), f"Zrodlo dla {size}x{size}", "", _DIALOG_FILTER
+            self.window(),
+            self.tr("Źródło dla %1x%2").replace("%1", str(size)).replace("%2", str(size)),
+            "",
+            _DIALOG_FILTER,
         )
         if path:
             self._set_override(size, Path(path))
@@ -224,7 +227,7 @@ class SizeTable(QTableWidget):
         if size not in self._overrides:
             return
         menu = QMenu(self)
-        action = menu.addAction("Usuń override")
+        action = menu.addAction(self.tr("Usuń nadpisanie"))
         if menu.exec(self.viewport().mapToGlobal(pos)) is action:
             self._clear_override(size)
 
@@ -341,7 +344,7 @@ class SettingsPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _make_sizes_group(self) -> QGroupBox:
-        group = QGroupBox("Rozmiary")
+        group = QGroupBox(self.tr("Rozmiary"))
         vbox = QVBoxLayout(group)
         vbox.setContentsMargins(4, 4, 4, 4)
         vbox.setSpacing(0)
@@ -353,25 +356,25 @@ class SettingsPanel(QWidget):
         return group
 
     def _make_preset_group(self) -> QGroupBox:
-        group = QGroupBox("Preset")
+        group = QGroupBox(self.tr("Preset"))
         vbox = QVBoxLayout(group)
         vbox.setContentsMargins(8, 8, 8, 8)
         vbox.setSpacing(2)
 
         self._preset_buttons = {}
         for name in _PRESETS:
-            rb = QRadioButton(name)
+            rb = QRadioButton(self.tr(name))
             rb.toggled.connect(
                 lambda checked, n=name: self._on_preset_changed(n) if checked else None
             )
             self._preset_buttons[name] = rb
             vbox.addWidget(rb)
-        self._preset_buttons["Custom"].setChecked(True)
+        self._preset_buttons["Niestandardowy"].setChecked(True)
 
         return group
 
     def _make_resample_group(self) -> QGroupBox:
-        group = QGroupBox("Algorytm skalowania")
+        group = QGroupBox(self.tr("Algorytm skalowania"))
         vbox = QVBoxLayout(group)
         vbox.setContentsMargins(8, 8, 8, 8)
         vbox.setSpacing(2)
@@ -379,7 +382,7 @@ class SettingsPanel(QWidget):
         self._resample_buttons = {}
         for algo in ResampleAlgorithm:
             rb = QRadioButton(algo.value.capitalize())
-            rb.setToolTip(_RESAMPLE_TOOLTIPS[algo])
+            rb.setToolTip(self.tr(_RESAMPLE_TOOLTIPS[algo]))
             rb.toggled.connect(
                 lambda checked, a=algo: self._on_resample_changed(a) if checked else None
             )
@@ -390,17 +393,17 @@ class SettingsPanel(QWidget):
         return group
 
     def _make_background_group(self) -> QGroupBox:
-        group = QGroupBox("Tło dla braku alpha")
+        group = QGroupBox(self.tr("Tło dla braku alpha"))
         vbox = QVBoxLayout(group)
         vbox.setContentsMargins(8, 8, 8, 8)
         vbox.setSpacing(4)
 
-        self._radio_transparent = QRadioButton("Przezroczyste")
+        self._radio_transparent = QRadioButton(self.tr("Przezroczyste"))
         self._radio_transparent.setChecked(True)
         self._radio_transparent.toggled.connect(self._on_bg_radio_toggled)
         vbox.addWidget(self._radio_transparent)
 
-        self._radio_color = QRadioButton("Kolor")
+        self._radio_color = QRadioButton(self.tr("Kolor"))
         self._radio_color.toggled.connect(self._on_bg_radio_toggled)
 
         self._color_btn = QPushButton()
@@ -425,47 +428,53 @@ class SettingsPanel(QWidget):
         if not is_available():
             return None
 
-        group = QGroupBox("Usuwanie tla (AI)")
+        group = QGroupBox(self.tr("Usuwanie tła (AI)"))
         vbox = QVBoxLayout(group)
         vbox.setContentsMargins(8, 8, 8, 8)
         vbox.setSpacing(4)
 
-        self._remove_bg_check = QCheckBox("Usun tlo (U2-Net)")
+        self._remove_bg_check = QCheckBox(self.tr("Usuń tło (U2-Net)"))
         self._remove_bg_check.setToolTip(
-            MODEL_DOWNLOAD_WARNING + "\n\nModel jest pobierany tylko raz i zapisywany w ~/.u2net/."
+            self.tr(MODEL_DOWNLOAD_WARNING)
+            + "\n\n"
+            + self.tr("Model jest pobierany tylko raz i zapisywany w ~/.u2net/.")
         )
         self._remove_bg_check.toggled.connect(self._on_remove_bg_toggled)
         vbox.addWidget(self._remove_bg_check)
 
-        note = QLabel("<small><i>Pierwsze uzycie: pobieranie modelu ~170 MB</i></small>")
+        note = QLabel(
+            "<small><i>" + self.tr("Pierwsze użycie: pobieranie modelu ~170 MB") + "</i></small>"
+        )
         note.setWordWrap(True)
         vbox.addWidget(note)
 
         return group
 
     def _make_trim_group(self) -> QGroupBox:
-        group = QGroupBox("Przycinanie")
+        group = QGroupBox(self.tr("Przycinanie"))
         vbox = QVBoxLayout(group)
         vbox.setContentsMargins(8, 8, 8, 8)
         vbox.setSpacing(4)
 
-        self._auto_trim_check = QCheckBox("Auto-trim (usuń przezroczyste krawędzie)")
+        self._auto_trim_check = QCheckBox(self.tr("Auto-trim (usuń przezroczyste krawędzie)"))
         self._auto_trim_check.setToolTip(
-            "Automatycznie przycina przezroczyste obramowanie źródła przed skalowaniem."
+            self.tr("Automatycznie przycina przezroczyste obramowanie źródła przed skalowaniem.")
         )
         self._auto_trim_check.toggled.connect(self._on_trim_toggled)
         vbox.addWidget(self._auto_trim_check)
 
         hbox = QHBoxLayout()
         hbox.setContentsMargins(0, 0, 0, 0)
-        padding_label = QLabel("Padding:")
+        padding_label = QLabel(self.tr("Padding:"))
         self._trim_padding_spin = QSpinBox()
         self._trim_padding_spin.setRange(0, 128)
         self._trim_padding_spin.setValue(0)
         self._trim_padding_spin.setSuffix(" px")
         self._trim_padding_spin.setEnabled(False)
         self._trim_padding_spin.setToolTip(
-            "Piksele przezroczystego marginesu dodawane po każdej stronie przyciętego obrazu."
+            self.tr(
+                "Piksele przezroczystego marginesu dodawane po każdej stronie przyciętego obrazu."
+            )
         )
         self._trim_padding_spin.valueChanged.connect(self._on_trim_padding_changed)
         hbox.addWidget(padding_label)
@@ -514,7 +523,7 @@ class SettingsPanel(QWidget):
         if self._updating_preset:
             return
         self._updating_preset = True
-        self._preset_buttons["Custom"].setChecked(True)
+        self._preset_buttons["Niestandardowy"].setChecked(True)
         self._updating_preset = False
         self.settings_changed.emit()
 
@@ -550,7 +559,7 @@ class SettingsPanel(QWidget):
 
     def _on_color_button_clicked(self) -> None:
         initial = QColor(self._bg_color.r, self._bg_color.g, self._bg_color.b)
-        color = QColorDialog.getColor(initial, self, "Wybierz kolor tła")
+        color = QColorDialog.getColor(initial, self, self.tr("Wybierz kolor tła"))
         if color.isValid():
             self._bg_color = Color(color.red(), color.green(), color.blue())
             self._update_color_button()

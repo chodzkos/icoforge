@@ -51,7 +51,7 @@ def test_editor_window_opens_from_main_window(qtbot, test_ico: Path) -> None:
 
     # Verify editor window is showing the ICO file
     assert len(main._editor_window._frames) > 0
-    assert main._editor_window.windowTitle().startswith("Editor")
+    assert main._editor_window.windowTitle().startswith("Edytor")
 
 
 def test_editor_window_persists_in_main(qtbot, test_ico: Path) -> None:
