@@ -27,16 +27,17 @@ jobs:
           pip install -e ".[heic,exe,svg-resvg]"
           pip install pyinstaller
 
-      - name: Set up MSYS2 and install Cairo
+      - name: Set up MSYS2
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
           update: false
-          install: mingw-w64-x86_64-cairo
 
       - name: Collect Cairo DLLs
         shell: msys2 {0}
-        run: python scripts/collect_cairo_dlls.py --msys2-bin C:/msys64/mingw64/bin
+        run: |
+          pacman -S --noconfirm --needed mingw-w64-x86_64-cairo
+          python scripts/collect_cairo_dlls.py --msys2-bin "$(cygpath -w /mingw64/bin)"
 
       - name: Install cairosvg (now that DLLs are present)
         run: pip install cairosvg
