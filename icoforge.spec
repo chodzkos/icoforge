@@ -23,14 +23,12 @@ if any(p for p in _assets.iterdir() if p.name != ".gitkeep"):
 # ---------------------------------------------------------------------------
 hidden_imports = [
     "icoforge.core.heic_loader",
-    # optional feature modules – silently absent if package not installed
+    # optional feature modules – silently absent if package not installed;
+    # rembg/onnxruntime are excluded here because their DLL-heavy imports
+    # crash PyInstaller's analysis child process – PyInstaller picks them up
+    # automatically from the installed site-packages when present
     "pillow_heif",
-    "cairosvg",
     "pefile",
-    "rembg",
-    "rembg.bg",
-    "rembg.session_factory",
-    "onnxruntime",
 ]
 
 block_cipher = None
