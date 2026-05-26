@@ -68,7 +68,7 @@ exe = EXE(  # noqa: F821
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=str(ROOT / "icoForge.ico"),
+    icon=str(ROOT / "assets" / "icoforge.ico"),
 )
 
 coll = COLLECT(  # noqa: F821
