@@ -5,19 +5,24 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-_SETTINGS_PATH = Path.home() / ".config" / "icoforge" / "settings.json"
+from icoforge.utils.paths import get_settings_dir
+
+
+def _settings_path() -> Path:
+    return get_settings_dir() / "settings.json"
 
 
 def _load() -> dict[str, object]:
     try:
-        return dict(json.loads(_SETTINGS_PATH.read_text(encoding="utf-8")))
+        return dict(json.loads(_settings_path().read_text(encoding="utf-8")))
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
 
 def _save(data: dict[str, object]) -> None:
-    _SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    _SETTINGS_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    path = _settings_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
 def get_language() -> str:
