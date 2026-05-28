@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt, QThreadPool, QUrl
-from PySide6.QtGui import QAction, QDesktopServices, QIcon, QImage, QPixmap
+from PySide6.QtGui import QAction, QCloseEvent, QDesktopServices, QIcon, QImage, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QProgressBar,
     QScrollArea,
@@ -37,6 +38,8 @@ from icoforge.gui.widgets.preview_panel import PreviewPanel
 from icoforge.gui.widgets.settings_panel import SettingsPanel
 from icoforge.gui.workers import ConversionWorker
 from icoforge.utils.paths import get_resource_path
+from icoforge.utils.recent_files import add_recent
+from icoforge.utils.window_state import restore_window_state, save_window_state
 
 
 class _ExeIconPickerDialog(QDialog):
@@ -114,6 +117,7 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("IcoForge")
+        self.setMinimumSize(700, 500)
         self.resize(900, 600)
         icon_path = get_resource_path("assets/icoforge.ico")
         if icon_path.exists():
@@ -132,11 +136,13 @@ class MainWindow(QMainWindow):
         self._progress_bar: QProgressBar
         self._lang_pl_action: QAction
         self._lang_en_action: QAction
+        self._recent_menu: QMenu
 
         self._setup_menu()
         self._setup_toolbar()
         self._setup_central()
         self._setup_statusbar()
+        restore_window_state(self)
 
     # ------------------------------------------------------------------
     # Setup helpers
@@ -151,6 +157,8 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.tr("&Nowe ICO…"), self._on_new_ico).setShortcut("Ctrl+N")
         file_menu.addSeparator()
         file_menu.addAction(self.tr("&Otwórz…"), self._on_open)
+        self._recent_menu = file_menu.addMenu(self.tr("Ostatnio otwarte"))
+        self._recent_menu.aboutToShow.connect(self._build_recent_menu)
         file_menu.addAction(self.tr("Zapisz &jako…"), self._on_save_as)
         file_menu.addAction(self.tr("Edytuj &ICO…"), self._on_edit_ico)
         file_menu.addAction(self.tr("&Wyciągnij ikony z EXE/DLL…"), self._on_extract_exe)
@@ -273,6 +281,7 @@ class MainWindow(QMainWindow):
             return
 
         self.source_path = path
+        add_recent(path)
         self.statusBar().showMessage(self.tr("Załadowano: %1").replace("%1", path.name))
         self._save_action.setEnabled(True)
         self._favicon_action.setEnabled(True)
@@ -482,6 +491,7 @@ class MainWindow(QMainWindow):
         self._progress_bar.setVisible(False)
         self._save_action.setEnabled(True)
         self._cancel_action.setEnabled(False)
+        add_recent(path)
         self.statusBar().showMessage(self.tr("Zapisano: %1").replace("%1", path.name))
 
         msg = QMessageBox(self)
@@ -550,6 +560,7 @@ class MainWindow(QMainWindow):
                 self._editor_window.show()
                 self._editor_window.raise_()
                 self._editor_window.activateWindow()
+                add_recent(Path(path))
             except Exception as e:
                 QMessageBox.critical(
                     self,
@@ -626,6 +637,62 @@ class MainWindow(QMainWindow):
             .replace("%1", str(saved))
             .replace("%2", output_dir),
         )
+
+    # ------------------------------------------------------------------
+    # Recent files
+    # ------------------------------------------------------------------
+
+    def _build_recent_menu(self) -> None:
+        from icoforge.utils.recent_files import load_recent, remove_missing
+
+        self._recent_menu.clear()
+        paths = load_recent()
+        existing = set(remove_missing(paths))
+
+        if not paths:
+            no_files = self._recent_menu.addAction(self.tr("Brak ostatnich plików"))
+            no_files.setEnabled(False)
+            return
+
+        for path in paths:
+            action = self._recent_menu.addAction(path.name)
+            action.setToolTip(str(path))
+            if path in existing:
+                action.triggered.connect(lambda checked=False, p=path: self._open_recent_file(p))
+            else:
+                action.setEnabled(False)
+
+        self._recent_menu.addSeparator()
+        self._recent_menu.addAction(self.tr("Wyczyść historię"), self._clear_recent)
+
+    def _clear_recent(self) -> None:
+        from icoforge.utils.recent_files import save_recent
+
+        save_recent([])
+
+    def _open_recent_file(self, path: Path) -> None:
+        if path.suffix.lower() == ".ico":
+            try:
+                self._editor_window = EditorWindow(path)
+                self._editor_window.show()
+                self._editor_window.raise_()
+                self._editor_window.activateWindow()
+            except Exception as e:
+                QMessageBox.critical(
+                    self,
+                    self.tr("Błąd"),
+                    self.tr("Nie można otworzyć pliku ICO:\n%1").replace("%1", str(e)),
+                )
+        else:
+            self.on_file_loaded(path)
+
+    # ------------------------------------------------------------------
+    # Window lifecycle
+    # ------------------------------------------------------------------
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        save_window_state(self)
+        super().closeEvent(event)
 
     def _on_about(self) -> None:
         dlg = QDialog(self)
