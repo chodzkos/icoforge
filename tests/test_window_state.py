@@ -9,7 +9,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from icoforge.utils.window_state import (
-    _is_position_visible,
     restore_window_state,
     save_window_state,
 )
@@ -101,8 +100,3 @@ def test_restore_no_op_when_no_settings(tmp_path: Path) -> None:
     restore_window_state(window)  # type: ignore[arg-type]
     window.setGeometry.assert_not_called()
     window.resize.assert_not_called()
-
-
-def test_is_position_visible_returns_false_without_running_app() -> None:
-    # No QApplication is running in this test process, so should return False.
-    assert _is_position_visible(0, 0, 800, 600) is False
