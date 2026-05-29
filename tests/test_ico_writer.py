@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import io as _io
+import struct as _struct
 from pathlib import Path
 
 import pytest
@@ -159,3 +161,64 @@ def test_write_ico_input_order_does_not_affect_output_sizes(tmp_path: Path) -> N
     write_ico(out1, pairs_asc)
     write_ico(out2, pairs_desc)
     assert _ico_sizes(out1) == _ico_sizes(out2)
+
+
+# ---------------------------------------------------------------------------
+# Bit-depth encoding: ICONDIRENTRY.bitCount and embedded PNG mode
+# ---------------------------------------------------------------------------
+
+
+def _entry_bitcount(path: Path, entry_index: int = 0) -> int:
+    """Read bitCount from ICONDIRENTRY[entry_index] in raw ICO bytes."""
+    data = path.read_bytes()
+    # ICONDIRENTRY at offset 6 + entry_index * 16
+    # layout: width(B) height(B) colorCount(B) reserved(B) planes(H) bitCount(H) size(I) offset(I)
+    _, _, _, _, _, bit_count, _, _ = _struct.unpack_from("<BBBBHHII", data, 6 + entry_index * 16)
+    return bit_count
+
+
+def _embedded_png_mode(path: Path, entry_index: int = 0) -> str:
+    """Extract the PNG blob from ICONDIRENTRY[entry_index] and return its Pillow mode."""
+    data = path.read_bytes()
+    _, _, _, _, _, _, img_size, img_offset = _struct.unpack_from(
+        "<BBBBHHII", data, 6 + entry_index * 16
+    )
+    return Image.open(_io.BytesIO(data[img_offset : img_offset + img_size])).mode
+
+
+def test_bit_depth_32_header_and_png_mode(tmp_path: Path) -> None:
+    """Default 32-bit: bitCount == 32 and embedded PNG is RGBA."""
+    out = tmp_path / "out.ico"
+    write_ico(out, [(_rgba_image(16, 16), SizeSpec(16, 16, bit_depth=32))])
+    assert _entry_bitcount(out) == 32
+    assert _embedded_png_mode(out) == "RGBA"
+
+
+def test_bit_depth_24_header_and_png_mode(tmp_path: Path) -> None:
+    """24-bit: bitCount == 24 and embedded PNG is RGB (no alpha channel)."""
+    out = tmp_path / "out.ico"
+    write_ico(out, [(_rgba_image(16, 16), SizeSpec(16, 16, bit_depth=24))])
+    assert _entry_bitcount(out) == 24
+    assert _embedded_png_mode(out) == "RGB"
+
+
+def test_bit_depth_8_header_and_png_mode(tmp_path: Path) -> None:
+    """8-bit: bitCount == 8 and embedded PNG is palette mode (P)."""
+    out = tmp_path / "out.ico"
+    write_ico(out, [(_rgba_image(16, 16), SizeSpec(16, 16, bit_depth=8))])
+    assert _entry_bitcount(out) == 8
+    assert _embedded_png_mode(out) == "P"
+
+
+def test_bit_depth_8_round_trip_via_read_ico(tmp_path: Path) -> None:
+    """Writing 8-bit and reading back via read_ico must return frame of correct size."""
+    from icoforge.core.ico_reader import read_ico
+
+    out = tmp_path / "out.ico"
+    write_ico(out, [(_rgba_image(16, 16), SizeSpec(16, 16, bit_depth=8))])
+    frames = read_ico(out)
+    assert len(frames) == 1
+    img, spec = frames[0]
+    assert img.size == (16, 16)
+    assert spec.width == 16
+    assert spec.height == 16

@@ -153,6 +153,8 @@ def _render_sized_frames(
             frame = _render_heic_frame(effective_source, spec, config, raster_cache)
         else:
             frame = _render_raster_frame(effective_source, spec, config, raster_cache)
+        if spec.bit_depth == 24:
+            frame = _flatten_alpha(frame, config.background)
         sized.append((frame, spec))
         _report(progress, 0.1 + 0.8 * (i + 1) / total)
     return sized
@@ -333,6 +335,33 @@ def _letterbox(
     x = (tgt_w - fit_w) // 2
     y = (tgt_h - fit_h) // 2
     canvas.alpha_composite(scaled, dest=(x, y))
+    return canvas
+
+
+# ---------------------------------------------------------------------------
+# Bit-depth helpers
+# ---------------------------------------------------------------------------
+
+
+def _flatten_alpha(img: Image.Image, background: Background) -> Image.Image:
+    """Composite *img* onto a solid colour, removing the alpha channel.
+
+    Required before writing 24-bit PNG entries, which carry no transparency.
+    When *background* is ``"transparent"`` (the caller has no colour preference),
+    pixels are composited onto white — 24-bit PNG does not carry transparency.
+
+    Args:
+        img: RGBA source image.
+        background: Solid fill colour, or ``"transparent"`` (falls back to white).
+
+    Returns:
+        RGBA image with all pixels fully opaque.
+    """
+    bg_color: tuple[int, int, int, int] = (
+        background.as_tuple() if isinstance(background, Color) else (255, 255, 255, 255)
+    )
+    canvas = Image.new("RGBA", img.size, bg_color)
+    canvas.alpha_composite(img)
     return canvas
 
 
