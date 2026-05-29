@@ -126,3 +126,58 @@ class TestReadIco:
         frames_again = read_ico(sample_ico)
         first_image_again, _ = frames_again[0]
         assert first_image_again.getpixel((0, 0)) == original_pixel
+
+
+def test_read_ico_dib_frame(tmp_path: Path) -> None:
+    """ICO with a DIB (BMP) frame must decode to the correct size and RGBA mode.
+
+    Classic Windows ICO files (and icons extracted from EXE/DLL) store frames
+    as DIBs where BITMAPINFOHEADER.biHeight is doubled (XOR bitmap + AND mask).
+    The reader must return a frame of the *real* size, not the doubled height.
+    """
+    import struct as _s
+
+    width, height, bpp = 4, 4, 32
+
+    # BITMAPINFOHEADER (40 bytes) - biHeight doubled as per ICO DIB convention
+    bih = _s.pack(
+        "<IiiHHIIiiII",
+        40,  # biSize
+        width,  # biWidth
+        height * 2,  # biHeight doubled (XOR + AND bitmaps stacked)
+        1,  # biPlanes
+        bpp,  # biBitCount
+        0,  # biCompression (BI_RGB)
+        0,  # biSizeImage (0 allowed for BI_RGB)
+        0,
+        0,  # biXPelsPerMeter, biYPelsPerMeter
+        0,
+        0,  # biClrUsed, biClrImportant
+    )
+
+    # XOR bitmap: 32bpp BGRA, bottom-up, 4x4 solid blue, fully opaque
+    pixel_bgra = _s.pack("BBBB", 255, 0, 0, 255)
+    xor_bitmap = pixel_bgra * (width * height)
+
+    # AND mask: 1bpp, bottom-up; 4 px wide → 1 byte padded to 4 bytes per row
+    and_mask = b"\x00" * (4 * height)  # all zeros = fully visible
+
+    dib = bih + xor_bitmap + and_mask
+
+    # ICONDIR (6 bytes): reserved=0, type=1 (ICO), count=1
+    icondir = _s.pack("<HHH", 0, 1, 1)
+    # ICONDIRENTRY (16 bytes): image data follows immediately at offset 22
+    img_offset = 6 + 16
+    entry = _s.pack("<BBBBHHII", width, height, 0, 0, 1, bpp, len(dib), img_offset)
+
+    ico_path = tmp_path / "dib_4x4.ico"
+    ico_path.write_bytes(icondir + entry + dib)
+
+    frames = read_ico(ico_path)
+
+    assert len(frames) == 1
+    img, spec = frames[0]
+    assert img.mode == "RGBA"
+    assert img.size == (width, height)
+    assert spec.width == width
+    assert spec.height == height
