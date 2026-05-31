@@ -1,13 +1,17 @@
 """Dark/light theme management.
 
-Uses the qdarktheme library (PyPI: pyqtdarktheme) for stylesheet + palette.
+The dark theme uses the qdarktheme library (PyPI: pyqtdarktheme). The light
+theme deliberately restores the *native* Qt appearance captured at startup
+rather than applying qdarktheme's flat light theme, so the light mode looks
+identical to the application as it was before themes were introduced.
+
 Provides a module-level singleton so canvas widgets can connect without
 having to thread the manager through every constructor call.
 
 Usage (startup)::
 
     from icoforge.utils.theme import init_theme_manager
-    mgr = init_theme_manager(app)   # creates singleton
+    mgr = init_theme_manager(app)   # captures native look, creates singleton
     mgr.restore()                   # applies saved or auto theme
 
 Usage (anywhere after init)::
@@ -20,6 +24,7 @@ from __future__ import annotations
 
 import qdarktheme
 from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtGui import QPalette
 from PySide6.QtWidgets import QApplication
 
 from icoforge.utils.settings import get_setting, save_setting
@@ -34,6 +39,10 @@ class ThemeManager(QObject):
 
     Emits ``theme_changed("dark" | "light")`` whenever the active resolved
     theme changes so widgets can update colours without polling.
+
+    The native Qt style, palette and (empty) app-level stylesheet are captured
+    in ``__init__`` *before* any qdarktheme call, so the light theme can restore
+    the original appearance exactly.
     """
 
     theme_changed = Signal(str)  # emits the resolved "dark" or "light" value
@@ -41,6 +50,11 @@ class ThemeManager(QObject):
     def __init__(self, app: QApplication) -> None:
         super().__init__()
         self._app = app
+        # Capture the pristine native appearance before qdarktheme touches it.
+        # Copy the palette — app.palette() returns a value that we must not alias.
+        self._default_style = app.style().objectName()
+        self._default_palette = QPalette(app.palette())
+        self._default_stylesheet = app.styleSheet()
 
     # ------------------------------------------------------------------
     # Public API
@@ -91,8 +105,19 @@ class ThemeManager(QObject):
         return "dark" if scheme == Qt.ColorScheme.Dark else "light"
 
     def _apply_resolved(self, resolved: str) -> None:
-        self._app.setStyleSheet(qdarktheme.load_stylesheet(resolved))
-        self._app.setPalette(qdarktheme.load_palette(resolved))
+        if resolved == "dark":
+            self._app.setStyleSheet(qdarktheme.load_stylesheet("dark"))
+            self._app.setPalette(qdarktheme.load_palette("dark"))
+        else:
+            self._apply_native_light()
+
+    def _apply_native_light(self) -> None:
+        """Restore the original native Qt appearance (pre-qdarktheme state)."""
+        # Clear the stylesheet qdarktheme may have applied (restore the original).
+        self._app.setStyleSheet(self._default_stylesheet)
+        # Restore the native style object and palette captured at startup.
+        self._app.setStyle(self._default_style)
+        self._app.setPalette(self._default_palette)
 
 
 # ---------------------------------------------------------------------------
