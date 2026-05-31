@@ -158,9 +158,9 @@ Każda faza ma kryteria zakończenia. Nie przechodź do następnej fazy bez uko�
 
 ## Do zrobienia (potencjalne)
 
-- [ ] Tryb ciemny / jasny (auto-detekcja systemu)
-- [ ] Lista ostatnio otwartych plików (Recent Files)
-- [ ] Zapamiętywanie pozycji i rozmiaru okna
+- [x] Tryb ciemny / jasny (Widok -> Motyw; auto-detekcja OS; jasny = natywny Qt)
+- [x] Lista ostatnio otwartych plikow (Recent Files, max 10)
+- [x] Zapamietywanie pozycji i rozmiaru okna
 - [ ] Preset system (zapis konfiguracji konwersji jako JSON)
 - [ ] AppImage dla Linux / DMG dla macOS
 - [ ] Auto-update (GitHub Releases)

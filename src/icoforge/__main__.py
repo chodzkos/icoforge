@@ -35,6 +35,13 @@ def run_gui() -> int:
 
     app = QApplication(sys.argv)
 
+    # Apply the saved (or system-detected) theme before any window is created.
+    # Qt requires the palette/stylesheet to be set before the first paint.
+    from icoforge.utils.theme import init_theme_manager
+
+    theme_manager = init_theme_manager(app)
+    theme_manager.restore()
+
     lang = get_language()
 
     # Load Qt base translations (buttons like Save/Discard/Cancel) for non-English
@@ -51,9 +58,15 @@ def run_gui() -> int:
     if qm_path.exists() and translator.load(str(qm_path)):
         app.installTranslator(translator)
 
+    # Re-apply the current preference whenever the OS colour scheme changes.
+    # "auto" setting re-detects the system theme; dark/light settings ignore the signal.
+    app.styleHints().colorSchemeChanged.connect(
+        lambda _: theme_manager.apply(theme_manager.current_setting())
+    )
+
     from icoforge.gui.main_window import main as gui_main
 
-    return gui_main(app)
+    return gui_main(app, theme_manager=theme_manager)
 
 
 if __name__ == "__main__":

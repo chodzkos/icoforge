@@ -4,9 +4,18 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QSize, Qt, QThreadPool, QUrl
-from PySide6.QtGui import QAction, QCloseEvent, QDesktopServices, QIcon, QImage, QPixmap
+from PySide6.QtGui import (
+    QAction,
+    QActionGroup,
+    QCloseEvent,
+    QDesktopServices,
+    QIcon,
+    QImage,
+    QPixmap,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
@@ -30,6 +39,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+if TYPE_CHECKING:
+    from icoforge.utils.theme import ThemeManager
 
 from icoforge.gui.editor.editor_window import EditorWindow
 from icoforge.gui.widgets.file_drop_zone import SUPPORTED_SUFFIXES, FileDropZone
@@ -114,8 +126,9 @@ class _ExeIconPickerDialog(QDialog):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self) -> None:
+    def __init__(self, theme_manager: ThemeManager | None = None) -> None:
         super().__init__()
+        self._theme_manager = theme_manager
         self.setWindowTitle("IcoForge")
         self.setMinimumSize(700, 500)
         self.resize(900, 600)
@@ -137,6 +150,9 @@ class MainWindow(QMainWindow):
         self._lang_pl_action: QAction
         self._lang_en_action: QAction
         self._recent_menu: QMenu
+        self._theme_auto_action: QAction
+        self._theme_dark_action: QAction
+        self._theme_light_action: QAction
 
         self._setup_menu()
         self._setup_toolbar()
@@ -164,6 +180,37 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.tr("&Wyciągnij ikony z EXE/DLL…"), self._on_extract_exe)
         file_menu.addSeparator()
         file_menu.addAction(self.tr("Za&kończ"), self.close)
+
+        view_menu = menubar.addMenu(self.tr("&Widok"))
+        theme_menu = view_menu.addMenu(self.tr("Motyw"))
+
+        theme_group = QActionGroup(self)
+        theme_group.setExclusive(True)
+
+        self._theme_auto_action = QAction(self.tr("Automatyczny (zgodny z systemem)"), self)
+        self._theme_auto_action.setCheckable(True)
+        self._theme_dark_action = QAction(self.tr("Ciemny"), self)
+        self._theme_dark_action.setCheckable(True)
+        self._theme_light_action = QAction(self.tr("Jasny"), self)
+        self._theme_light_action.setCheckable(True)
+
+        for act in (self._theme_auto_action, self._theme_dark_action, self._theme_light_action):
+            theme_group.addAction(act)
+            theme_menu.addAction(act)
+
+        current_theme = self._theme_manager.current_setting() if self._theme_manager else "auto"
+        if current_theme == "dark":
+            self._theme_dark_action.setChecked(True)
+        elif current_theme == "light":
+            self._theme_light_action.setChecked(True)
+        else:
+            self._theme_auto_action.setChecked(True)
+
+        if self._theme_manager is not None:
+            _mgr = self._theme_manager
+            self._theme_auto_action.triggered.connect(lambda: _mgr.apply("auto"))
+            self._theme_dark_action.triggered.connect(lambda: _mgr.apply("dark"))
+            self._theme_light_action.triggered.connect(lambda: _mgr.apply("light"))
 
         help_menu = menubar.addMenu(self.tr("P&omoc"))
         help_menu.addAction(self.tr("&O programie"), self._on_about)
@@ -703,12 +750,8 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(20, 20, 20, 20)
 
         logo_label = QLabel()
-        logo_path = get_resource_path("assets/logo.png")
-        if logo_path.exists():
-            pixmap = QPixmap(str(logo_path))
-            logo_label.setPixmap(
-                pixmap.scaledToWidth(200, Qt.TransformationMode.SmoothTransformation)
-            )
+        self._about_logo_label = logo_label
+        self._update_about_logo(logo_label)
         logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(logo_label)
 
@@ -723,7 +766,23 @@ class MainWindow(QMainWindow):
         buttons.accepted.connect(dlg.accept)
         layout.addWidget(buttons)
 
+        if self._theme_manager is not None:
+            self._theme_manager.theme_changed.connect(
+                lambda _t: self._update_about_logo(logo_label)
+            )
+
         dlg.exec()
+
+    def _update_about_logo(self, label: QLabel) -> None:
+        """Load the logo choosing a dark- or light-mode variant when available."""
+        resolved = self._theme_manager.current_resolved() if self._theme_manager else "light"
+        variant = get_resource_path(f"assets/logo-{resolved}.png")
+        logo_path = variant if variant.exists() else get_resource_path("assets/logo.png")
+        if logo_path.exists():
+            pixmap = QPixmap(str(logo_path))
+            label.setPixmap(pixmap.scaledToWidth(200, Qt.TransformationMode.SmoothTransformation))
+        else:
+            label.clear()
 
     def _on_language_changed(self, lang: str) -> None:
         from icoforge.utils.settings import set_language
@@ -740,9 +799,12 @@ class MainWindow(QMainWindow):
         )
 
 
-def main(app: QApplication | None = None) -> int:
+def main(
+    app: QApplication | None = None,
+    theme_manager: ThemeManager | None = None,
+) -> int:
     _app = app or QApplication.instance() or QApplication(sys.argv)
-    window = MainWindow()
+    window = MainWindow(theme_manager=theme_manager)
     window.show()
     window.raise_()
     window.activateWindow()
