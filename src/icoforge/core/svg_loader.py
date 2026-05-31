@@ -69,6 +69,40 @@ class SvgSupportMissingError(RuntimeError):
         super().__init__(msg)
 
 
+def rasterize_svg_natural(source: Path) -> Image.Image:
+    """Rasterize an SVG file at its natural (intrinsic) dimensions.
+
+    Unlike :func:`rasterize_svg`, no output size is specified.  The result
+    reflects the SVG's own ``width``/``height`` or ``viewBox`` dimensions.
+    Intended for use in the converter pipeline where :func:`~icoforge.core.converter._render_frame`
+    applies the final resize with optional letterboxing.
+
+    Args:
+        source: Path to the SVG file.
+
+    Returns:
+        RGBA image at the SVG's intrinsic size.
+
+    Raises:
+        SvgSupportMissingError: No SVG backend is installed/loadable.
+        FileNotFoundError: ``source`` does not exist.
+    """
+    if _ENGINE is None:
+        raise SvgSupportMissingError(_SVG_ERROR)
+
+    if not source.exists():
+        raise FileNotFoundError(source)
+
+    if _ENGINE == "resvg":
+        svg_bytes = source.read_bytes()
+        png_bytes: bytes = _resvg_py.svg_to_png(svg_bytes)  # type: ignore[attr-defined]
+        return Image.open(io.BytesIO(png_bytes)).convert("RGBA")
+
+    # cairosvg - omit output_width/output_height to get the natural size
+    png_bytes = _cairosvg.svg2png(url=str(source.resolve()))  # type: ignore[attr-defined]
+    return Image.open(io.BytesIO(png_bytes)).convert("RGBA")
+
+
 def rasterize_svg(source: Path, width: int, height: int) -> Image.Image:
     """Rasterize an SVG file to a PIL RGBA image at the requested size.
 

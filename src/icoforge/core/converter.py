@@ -160,6 +160,30 @@ def _render_sized_frames(
     return sized
 
 
+def _apply_post_load(img: Image.Image, config: IcoConfig) -> Image.Image:
+    """Apply optional post-load operations (remove_bg, auto_trim) to a base image.
+
+    Called by all three source-type pipelines (raster, HEIC, SVG) so the
+    behaviour is identical regardless of source format.
+
+    Args:
+        img: Loaded RGBA image (full-size / natural dimensions).
+        config: Conversion configuration flags.
+
+    Returns:
+        Processed RGBA image (may be the same object if no ops were applied).
+    """
+    if config.remove_bg:
+        from icoforge.core.bg_remover import remove_background
+
+        img = remove_background(img)
+    if config.auto_trim:
+        from icoforge.core.image_utils import trim_transparency
+
+        img = trim_transparency(img, padding=config.auto_trim_padding)
+    return img
+
+
 def _render_raster_frame(
     source: Path,
     spec: SizeSpec,
@@ -170,14 +194,7 @@ def _render_raster_frame(
     base = cache.get(source)
     if base is None:
         base = _load_rgba(source, config.background)
-        if config.remove_bg:
-            from icoforge.core.bg_remover import remove_background
-
-            base = remove_background(base)
-        if config.auto_trim:
-            from icoforge.core.image_utils import trim_transparency
-
-            base = trim_transparency(base, padding=config.auto_trim_padding)
+        base = _apply_post_load(base, config)
         cache[source] = base
     return _render_frame(base, spec, config)
 
@@ -187,8 +204,20 @@ def _render_svg_frame(
     spec: SizeSpec,
     config: IcoConfig,
 ) -> Image.Image:
-    """Rasterize an SVG fresh at the requested size."""
-    frame = svg_loader.rasterize_svg(source, spec.width, spec.height)
+    """Rasterize an SVG at natural size then apply the shared post-load pipeline.
+
+    SVG sources are rasterized fresh per size (the vector quality advantage is
+    preserved: the resize from natural to target happens via Pillow rather than
+    re-rasterizing at target dimensions, but the source is always the vector).
+
+    After resizing, transparent pixels are composited onto ``config.background``
+    when a solid colour is specified — consistent with the contract established
+    for SVG sources before this refactor and useful when an SVG contains
+    intentional transparency that should be filled on export.
+    """
+    frame = svg_loader.rasterize_svg_natural(source)
+    frame = _apply_post_load(frame, config)
+    frame = _render_frame(frame, spec, config)
     if isinstance(config.background, Color):
         canvas = Image.new("RGBA", frame.size, config.background.as_tuple())
         canvas.alpha_composite(frame)
@@ -206,14 +235,7 @@ def _render_heic_frame(
     base = cache.get(source)
     if base is None:
         base = heic_loader.load_heic(source)
-        if config.remove_bg:
-            from icoforge.core.bg_remover import remove_background
-
-            base = remove_background(base)
-        if config.auto_trim:
-            from icoforge.core.image_utils import trim_transparency
-
-            base = trim_transparency(base, padding=config.auto_trim_padding)
+        base = _apply_post_load(base, config)
         cache[source] = base
     return _render_frame(base, spec, config)
 
