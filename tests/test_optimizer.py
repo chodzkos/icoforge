@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import struct as _struct
+import zlib as _zlib
 from pathlib import Path
 
 import pytest
@@ -9,7 +11,6 @@ from PIL import Image
 
 from icoforge.core.optimizer import (
     OptimizationResult,
-    _strip_png_chunks,
     optimize_batch,
     optimize_png,
     verify_lossless,
@@ -326,87 +327,6 @@ class TestVerifyLossless:
             pytest.skip("Zopfli not available in pyoxipng")
 
 
-class TestStripPngChunks:
-    """Test _strip_png_chunks() function."""
-
-    def test_strip_metadata_in_place(self, simple_png: Path) -> None:
-        """Test that _strip_png_chunks removes metadata from file in-place."""
-        original_size = simple_png.stat().st_size
-        original_pixels = Image.open(simple_png).convert("RGBA").tobytes()
-
-        _strip_png_chunks(simple_png)
-
-        # File should be modified
-        assert simple_png.exists()
-        # File might be slightly smaller or same size (depends on content)
-        assert simple_png.stat().st_size <= original_size
-        # Pixels should be identical
-        stripped_pixels = Image.open(simple_png).convert("RGBA").tobytes()
-        assert stripped_pixels == original_pixels
-
-    def test_strip_metadata_from_file_with_metadata(
-        self, png_with_metadata: Path, tmp_path: Path
-    ) -> None:
-        """Test metadata removal reduces file size."""
-        copy_path = tmp_path / "copy_with_metadata.png"
-        copy_path.write_bytes(png_with_metadata.read_bytes())
-        size_before = copy_path.stat().st_size
-
-        _strip_png_chunks(copy_path)
-
-        # Stripping metadata should reduce or maintain size
-        size_after = copy_path.stat().st_size
-        assert size_after <= size_before
-
-    def test_strip_with_preserve_color_profile(self, simple_png: Path, tmp_path: Path) -> None:
-        """Test that preserve_color_profile flag works."""
-        copy_path = tmp_path / "with_profile.png"
-        copy_path.write_bytes(simple_png.read_bytes())
-
-        # Strip but preserve color profile (even if not present, shouldn't error)
-        _strip_png_chunks(copy_path, preserve_color_profile=True)
-
-        assert copy_path.exists()
-        # Verify file is still valid PNG
-        assert Image.open(copy_path).format == "PNG"
-
-    def test_strip_with_keep_chunks(self, simple_png: Path, tmp_path: Path) -> None:
-        """Test that keep parameter preserves specified chunks."""
-        copy_path = tmp_path / "with_keep.png"
-        copy_path.write_bytes(simple_png.read_bytes())
-
-        # Keep some arbitrary chunks (bKGD, even if not present)
-        _strip_png_chunks(copy_path, keep=frozenset({"bKGD"}))
-
-        assert copy_path.exists()
-        # File should still be valid
-        assert Image.open(copy_path).format == "PNG"
-
-    def test_strip_lossless(self, gradient_png: Path, tmp_path: Path) -> None:
-        """Test that stripping metadata doesn't affect pixels."""
-        copy_path = tmp_path / "gradient_stripped.png"
-        copy_path.write_bytes(gradient_png.read_bytes())
-
-        _strip_png_chunks(copy_path)
-
-        assert verify_lossless(gradient_png, copy_path)
-
-    def test_strip_invalid_file(self, tmp_path: Path) -> None:
-        """Test error handling for invalid PNG."""
-        invalid_path = tmp_path / "invalid.png"
-        invalid_path.write_bytes(b"not a png")
-
-        with pytest.raises(ValueError):
-            _strip_png_chunks(invalid_path)
-
-    def test_strip_missing_file(self, tmp_path: Path) -> None:
-        """Test error handling for missing file."""
-        missing = tmp_path / "nonexistent.png"
-
-        with pytest.raises(FileNotFoundError):
-            _strip_png_chunks(missing)
-
-
 class TestOptimizationResult:
     """Test OptimizationResult dataclass."""
 
@@ -449,3 +369,90 @@ class TestOptimizationResult:
 
         assert result.saved_bytes == 200
         assert result.saved_ratio == 0.2
+
+
+# ---------------------------------------------------------------------------
+# preserve_color_profile flag in optimize_png
+# ---------------------------------------------------------------------------
+
+
+def _inject_srgb_chunk(path: Path) -> None:
+    """Insert a minimal sRGB chunk (1-byte rendering intent) after IHDR."""
+    chunk_type = b"sRGB"
+    chunk_data = b"\x00"  # perceptual rendering intent
+    crc = _struct.pack(">I", _zlib.crc32(chunk_type + chunk_data) & 0xFFFFFFFF)
+    srgb_chunk = _struct.pack(">I", 1) + chunk_type + chunk_data + crc  # 13 bytes
+    raw = path.read_bytes()
+    # PNG sig (8) + IHDR (4+4+13+4=25) = 33 bytes before next chunk
+    path.write_bytes(raw[:33] + srgb_chunk + raw[33:])
+
+
+def _has_png_chunk(path: Path, chunk_name: str) -> bool:
+    """Return True if *path* contains a PNG chunk with the given 4-char type."""
+    needle = chunk_name.encode()
+    raw = path.read_bytes()
+    pos = 8  # skip PNG signature
+    while pos + 8 <= len(raw):
+        length = _struct.unpack(">I", raw[pos : pos + 4])[0]
+        if raw[pos + 4 : pos + 8] == needle:
+            return True
+        pos += 12 + length  # 4 length + 4 type + data + 4 CRC
+    return False
+
+
+class TestPreserveColorProfile:
+    """optimize_png must honor preserve_color_profile in OptimizationConfig."""
+
+    def test_preserve_true_keeps_srgb_chunk(self, simple_png: Path, tmp_path: Path) -> None:
+        """strip_metadata=True + preserve_color_profile=True must retain sRGB."""
+        src = tmp_path / "with_srgb.png"
+        src.write_bytes(simple_png.read_bytes())
+        _inject_srgb_chunk(src)
+        assert _has_png_chunk(src, "sRGB"), "precondition: sRGB chunk injected"
+
+        out = tmp_path / "out.png"
+        from icoforge.core.models import OptimizationConfig
+
+        optimize_png(src, out, OptimizationConfig(strip_metadata=True, preserve_color_profile=True))
+
+        assert _has_png_chunk(out, "sRGB"), (
+            "sRGB chunk must survive when preserve_color_profile=True"
+        )
+
+    def test_preserve_false_strips_srgb_chunk(self, simple_png: Path, tmp_path: Path) -> None:
+        """strip_metadata=True + preserve_color_profile=False must remove sRGB."""
+        src = tmp_path / "with_srgb.png"
+        src.write_bytes(simple_png.read_bytes())
+        _inject_srgb_chunk(src)
+        assert _has_png_chunk(src, "sRGB"), "precondition: sRGB chunk injected"
+
+        out = tmp_path / "out.png"
+        from icoforge.core.models import OptimizationConfig
+
+        optimize_png(
+            src, out, OptimizationConfig(strip_metadata=True, preserve_color_profile=False)
+        )
+
+        assert not _has_png_chunk(out, "sRGB"), (
+            "sRGB chunk must be stripped when preserve_color_profile=False"
+        )
+
+    def test_preserve_true_with_keep_chunks_union(self, simple_png: Path, tmp_path: Path) -> None:
+        """keep_chunks and preserve_color_profile=True are additive."""
+        src = tmp_path / "with_srgb.png"
+        src.write_bytes(simple_png.read_bytes())
+        _inject_srgb_chunk(src)
+
+        out = tmp_path / "out.png"
+        from icoforge.core.models import OptimizationConfig
+
+        optimize_png(
+            src,
+            out,
+            OptimizationConfig(
+                strip_metadata=True,
+                preserve_color_profile=True,
+                keep_chunks=frozenset({"tEXt"}),
+            ),
+        )
+        assert _has_png_chunk(out, "sRGB")
