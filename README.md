@@ -13,8 +13,10 @@ do tworzenia ikon od podstaw.
 ### Konwersja
 - Formaty wejściowe: PNG, JPG, BMP, GIF, WEBP, TIFF, SVG, HEIC/AVIF
 - Wybór zestawu rozdzielczości (16–256 px), presety Windows / Favicon / Game
+- Głębokość kolorów per rozmiar: 8-bit (paleta), 24-bit (RGB), 32-bit (RGBA)
 - 5 algorytmów resamplingu (Lanczos, Bicubic, Bilinear, Nearest, Box)
 - Zachowanie kanału alpha i przezroczystości; letterboxing z wypełnieniem kolorem
+- SVG: rasteryzacja per rozmiar (resvg-py / cairosvg), honoruje remove_bg / auto_trim / preserve_aspect
 - Per-size source — inny plik źródłowy dla każdego rozmiaru
 - Usuwanie tła AI (U2-Net / rembg, opcjonalny extra)
 - Auto-trim przezroczystych obrzeży
@@ -23,8 +25,9 @@ do tworzenia ikon od podstaw.
 
 ### Optymalizacja PNG
 - Bezstratna kompresja z oxipng (poziomy 0–6) i opcją Zopfli
-- Usuwanie metadanych (tEXt, iTXt, zTXt, eXIf, tIME)
-- Tryb wsadowy z raportem oszczędności (%)
+- Usuwanie metadanych (tEXt, iTXt, zTXt, eXIf, tIME); opcja zachowania profilu koloru (iCCP/sRGB)
+- Domyslny bezpieczny zapis jako `<stem>.min.png` — zrodlo nienaruszone; `--in-place` nadpisuje jawnie
+- Tryb wsadowy z raportem oszczednosci (%)
 
 ### Edytor pikselowy
 - Canvas z zoomem 1×–64×, siatką i miniaturą nawigacyjną
@@ -145,8 +148,11 @@ icoforge
 # CLI — konwersja
 icoforge-cli convert input.png output.ico --sizes 16,32,48,256
 
-# CLI — optymalizacja
-icoforge-cli optimize input.png --output input.min.png
+# CLI — optymalizacja (domyslnie tworzy input.min.png, zrodlo nietkniete)
+icoforge-cli optimize input.png
+icoforge-cli optimize input.png --output compressed.png   # podana sciezka
+icoforge-cli optimize input.png --in-place                # nadpisz zrodlo
+icoforge-cli optimize a.png b.png --in-place              # wiele plikow
 
 # CLI — usuwanie tła
 icoforge-cli convert input.png output.ico --sizes 256 --remove-bg

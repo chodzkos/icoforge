@@ -401,7 +401,8 @@ def _convert_icns(
 @click.option("--level", type=click.IntRange(0, 6), default=4, show_default=True)
 @click.option("--strip/--no-strip", default=True, help="Strip metadata chunks.")
 @click.option("--slow", is_flag=True, help="Use Zopfli (slow, smaller output).")
-@click.option("--in-place", is_flag=True, help="Optimize in-place (overwrite source).")
+@click.option("--in-place", is_flag=True, help="Overwrite source file(s) in-place.")
+@click.option("--force", is_flag=True, help="Overwrite existing output file in default mode.")
 def optimize(
     paths: tuple[Path, ...],
     output: Path | None,
@@ -409,13 +410,23 @@ def optimize(
     strip: bool,
     slow: bool,
     in_place: bool,
+    force: bool,
 ) -> None:
     """Losslessly optimize PNG file(s).
 
     Reduces file size without changing pixel data using oxipng compression.
     Optionally strips metadata chunks (tEXt, iTXt, zTXt, eXIf, tIME, pHYs).
 
-    Can optimize single or multiple files. Use --in-place to overwrite source files.
+    \b
+    Single file — three modes:
+      (default)   Write <stem>.min.png next to the source. Source is NOT modified.
+                  Use --force to overwrite if <stem>.min.png already exists.
+      --in-place  Overwrite the source file.
+      --output F  Write to path F.
+
+    Multiple files:
+      --in-place is required. Each file is optimized in-place.
+      --output is not supported for multiple files.
     """
     if not paths:
         click.secho("Error: at least one PNG file required", fg="red", err=True)
@@ -423,6 +434,19 @@ def optimize(
 
     if output and len(paths) > 1:
         click.secho("Error: --output can only be used with a single file", fg="red", err=True)
+        raise SystemExit(1)
+
+    if in_place and output:
+        click.secho("Error: --in-place and --output are mutually exclusive", fg="red", err=True)
+        raise SystemExit(1)
+
+    if len(paths) > 1 and not in_place:
+        click.secho(
+            "Error: optimizing multiple files requires --in-place.\n"
+            "       Pass files one at a time to use the safe default (<stem>.min.png).",
+            fg="red",
+            err=True,
+        )
         raise SystemExit(1)
 
     config = OptimizationConfig(
@@ -437,12 +461,25 @@ def optimize(
     try:
         if len(paths) == 1:
             source = paths[0]
-            target = source if in_place else output
+            if in_place:
+                target: Path | None = source
+            elif output:
+                target = output
+            else:
+                target = source.parent / (source.stem + ".min.png")
+                if target.exists() and not force:
+                    click.secho(
+                        f"Error: '{target}' already exists. "
+                        "Use --force to overwrite or --in-place to optimize in-place.",
+                        fg="red",
+                        err=True,
+                    )
+                    raise SystemExit(1)
             click.echo(f"  {source.name}...", nl=False)
             result = optimize_png(source, target=target, config=config)
             click.echo(" ✓")
             click.secho(
-                f"    {result.bytes_before:,} → {result.bytes_after:,} bytes "
+                f"    {result.bytes_before:,} -> {result.bytes_after:,} bytes "
                 f"({result.saved_ratio * 100:.1f}% smaller)",
                 fg="cyan",
             )
@@ -453,7 +490,7 @@ def optimize(
                 click.echo(f"  {result.source.name}...", nl=False)
                 click.echo(" ✓")
                 click.secho(
-                    f"    {result.bytes_before:,} → {result.bytes_after:,} bytes "
+                    f"    {result.bytes_before:,} -> {result.bytes_after:,} bytes "
                     f"({result.saved_ratio * 100:.1f}% smaller)",
                     fg="cyan",
                 )

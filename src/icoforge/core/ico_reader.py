@@ -6,7 +6,7 @@ import io
 import struct
 from pathlib import Path
 
-from PIL import Image
+from PIL import IcoImagePlugin, Image
 
 from icoforge.core.models import SizeSpec
 
@@ -14,10 +14,10 @@ from icoforge.core.models import SizeSpec
 def read_ico(path: Path) -> list[tuple[Image.Image, SizeSpec]]:
     """Read an ICO file and extract all frames as RGBA images.
 
-    ICO files contain multiple image formats. This reader:
-    1. Parses the ICO header to find all embedded images
-    2. Extracts PNG data (icoforge uses PNG for all entries)
-    3. Decodes each PNG to RGBA
+    Supports any valid ICO file: entries may be PNG-compressed (modern,
+    typically 256x256) or DIB/BMP-encoded (classic Windows format with XOR
+    bitmap + AND mask and doubled biHeight in BITMAPINFOHEADER). Decoding is
+    delegated to Pillow's IcoFile, which handles both formats correctly.
 
     Args:
         path: Path to the .ico file.
@@ -28,7 +28,8 @@ def read_ico(path: Path) -> list[tuple[Image.Image, SizeSpec]]:
 
     Raises:
         FileNotFoundError: ICO file does not exist.
-        ValueError: File is not a valid ICO.
+        ValueError: File is not a valid ICO (wrong extension, bad signature,
+            no frames, or corrupt frame data).
     """
     if not path.exists():
         raise FileNotFoundError(path)
@@ -41,7 +42,7 @@ def read_ico(path: Path) -> list[tuple[Image.Image, SizeSpec]]:
     if len(data) < 6:
         raise ValueError(f"File too small to be ICO: {path}")
 
-    # Parse ICONDIR header: reserved(H) type(H) count(H)
+    # Quick header check: reserved must be 0, type must be 1 (ICO, not cursor)
     _, ico_type, count = struct.unpack("<HHH", data[0:6])
 
     if ico_type != 1:
@@ -50,42 +51,22 @@ def read_ico(path: Path) -> list[tuple[Image.Image, SizeSpec]]:
     if count == 0:
         raise ValueError(f"No frames found in ICO file: {path}")
 
+    # Delegate frame decoding to Pillow's IcoFile, which handles both
+    # PNG-compressed entries and DIB entries (doubled biHeight + AND mask).
+    try:
+        ico = IcoImagePlugin.IcoFile(io.BytesIO(data))  # type: ignore[no-untyped-call]
+    except Exception as exc:
+        raise ValueError(f"Failed to parse ICO file: {exc}") from exc
+
     frames: list[tuple[Image.Image, SizeSpec]] = []
-
-    # Parse ICONDIRENTRY for each frame
-    # Each entry: width(B) height(B) color_count(B) reserved(B) planes(H) bpp(H) size(I) offset(I)
-    for i in range(count):
-        entry_offset = 6 + i * 16
-        if entry_offset + 16 > len(data):
-            raise ValueError(f"Truncated ICO file: {path}")
-
-        entry = data[entry_offset : entry_offset + 16]
-        width, height, _, _, _, _, img_size, img_offset = struct.unpack("<BBBBHHII", entry)
-
-        # Handle special case: width/height of 0 means 256
-        if width == 0:
-            width = 256
-        if height == 0:
-            height = 256
-
-        # Extract image data
-        if img_offset + img_size > len(data):
-            raise ValueError(f"Invalid image offset in ICO: {path}")
-
-        img_data = data[img_offset : img_offset + img_size]
-
+    for idx in range(len(ico.entry)):
         try:
-            # Try to decode as PNG (icoforge uses PNG)
-            frame = Image.open(io.BytesIO(img_data))
-            rgba_frame = frame.convert("RGBA")
+            img = ico.frame(idx)  # type: ignore[no-untyped-call]
         except Exception as exc:
             raise ValueError(f"Failed to decode image in ICO: {exc}") from exc
-
-        # Create SizeSpec
-        spec = SizeSpec(width, height)
-
-        # Store frame
-        frames.append((rgba_frame.copy(), spec))
+        rgba = img.convert("RGBA")
+        w, h = rgba.size
+        frames.append((rgba.copy(), SizeSpec(w, h)))
 
     if not frames:
         raise ValueError(f"No valid frames extracted from ICO: {path}")

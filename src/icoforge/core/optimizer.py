@@ -8,8 +8,6 @@ Primary engine: ``pyoxipng``. Optional Zopfli pass for max compression.
 
 from __future__ import annotations
 
-import struct
-import zlib
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,6 +16,9 @@ import oxipng
 from PIL import Image
 
 from icoforge.core.models import OptimizationConfig
+
+# Chunk types that carry color-reproduction metadata.
+_COLOR_PROFILE_CHUNKS: frozenset[str] = frozenset({"iCCP", "sRGB", "gAMA", "cHRM"})
 
 
 @dataclass(frozen=True)
@@ -106,13 +107,18 @@ def optimize_png(
     except OSError as exc:
         raise ValueError(f"Cannot open image: {exc}") from exc
 
-    # Read, optimize with oxipng, strip metadata if requested
+    # Build the set of chunks to keep when stripping metadata.
+    # keep_chunks (explicit) union color-profile chunks (when preserve_color_profile=True).
     data = source.read_bytes()
     if cfg.strip_metadata:
-        if cfg.keep_chunks:
-            strip_chunks = oxipng.StripChunks.keep([s.encode() for s in cfg.keep_chunks])
-        else:
-            strip_chunks = oxipng.StripChunks.all()
+        chunks_to_keep = set(cfg.keep_chunks)
+        if cfg.preserve_color_profile:
+            chunks_to_keep |= _COLOR_PROFILE_CHUNKS
+        strip_chunks = (
+            oxipng.StripChunks.keep([s.encode() for s in chunks_to_keep])
+            if chunks_to_keep
+            else oxipng.StripChunks.all()
+        )
     else:
         strip_chunks = oxipng.StripChunks.none()
 
@@ -128,110 +134,6 @@ def optimize_png(
     bytes_after = len(data)
 
     return OptimizationResult(source, out_path, bytes_before, bytes_after)
-
-
-def _strip_png_chunks(
-    path: Path,
-    keep: frozenset[str] = frozenset(),
-    preserve_color_profile: bool = False,
-) -> None:
-    """Remove metadata chunks from a PNG file in-place.
-
-    Keeps critical chunks (IHDR, IDAT, IEND, PLTE) and optionally color
-    profile chunks (sRGB, gAMA, cHRM, iCCP) if preserve_color_profile=True.
-    Removes: tEXt, iTXt, zTXt, eXIf, tIME, pHYs and other ancillary chunks
-    unless explicitly kept in the 'keep' set.
-
-    Args:
-        path: Path to PNG file to strip (modified in-place).
-        keep: Set of additional 4-char chunk type names to keep (e.g. {"bKGD"}).
-        preserve_color_profile: When True, retain color profile chunks
-            (sRGB, gAMA, cHRM, iCCP) for accurate color reproduction.
-
-    Raises:
-        FileNotFoundError: PNG file not found.
-        ValueError: File is not a valid PNG.
-    """
-    if not path.exists():
-        raise FileNotFoundError(path)
-
-    data = path.read_bytes()
-
-    if len(data) < 8 or data[:8] != b"\x89PNG\r\n\x1a\n":
-        raise ValueError(f"Invalid PNG signature: {path}")
-
-    chunks = _parse_png_chunks(data)
-
-    # Critical chunks that must be preserved
-    critical = {b"IHDR", b"IDAT", b"IEND", b"PLTE"}
-
-    # Color profile chunks to preserve if requested
-    color_chunks = {b"sRGB", b"gAMA", b"cHRM", b"iCCP"}
-
-    # User-specified chunks to keep
-    keep_bytes = {s.encode() for s in keep}
-
-    # Filter chunks: keep critical, color (if enabled), and user-specified
-    kept = [
-        (chunk_type, chunk_data)
-        for chunk_type, chunk_data in chunks
-        if chunk_type in critical
-        or (preserve_color_profile and chunk_type in color_chunks)
-        or chunk_type in keep_bytes
-    ]
-
-    # Write stripped PNG back to file
-    stripped_data = _write_png_chunks(kept)
-    path.write_bytes(stripped_data)
-
-
-def _strip_png_chunks_from_bytes(data: bytes, keep: frozenset[str]) -> bytes:
-    """Remove metadata chunks from PNG bytes.
-
-    Args:
-        data: PNG binary data.
-        keep: Set of 4-char chunk type names to keep (e.g. ``{"iCCP"}``).
-
-    Returns:
-        PNG bytes with metadata chunks removed.
-    """
-    if len(data) < 8 or data[:8] != b"\x89PNG\r\n\x1a\n":
-        raise ValueError("Invalid PNG signature")
-
-    chunks = _parse_png_chunks(data)
-    keep_bytes = {s.encode() for s in keep}
-    kept = [(ct, cd) for ct, cd in chunks if ct in {b"IHDR", b"IDAT", b"IEND"} or ct in keep_bytes]
-    return _write_png_chunks(kept)
-
-
-def _parse_png_chunks(data: bytes) -> list[tuple[bytes, bytes]]:
-    """Parse PNG chunks. Returns list of (type, data) tuples."""
-    chunks: list[tuple[bytes, bytes]] = []
-    pos = 8  # Skip signature
-    while pos < len(data):
-        if pos + 8 > len(data):
-            break
-        length = struct.unpack(">I", data[pos : pos + 4])[0]
-        pos += 4
-        chunk_type = data[pos : pos + 4]
-        pos += 4
-        chunk_data = data[pos : pos + length]
-        pos += length
-        pos += 4  # Skip CRC
-        chunks.append((chunk_type, chunk_data))
-    return chunks
-
-
-def _write_png_chunks(chunks: list[tuple[bytes, bytes]]) -> bytes:
-    """Reconstruct PNG from chunks."""
-    result = bytearray(b"\x89PNG\r\n\x1a\n")
-    for chunk_type, chunk_data in chunks:
-        result.extend(struct.pack(">I", len(chunk_data)))
-        chunk_with_type = chunk_type + chunk_data
-        result.extend(chunk_with_type)
-        crc = zlib.crc32(chunk_with_type) & 0xFFFFFFFF
-        result.extend(struct.pack(">I", crc))
-    return bytes(result)
 
 
 def verify_lossless(original: Path, optimized: Path) -> bool:

@@ -213,3 +213,103 @@ class TestSvgRasterization:
         # Top-left corner: red channel (byte 0) high, alpha (byte 3) fully opaque.
         assert raw[3] == 255
         assert raw[0] > 200
+
+
+# ---------------------------------------------------------------------------
+# SVG pipeline options: auto_trim, preserve_aspect, remove_bg
+# ---------------------------------------------------------------------------
+
+# Wide SVG: content fills left half only (circle in 200x100 viewBox).
+_WIDE_SVG = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100" width="200" height="100">
+  <circle cx="100" cy="50" r="45" fill="blue"/>
+</svg>
+"""
+
+# SVG with a small circle surrounded by large transparent padding.
+_PADDED_SVG = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <circle cx="50" cy="50" r="10" fill="red"/>
+</svg>
+"""
+
+
+@pytest.fixture
+def wide_svg(tmp_path: Path) -> Path:
+    p = tmp_path / "wide.svg"
+    p.write_text(_WIDE_SVG, encoding="utf-8")
+    return p
+
+
+@pytest.fixture
+def padded_svg(tmp_path: Path) -> Path:
+    p = tmp_path / "padded.svg"
+    p.write_text(_PADDED_SVG, encoding="utf-8")
+    return p
+
+
+@requires_cairosvg
+class TestSvgPipelineOptions:
+    def test_svg_preserve_aspect_letterboxes_non_square(
+        self, wide_svg: Path, tmp_path: Path
+    ) -> None:
+        """A 2:1 SVG converted to a square frame must be letterboxed, not stretched."""
+
+        config = IcoConfig(
+            sizes=(SizeSpec(32, 32),),
+            preserve_aspect=True,
+        )
+        frames = render_frames(wide_svg, config)
+        assert len(frames) == 1
+        frame = frames[0]
+        assert frame.size == (32, 32)
+
+        # Letterbox: top and bottom rows must have some transparent pixels because
+        # the 2:1 content only fills the horizontal band in the centre.
+        top_row_alphas = [frame.getpixel((x, 0))[3] for x in range(32)]  # type: ignore[index]
+        bottom_row_alphas = [frame.getpixel((x, 31))[3] for x in range(32)]  # type: ignore[index]
+        assert all(a == 0 for a in top_row_alphas), "top row should be transparent (letterbox)"
+        assert all(a == 0 for a in bottom_row_alphas), (
+            "bottom row should be transparent (letterbox)"
+        )
+
+    def test_svg_auto_trim_removes_transparent_border(
+        self, padded_svg: Path, tmp_path: Path
+    ) -> None:
+        """auto_trim must crop the large transparent border around the SVG content."""
+        from PIL import Image
+
+        config_notrim = IcoConfig(sizes=(SizeSpec(64, 64),), preserve_aspect=True)
+        config_trim = IcoConfig(sizes=(SizeSpec(64, 64),), auto_trim=True, preserve_aspect=True)
+
+        frame_notrim = render_frames(padded_svg, config_notrim)[0]
+        frame_trim = render_frames(padded_svg, config_trim)[0]
+
+        # Without trim: the small circle is scaled along with all the padding,
+        # so the opaque area relative to the full frame is tiny.
+        # With trim: content fills more of the frame.
+        def _opaque_pixel_count(img: Image.Image) -> int:
+            return sum(
+                1
+                for x in range(img.width)
+                for y in range(img.height)
+                if img.getpixel((x, y))[3] > 0
+            )  # type: ignore[index]
+
+        assert _opaque_pixel_count(frame_trim) > _opaque_pixel_count(frame_notrim)
+
+    def test_svg_remove_bg_is_called(
+        self, simple_svg: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """remove_bg=True must invoke remove_background on the SVG rasterization."""
+        from unittest.mock import MagicMock
+
+        mock_rb = MagicMock(side_effect=lambda img: img)
+        monkeypatch.setattr("icoforge.core.bg_remover.remove_background", mock_rb)
+
+        config = IcoConfig(sizes=(SizeSpec(32, 32),), remove_bg=True)
+        render_frames(simple_svg, config)
+
+        mock_rb.assert_called_once()

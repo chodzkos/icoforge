@@ -411,3 +411,112 @@ def test_convert_no_source_overrides_unchanged(tmp_path: Path) -> None:
     result = CliRunner().invoke(main, ["convert", str(src), str(out), "--sizes", "16,32"])
     assert result.exit_code == 0, result.output
     assert _ico_sizes(out) == {(16, 16), (32, 32)}
+
+
+# ---------------------------------------------------------------------------
+# optimize command — safe-default behaviour
+# ---------------------------------------------------------------------------
+
+
+def _make_opt_png(tmp_path: Path, name: str = "src.png") -> Path:
+    img = Image.new("RGBA", (32, 32), (0, 128, 255, 255))
+    p = tmp_path / name
+    img.save(p, "PNG")
+    return p
+
+
+class TestOptimizeCli:
+    def test_default_creates_min_png_source_untouched(self, tmp_path: Path) -> None:
+        """No flags: writes <stem>.min.png; source bytes unchanged."""
+        src = _make_opt_png(tmp_path)
+        original_bytes = src.read_bytes()
+
+        result = CliRunner().invoke(main, ["optimize", str(src)])
+
+        assert result.exit_code == 0, result.output
+        min_png = tmp_path / "src.min.png"
+        assert min_png.exists(), ".min.png must be created in default mode"
+        assert src.read_bytes() == original_bytes, "source must not be modified"
+
+    def test_in_place_modifies_source_no_min_png(self, tmp_path: Path) -> None:
+        """--in-place overwrites source; no .min.png created."""
+        src = _make_opt_png(tmp_path)
+        original_bytes = src.read_bytes()
+
+        result = CliRunner().invoke(main, ["optimize", "--in-place", str(src)])
+
+        assert result.exit_code == 0, result.output
+        # oxipng should produce something smaller (solid-colour PNG compresses well)
+        assert len(src.read_bytes()) <= len(original_bytes)
+        assert not (tmp_path / "src.min.png").exists()
+
+    def test_output_flag_writes_to_given_path(self, tmp_path: Path) -> None:
+        """--output writes to the given path; source unchanged."""
+        src = _make_opt_png(tmp_path)
+        out = tmp_path / "result.png"
+        original_bytes = src.read_bytes()
+
+        result = CliRunner().invoke(main, ["optimize", "--output", str(out), str(src)])
+
+        assert result.exit_code == 0, result.output
+        assert out.exists()
+        assert src.read_bytes() == original_bytes
+
+    def test_in_place_and_output_conflict(self, tmp_path: Path) -> None:
+        """--in-place together with --output must exit non-zero."""
+        src = _make_opt_png(tmp_path)
+        out = tmp_path / "result.png"
+
+        result = CliRunner().invoke(
+            main, ["optimize", "--in-place", "--output", str(out), str(src)]
+        )
+
+        assert result.exit_code != 0
+
+    def test_default_target_exists_without_force_exits_nonzero(self, tmp_path: Path) -> None:
+        """If <stem>.min.png already exists, error without --force."""
+        src = _make_opt_png(tmp_path)
+        existing = tmp_path / "src.min.png"
+        existing.write_bytes(b"existing")
+
+        result = CliRunner().invoke(main, ["optimize", str(src)])
+
+        assert result.exit_code != 0
+        assert existing.read_bytes() == b"existing", "existing file must not be overwritten"
+
+    def test_default_force_overwrites_existing_min_png(self, tmp_path: Path) -> None:
+        """--force allows overwriting an existing <stem>.min.png."""
+        src = _make_opt_png(tmp_path)
+        existing = tmp_path / "src.min.png"
+        existing.write_bytes(b"old")
+
+        result = CliRunner().invoke(main, ["optimize", "--force", str(src)])
+
+        assert result.exit_code == 0, result.output
+        assert existing.read_bytes() != b"old", "--force must overwrite the existing file"
+
+    def test_multiple_files_without_in_place_exits_nonzero(self, tmp_path: Path) -> None:
+        """Multiple files without --in-place must refuse with exit code != 0."""
+        a = _make_opt_png(tmp_path, "a.png")
+        b = _make_opt_png(tmp_path, "b.png")
+        bytes_a = a.read_bytes()
+        bytes_b = b.read_bytes()
+
+        result = CliRunner().invoke(main, ["optimize", str(a), str(b)])
+
+        assert result.exit_code != 0
+        assert a.read_bytes() == bytes_a, "file a must not be touched"
+        assert b.read_bytes() == bytes_b, "file b must not be touched"
+
+    def test_multiple_files_with_in_place(self, tmp_path: Path) -> None:
+        """Multiple files with --in-place optimizes all in-place."""
+        a = _make_opt_png(tmp_path, "a.png")
+        b = _make_opt_png(tmp_path, "b.png")
+        size_a_before = a.stat().st_size
+        size_b_before = b.stat().st_size
+
+        result = CliRunner().invoke(main, ["optimize", "--in-place", str(a), str(b)])
+
+        assert result.exit_code == 0, result.output
+        assert a.stat().st_size <= size_a_before
+        assert b.stat().st_size <= size_b_before
