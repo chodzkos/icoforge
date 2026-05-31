@@ -20,6 +20,7 @@ from PySide6.QtGui import (
     QWheelEvent,
 )
 from PySide6.QtWidgets import (
+    QApplication,
     QGraphicsItem,
     QGraphicsPixmapItem,
     QGraphicsScene,
@@ -49,9 +50,15 @@ class CheckerboardBackground(QGraphicsItem):
         return QRectF(0, 0, self.width, self.height)
 
     def paint(self, painter: QPainter, option: object, widget: object | None = None) -> None:
-        """Draw checkerboard pattern."""
-        color1 = QColor(200, 200, 200)
-        color2 = QColor(220, 220, 220)
+        """Draw checkerboard pattern, adapting colours to the current palette."""
+        app = QApplication.instance()
+        is_dark = isinstance(app, QApplication) and app.palette().window().color().lightness() < 128
+        if is_dark:
+            color1 = QColor(58, 58, 58)
+            color2 = QColor(42, 42, 42)
+        else:
+            color1 = QColor(204, 204, 204)
+            color2 = QColor(255, 255, 255)
 
         for y in range(0, self.height, self.square_size):
             for x in range(0, self.width, self.square_size):
@@ -217,12 +224,36 @@ class EditorCanvas(QGraphicsView):
         self._selection_timer.setInterval(80)
         self._selection_timer.timeout.connect(self._tick_selection)
 
-        self.setBackgroundBrush(QBrush(QColor(50, 50, 50)))
+        self._update_background_brush()
         self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
 
         self._nav = NavigationOverlay(self.viewport())
         self._nav.scroll_requested.connect(self._on_nav_scroll)
+
+        # Connect to ThemeManager if already initialised (not available in unit tests).
+        from icoforge.utils.theme import get_theme_manager
+
+        mgr = get_theme_manager()
+        if mgr is not None:
+            mgr.theme_changed.connect(self._on_theme_changed)
+
+    # ------------------------------------------------------------------
+    # Theme support
+    # ------------------------------------------------------------------
+
+    def _update_background_brush(self) -> None:
+        """Set canvas background colour to match the current application theme."""
+        app = QApplication.instance()
+        is_dark = isinstance(app, QApplication) and app.palette().window().color().lightness() < 128
+        bg = QColor(50, 50, 50) if is_dark else QColor(210, 210, 210)
+        self.setBackgroundBrush(QBrush(bg))
+
+    def _on_theme_changed(self, _theme: str) -> None:
+        """React to a palette change: update background and repaint checkerboard."""
+        self._update_background_brush()
+        if self._checkerboard is not None:
+            self._checkerboard.update()
 
     # ------------------------------------------------------------------
     # Image loading

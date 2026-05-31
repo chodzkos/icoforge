@@ -25,6 +25,18 @@ def _save(data: dict[str, object]) -> None:
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
+def get_setting(key: str, default: str = "") -> str:
+    """Return a string setting value, falling back to *default* if absent."""
+    return str(_load().get(key, default))
+
+
+def save_setting(key: str, value: str) -> None:
+    """Persist a single string setting without touching other keys."""
+    data = _load()
+    data[key] = value
+    _save(data)
+
+
 def get_language() -> str:
     """Return the configured UI language code ("pl" or "en"). Default: "pl"."""
     return str(_load().get("language", "pl"))
