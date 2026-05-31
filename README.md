@@ -145,8 +145,11 @@ icoforge
 # CLI — konwersja
 icoforge-cli convert input.png output.ico --sizes 16,32,48,256
 
-# CLI — optymalizacja
-icoforge-cli optimize input.png --output input.min.png
+# CLI — optymalizacja (domyslnie tworzy input.min.png, zrodlo nietkniete)
+icoforge-cli optimize input.png
+icoforge-cli optimize input.png --output compressed.png   # podana sciezka
+icoforge-cli optimize input.png --in-place                # nadpisz zrodlo
+icoforge-cli optimize a.png b.png --in-place              # wiele plikow
 
 # CLI — usuwanie tła
 icoforge-cli convert input.png output.ico --sizes 256 --remove-bg
