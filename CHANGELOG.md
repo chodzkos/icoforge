@@ -6,6 +6,42 @@ Projekt stosuje [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.2.1] - 2026-06-01
+
+### Dodane
+
+- **Tryb ciemny / jasny** — menu Widok → Motyw z trzema opcjami (QActionGroup,
+  wzajemnie wykluczające sie): Automatyczny (sledzi OS), Ciemny (qdarktheme),
+  Jasny (natywny Qt). Wybor zapisywany w `settings.json`; przywracany przy
+  starcie aplikacji.
+- `utils/theme.py`: nowa klasa `ThemeManager` (QObject, singleton); zapamiętuje
+  natywny styl / paletę / stylesheet przed pierwszym wywołaniem qdarktheme, by
+  tryb jasny mozna bylo przywrocic do dokladnie oryginalnego wygladu.
+- `utils/settings.py`: generyczne helpery `get_setting()` / `save_setting()`.
+- `pyproject.toml`: nowa zaleznosc `pyqtdarktheme>=0.1.7`.
+
+### Naprawione
+
+- **Tryb jasny = wygląd natywny Qt** — qdarktheme 0.1.7 nakładał własny płaski
+  jasny motyw. `ThemeManager._apply_native_light()` przywraca oryginalny styl,
+  paletę i stylesheet zamiast wołac qdarktheme dla "light". Wygląd trybu
+  jasnego jest pixel-identyczny z wersją sprzed wprowadzenia motywów.
+- Szachownica canvasu dostosowuje kolory do aktywnej palety aplikacji (jasna:
+  biały/szary; ciemna: ciemnoszary/grafitowy) — bez potrzeby osobnych
+  wywołań konfiguracyjnych.
+
+### Zmienione
+
+- `__main__.py`: `ThemeManager` tworzony przed `MainWindow`; podłączony do
+  `styleHints().colorSchemeChanged` dla live-update bez restartu.
+- `gui/editor/canvas.py`: `CheckerboardBackground.paint()` czyta jasność biezacej
+  palety w kazdym odswiezeniu; `EditorCanvas._on_theme_changed()` aktualizuje
+  kolor tla widoku.
+- `gui/main_window.py`: nowe menu Widok → Motyw; `_on_about` wybiera
+  `logo-dark.png` / `logo-light.png` (fallback do `logo.png`).
+
+---
+
 ## [1.2.0] - 2026-05-31
 
 ### Naprawione

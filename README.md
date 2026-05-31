@@ -40,7 +40,9 @@ do tworzenia ikon od podstaw.
 ### Interfejs
 - GUI (PySide6): drag & drop, podgląd każdego rozmiaru, pasek postępu
 - CLI: `icoforge-cli convert`, `icoforge-cli optimize`
+- Tryb ciemny / jasny: Widok → Motyw (Automatyczny / Ciemny / Jasny); jasny = natywny Qt, ciemny = qdarktheme
 - Lokalizacja PL/EN z przełącznikiem języka (Pomoc → Język)
+- Ostatnio otwarte pliki (max 10), zapamiętywanie pozycji okna
 - Instalator Windows + wersja portable
 
 ---

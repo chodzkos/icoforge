@@ -64,7 +64,7 @@ Status: `[ ]` planowane, `[~]` w trakcie, `[x]` gotowe.
 ## Interfejs i UX
 
 - [x] Ikona aplikacji
-- [ ] Tryb ciemny / jasny (auto-detekcja z systemu)
+- [x] Tryb ciemny / jasny (Widok -> Motyw: Automatyczny / Ciemny / Jasny; auto-detekcja z systemu, zapis w settings.json)
 - [x] Lokalizacja PL/EN (system tłumaczeń Qt — `tr()`)
 - [x] Lista ostatnio otwartych plikow (Recent Files, max 10)
 - [x] Zapamietywanie pozycji i rozmiaru okna miedzy uruchomieniami
