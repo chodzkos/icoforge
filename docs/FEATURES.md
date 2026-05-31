@@ -6,12 +6,12 @@ Status: `[ ]` planowane, `[~]` w trakcie, `[x]` gotowe.
 
 - [x] PNG → ICO (multi-resolution)
 - [x] Wybór rozdzielczości: 16, 20, 24, 32, 40, 48, 64, 96, 128, 256
-- [x] Wybór głębi bitowej: 8 / 24 / 32-bit per rozmiar
+- [x] Wybor glebosci bitowej: 8 / 24 / 32-bit per rozmiar (rzeczywisty tryb PNG: P / RGB / RGBA)
 - [x] Kanał alpha (RGBA) i przezroczystość
 - [x] Wybór algorytmu resamplingu per rozmiar
 - [x] JPG → ICO (z opcją tła dla braku alpha)
 - [x] BMP, GIF, WEBP, TIFF → ICO
-- [x] SVG → ICO (rasteryzacja per rozmiar, resvg-py lub cairosvg)
+- [x] SVG → ICO (rasteryzacja per rozmiar, resvg-py lub cairosvg; honoruje remove_bg, auto_trim, preserve_aspect)
 - [x] HEIC, AVIF → ICO (opcjonalny extra `pillow-heif`)
 - [x] Per-size source – inny plik źródłowy na każdy rozmiar
 - [x] Eksport ICNS (macOS)
@@ -51,7 +51,7 @@ Status: `[ ]` planowane, `[~]` w trakcie, `[x]` gotowe.
 - [x] Walidacja bezstratności (hash pikseli)
 - [x] Batch processing (folder, glob)
 - [x] Raport oszczędności (przed / po, MB i %)
-- [x] Opcja in-place lub do nowego pliku
+- [x] Domyslny bezpieczny zapis jako <stem>.min.png (zrodlo nienaruszone); --in-place nadpisuje, --output wskazuje sciezke
 
 ## Funkcje wspierające
 
@@ -66,8 +66,8 @@ Status: `[ ]` planowane, `[~]` w trakcie, `[x]` gotowe.
 - [x] Ikona aplikacji
 - [ ] Tryb ciemny / jasny (auto-detekcja z systemu)
 - [x] Lokalizacja PL/EN (system tłumaczeń Qt — `tr()`)
-- [ ] Lista ostatnio otwartych plików (Recent Files, max 10)
-- [ ] Zapamiętywanie pozycji i rozmiaru okna między uruchomieniami
+- [x] Lista ostatnio otwartych plikow (Recent Files, max 10)
+- [x] Zapamietywanie pozycji i rozmiaru okna miedzy uruchomieniami
 - [ ] Konfigurowalne skróty klawiszowe
 - [x] Toolbar z głównymi akcjami
 - [x] Pasek statusu z informacją o aktualnym pliku
