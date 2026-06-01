@@ -126,12 +126,22 @@ class ThemeManager(QObject):
         After a palette or stylesheet change Qt does not always propagate the
         new appearance to every child widget (QTableWidget viewport, items
         inside QScrollArea, etc.), leaving stale dark or light backgrounds.
-        Calling unpolish + polish + update on each widget flushes those caches.
+
+        Two flushes are needed:
+
+        1. ``unpolish`` + ``polish`` re-runs the active style on each widget.
+        2. ``setPalette(app.palette())`` re-merges the *current* application
+           palette into each widget with a full resolve mask. This is required
+           because ``QApplication.setPalette`` does not clear the per-widget
+           resolve bits set during a previous theme, so a QTableWidget keeps a
+           stale dark Base colour after switching dark -> light otherwise.
         """
         style = self._app.style()
+        app_palette = self._app.palette()
         for widget in self._app.allWidgets():
             style.unpolish(widget)
             style.polish(widget)
+            widget.setPalette(app_palette)
             widget.update()
 
 

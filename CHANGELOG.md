@@ -6,6 +6,27 @@ Projekt stosuje [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.2.3] - 2026-06-01
+
+### Naprawione
+
+- **Pasek tytulu nie zmienial sie na ciemny (Windows 64-bit)** — `winId()`
+  byl przekazywany do `DwmSetWindowAttribute` jako zwykly int Pythona, przez
+  co ctypes marshalowal go jako 32-bitowy `int` i OBCINAL 64-bitowy HWND.
+  DWM dostawal nieprawidlowy uchwyt i wywolanie po cichu zawodzilo. Uchwyt
+  jest teraz opakowany w `wintypes.HWND`, a funkcji ustawiono `argtypes`.
+  Dodatkowo `SetWindowPos(..., SWP_FRAMECHANGED)` wymusza natychmiastowe
+  przemalowanie ramki (bez tego pasek zmienial sie dopiero po ruszeniu okna).
+- **Ciemne pozostalosci w widgecie "Rozmiary" po cyklu jasny -> ciemny ->
+  jasny** — `QApplication.setPalette` nie czysci per-widgetowych bitow
+  "resolve" ustawionych przy poprzednim motywie, wiec `QTableWidget` i jego
+  viewport zachowywaly ciemny kolor `Base`. `ThemeManager._force_refresh()`
+  ponownie przypisuje teraz biezaca palete aplikacji do kazdego widgetu
+  (`setPalette(app.palette())`), co wymusza pelny resolve i czysci
+  pozostalosci w obu kierunkach.
+
+---
+
 ## [1.2.2] - 2026-06-01
 
 ### Naprawione
