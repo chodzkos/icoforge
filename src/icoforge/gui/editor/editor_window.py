@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QPoint, Qt
-from PySide6.QtGui import QAction, QCloseEvent, QColor, QFont, QKeySequence
+from PySide6.QtGui import QAction, QCloseEvent, QColor, QFont, QKeySequence, QShowEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -137,6 +137,12 @@ class EditorWindow(QMainWindow):
             self._update_title()
         else:
             self._load_ico(ico_path)
+
+        from icoforge.utils.theme import get_theme_manager
+
+        mgr = get_theme_manager()
+        if mgr is not None:
+            mgr.theme_changed.connect(self._on_theme_changed)
 
     # ------------------------------------------------------------------
     # Setup
@@ -727,6 +733,20 @@ class EditorWindow(QMainWindow):
         self._save_path = Path(path_str)
         self._is_new_file = False
         self._on_save()
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        from icoforge.utils.theme import get_theme_manager
+        from icoforge.utils.window_theme import set_titlebar_dark
+
+        mgr = get_theme_manager()
+        if mgr is not None:
+            set_titlebar_dark(self, mgr.current_resolved() == "dark")
+
+    def _on_theme_changed(self, resolved: str) -> None:
+        from icoforge.utils.window_theme import set_titlebar_dark
+
+        set_titlebar_dark(self, resolved == "dark")
 
     def closeEvent(self, event: QCloseEvent) -> None:
         from PySide6.QtWidgets import QMessageBox

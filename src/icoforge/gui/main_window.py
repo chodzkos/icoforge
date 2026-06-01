@@ -15,6 +15,7 @@ from PySide6.QtGui import (
     QIcon,
     QImage,
     QPixmap,
+    QShowEvent,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -52,6 +53,7 @@ from icoforge.gui.workers import ConversionWorker
 from icoforge.utils.paths import get_resource_path
 from icoforge.utils.recent_files import add_recent
 from icoforge.utils.window_state import restore_window_state, save_window_state
+from icoforge.utils.window_theme import set_titlebar_dark
 
 
 class _ExeIconPickerDialog(QDialog):
@@ -159,6 +161,9 @@ class MainWindow(QMainWindow):
         self._setup_central()
         self._setup_statusbar()
         restore_window_state(self)
+
+        if self._theme_manager is not None:
+            self._theme_manager.theme_changed.connect(self._on_theme_changed)
 
     # ------------------------------------------------------------------
     # Setup helpers
@@ -736,6 +741,17 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Window lifecycle
     # ------------------------------------------------------------------
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        # winId() is only valid once the native window exists (after first show).
+        # Apply the titlebar colour on the very first paint; subsequent changes
+        # are handled by _on_theme_changed which is connected in __init__.
+        if self._theme_manager is not None:
+            set_titlebar_dark(self, self._theme_manager.current_resolved() == "dark")
+
+    def _on_theme_changed(self, resolved: str) -> None:
+        set_titlebar_dark(self, resolved == "dark")
 
     def closeEvent(self, event: QCloseEvent) -> None:
         save_window_state(self)
