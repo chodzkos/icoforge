@@ -6,6 +6,33 @@ Projekt stosuje [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.2.2] - 2026-06-01
+
+### Naprawione
+
+- **Pozostalosci starego motywu po przełaczeniu** — Qt nie zawsze propaguje
+  zmiane palety/stylesheet do wszystkich widgetow potomnych (widoczne jako
+  ciemne fragmenty w widgecie "Rozmiary" po przejsciu jasny → ciemny → jasny).
+  `ThemeManager._force_refresh()` wykonuje teraz `style.unpolish / style.polish
+  / widget.update()` na kazdym widgecie aplikacji po kazdej zmianie motywu.
+  Dodatkowo hardcoded kolory `QColor(150,150,150)` i `QColor(0,0,0)` w
+  `SizeTable` zastapiono rolami palety (`PlaceholderText`, `Text`), zeby
+  kolor tekstu elementow tablicy aktualizowal sie niezaleznie od odswiezenia.
+
+### Dodane
+
+- **Ciemny pasek tytulu okna na Windows** — przy trybie ciemnym aplikacji
+  pasek tytulu (systemowy, z przyciskami okna) teraz rowniez jest ciemny,
+  nawet gdy Windows jest ustawiony w tryb jasny. Realizowane przez
+  `DwmSetWindowAttribute(DWMWA_USE_IMMERSIVE_DARK_MODE=20)` via ctypes
+  (nowy plik `utils/window_theme.py`). Obsluguje Windows 10 build 2004+
+  i Windows 11; fallback na atrybut 19 dla starszych pre-release buildow;
+  na innych systemach i przy braku DWM — cisza (no-op). Dotyczy okna
+  glownego i okna edytora; zmiana obowiazuje natychmiast po przelaczeniu
+  motywu bez restartu.
+
+---
+
 ## [1.2.1] - 2026-06-01
 
 ### Dodane
