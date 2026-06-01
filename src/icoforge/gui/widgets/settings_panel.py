@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QObject, QPoint, Qt, Signal
-from PySide6.QtGui import QColor, QDragEnterEvent, QDragMoveEvent, QDropEvent
+from PySide6.QtGui import QColor, QDragEnterEvent, QDragMoveEvent, QDropEvent, QPalette
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -92,6 +92,13 @@ class SizeTable(QTableWidget):
         self._overrides: dict[int, Path] = {}
         self._setup()
         self._populate()
+        # Connect to ThemeManager so placeholder foreground colours update on
+        # theme switch without relying on a repaint that ignores item data.
+        from icoforge.utils.theme import get_theme_manager
+
+        mgr = get_theme_manager()
+        if mgr is not None:
+            mgr.theme_changed.connect(self._refresh_source_foregrounds)
 
     # ------------------------------------------------------------------
     # Setup
@@ -139,7 +146,7 @@ class SizeTable(QTableWidget):
             # Column 2 — source path (or default placeholder)
             src_item = QTableWidgetItem(self.tr("(domyślne)"))
             src_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
-            src_item.setForeground(QColor(150, 150, 150))
+            src_item.setForeground(self.palette().color(QPalette.ColorRole.PlaceholderText))
             self.setItem(row, _COL_SOURCE, src_item)
 
             # Column 3 — browse button
@@ -151,6 +158,19 @@ class SizeTable(QTableWidget):
             self.setRowHeight(row, 26)
 
         self.itemChanged.connect(self._on_item_changed)
+
+    def _refresh_source_foregrounds(self, _theme: str = "") -> None:
+        """Re-apply palette-based foreground colours after a theme switch."""
+        placeholder_color = self.palette().color(QPalette.ColorRole.PlaceholderText)
+        text_color = self.palette().color(QPalette.ColorRole.Text)
+        for row in range(self.rowCount()):
+            item = self.item(row, _COL_SOURCE)
+            if item is None:
+                continue
+            if item.text() == self.tr("(domyślne)"):
+                item.setForeground(placeholder_color)
+            else:
+                item.setForeground(text_color)
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -170,7 +190,7 @@ class SizeTable(QTableWidget):
             if item:
                 item.setText(path.name)
                 item.setToolTip(str(path))
-                item.setForeground(QColor(0, 0, 0))
+                item.setForeground(self.palette().color(QPalette.ColorRole.Text))
             self._set_row_highlight(row, active=True)
         finally:
             self.itemChanged.connect(self._on_item_changed)
@@ -185,7 +205,7 @@ class SizeTable(QTableWidget):
             if item:
                 item.setText(self.tr("(domyślne)"))
                 item.setToolTip("")
-                item.setForeground(QColor(150, 150, 150))
+                item.setForeground(self.palette().color(QPalette.ColorRole.PlaceholderText))
             self._set_row_highlight(row, active=False)
         finally:
             self.itemChanged.connect(self._on_item_changed)

@@ -110,6 +110,7 @@ class ThemeManager(QObject):
             self._app.setPalette(qdarktheme.load_palette("dark"))
         else:
             self._apply_native_light()
+        self._force_refresh()
 
     def _apply_native_light(self) -> None:
         """Restore the original native Qt appearance (pre-qdarktheme state)."""
@@ -118,6 +119,20 @@ class ThemeManager(QObject):
         # Restore the native style object and palette captured at startup.
         self._app.setStyle(self._default_style)
         self._app.setPalette(self._default_palette)
+
+    def _force_refresh(self) -> None:
+        """Force a full style repolish on every widget in the application.
+
+        After a palette or stylesheet change Qt does not always propagate the
+        new appearance to every child widget (QTableWidget viewport, items
+        inside QScrollArea, etc.), leaving stale dark or light backgrounds.
+        Calling unpolish + polish + update on each widget flushes those caches.
+        """
+        style = self._app.style()
+        for widget in self._app.allWidgets():
+            style.unpolish(widget)
+            style.polish(widget)
+            widget.update()
 
 
 # ---------------------------------------------------------------------------
