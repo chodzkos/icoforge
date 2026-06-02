@@ -101,7 +101,7 @@ Pojawia się w panelu ustawień konwersji po poprawnej instalacji.
 
 ### Wymagania
 
-- Python 3.10–3.12 (64-bit)
+- Python 3.11–3.12 (64-bit)
 - Windows 10 / 11 (64-bit)
 - Microsoft Visual C++ Redistributable 2019 lub nowszy
   ([pobierz tutaj](https://aka.ms/vs/17/release/vc_redist.x64.exe))
