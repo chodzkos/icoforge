@@ -22,6 +22,8 @@ from icoforge.core import (
 from icoforge.core.converter import convert as run_convert
 from icoforge.core.converter import render_frames as run_render
 from icoforge.core.optimizer import optimize_batch, optimize_png
+from icoforge.core.presets import BUILTIN_PRESETS, list_user_presets
+from icoforge.core.presets import load_preset as load_user_preset
 
 _PRESETS: dict[str, tuple[SizeSpec, ...]] = {
     "windows": WINDOWS_APP_SIZES,
@@ -29,6 +31,32 @@ _PRESETS: dict[str, tuple[SizeSpec, ...]] = {
 }
 
 _BAR_WIDTH = 30
+
+
+def _load_named_preset(name: str) -> IcoConfig:
+    """Load a preset by name: tries builtin first, then user presets.
+
+    Args:
+        name: Preset name as shown in ``presets list``.
+
+    Returns:
+        Corresponding IcoConfig.
+
+    Raises:
+        click.BadParameter: If no preset with that name exists.
+    """
+    if name in BUILTIN_PRESETS:
+        return BUILTIN_PRESETS[name]
+    try:
+        return load_user_preset(name)
+    except FileNotFoundError:
+        pass
+    available = list(BUILTIN_PRESETS) + list_user_presets()
+    raise click.BadParameter(
+        f"Unknown preset {name!r}. Available: {', '.join(available)}",
+        param_hint="'--preset'",
+    )
+
 
 # Sizes for which `--source-N` flags are registered. Covers every size used
 # by the built-in presets (windows + favicon).
@@ -170,21 +198,30 @@ def main() -> None:
 @click.argument("source", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.argument("target", type=click.Path(dir_okay=False, path_type=Path))
 @click.option(
-    "--sizes",
-    default="16,32,48,256",
-    show_default=True,
+    "--preset",
+    default=None,
+    metavar="NAME",
     help=(
-        "Comma-separated target sizes in pixels, e.g. '16,32,48,256'.  "
-        "Presets: 'windows' (16,20,24,32,40,48,64,96,128,256), "
-        "'favicon' (16,32,48)."
+        "Load a named preset (builtin or user) as the base configuration.  "
+        "Use 'presets list' to see available names.  "
+        "--sizes and --resample override the preset when also provided."
+    ),
+)
+@click.option(
+    "--sizes",
+    default=None,
+    show_default=False,
+    help=(
+        "Comma-separated target sizes in pixels, e.g. '16,32,48,256' (default when no "
+        "--preset).  Presets: 'windows' (16,20,24,32,40,48,64,96,128,256), 'favicon' (16,32,48)."
     ),
 )
 @click.option(
     "--resample",
     type=click.Choice([a.value for a in ResampleAlgorithm]),
-    default=ResampleAlgorithm.LANCZOS.value,
-    show_default=True,
-    help="Resampling algorithm used when scaling the source image.",
+    default=None,
+    show_default=False,
+    help="Resampling algorithm (default: lanczos, or inherited from --preset).",
 )
 @click.option(
     "--background",
@@ -242,8 +279,9 @@ def main() -> None:
 def convert(
     source: Path,
     target: Path,
-    sizes: str,
-    resample: str,
+    preset: str | None,
+    sizes: str | None,
+    resample: str | None,
     background: str,
     bit_depth: str,
     keep_aspect: bool,
@@ -259,12 +297,30 @@ def convert(
     When TARGET ends with .cur the output is a Windows cursor file.
     Supported ICNS sizes: 16, 32, 64, 128, 256, 512, 1024.
     """
+    # Resolve sizes and resample: preset provides defaults, explicit flags override.
+    if preset:
+        base = _load_named_preset(preset)
+        resolved_sizes: str = sizes or ",".join(str(s.width) for s in base.sizes)
+        resolved_resample: str = resample or base.resample.value
+    else:
+        resolved_sizes = sizes or "16,32,48,256"
+        resolved_resample = resample or ResampleAlgorithm.LANCZOS.value
+
     suffix = target.suffix.lower()
     if suffix == ".icns":
-        _convert_icns(source, target, sizes, resample, background, keep_aspect)
+        _convert_icns(source, target, resolved_sizes, resolved_resample, background, keep_aspect)
         return
     if suffix == ".cur":
-        _convert_cur(source, target, sizes, resample, background, bit_depth, keep_aspect, hotspot)
+        _convert_cur(
+            source,
+            target,
+            resolved_sizes,
+            resolved_resample,
+            background,
+            bit_depth,
+            keep_aspect,
+            hotspot,
+        )
         return
 
     if remove_bg:
@@ -282,7 +338,7 @@ def convert(
             err=True,
         )
 
-    parsed_sizes = _parse_sizes(sizes)
+    parsed_sizes = _parse_sizes(resolved_sizes)
     source_overrides = _collect_source_overrides(per_size_sources, parsed_sizes)
     bd = cast(Literal[8, 24, 32], int(bit_depth))
     size_specs = tuple(
@@ -298,7 +354,7 @@ def convert(
     bg = _parse_background(background)
     config = IcoConfig(
         sizes=size_specs,
-        resample=ResampleAlgorithm(resample),
+        resample=ResampleAlgorithm(resolved_resample),
         background=bg,
         preserve_aspect=keep_aspect,
         auto_trim=auto_trim,
@@ -676,6 +732,53 @@ def extract_icons(source: Path, output_dir: Path) -> None:
 
     click.echo()
     click.secho(f"{len(icons)} icon(s) saved to {output_dir}/", fg="green")
+
+
+@main.group("presets")
+def presets_group() -> None:
+    """Manage named conversion presets (builtin and user-defined)."""
+
+
+@presets_group.command("list")
+def presets_list() -> None:
+    """List all available presets (builtin and user-defined)."""
+    click.secho("Built-in presets:", bold=True)
+    for name in BUILTIN_PRESETS:
+        click.echo(f"  {name}")
+
+    user = list_user_presets()
+    if user:
+        click.echo()
+        click.secho("User presets:", bold=True)
+        for name in user:
+            click.echo(f"  {name}")
+    else:
+        click.echo()
+        click.echo("No user presets saved yet.")
+
+
+@presets_group.command("show")
+@click.argument("name")
+def presets_show(name: str) -> None:
+    """Show configuration details for a named preset."""
+    try:
+        config = _load_named_preset(name)
+    except click.BadParameter as exc:
+        click.secho(str(exc), fg="red", err=True)
+        raise SystemExit(1) from exc
+
+    click.secho(f"Preset: {name}", bold=True)
+    click.echo(f"  Resample : {config.resample.value}")
+    bg = "transparent" if config.background is TRANSPARENT else str(config.background)
+    click.echo(f"  Background: {bg}")
+    click.echo(f"  Preserve aspect: {config.preserve_aspect}")
+    click.echo(f"  Auto-trim: {config.auto_trim}")
+    if config.auto_trim:
+        click.echo(f"  Trim padding: {config.auto_trim_padding} px")
+    click.echo(f"  Sizes ({len(config.sizes)}):")
+    for spec in config.sizes:
+        per = f"  [resample: {spec.resample.value}]" if spec.resample else ""
+        click.echo(f"    {spec.width}x{spec.height}  {spec.bit_depth}-bit{per}")
 
 
 if __name__ == "__main__":

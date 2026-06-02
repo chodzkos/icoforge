@@ -10,12 +10,15 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QColorDialog,
+    QComboBox,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
+    QInputDialog,
     QLabel,
     QMenu,
+    QMessageBox,
     QPushButton,
     QRadioButton,
     QSpinBox,
@@ -33,16 +36,18 @@ from icoforge.core.models import (
     ResampleAlgorithm,
     SizeSpec,
 )
+from icoforge.core.presets import (
+    BUILTIN_PRESETS,
+    list_user_presets,
+    load_preset,
+    save_preset,
+)
+from icoforge.utils.settings import get_setting
 
 _ALL_SIZES: tuple[int, ...] = (16, 20, 24, 32, 40, 48, 64, 96, 128, 256)
 _DEFAULT_SIZES: frozenset[int] = frozenset({16, 32, 48, 256})
-
-_PRESETS: dict[str, frozenset[int] | None] = {
-    "Niestandardowy": None,
-    "Favicon (16/32/48)": frozenset({16, 32, 48}),
-    "Windows App (wszystkie)": frozenset({16, 20, 24, 32, 40, 48, 64, 96, 128, 256}),
-    "Web (16/32/64/128)": frozenset({16, 32, 64, 128}),
-}
+_CUSTOM_PRESET_NAME = "Niestandardowy"
+_SETTINGS_KEY_DEFAULT_PRESET = "default_preset"
 
 _RESAMPLE_TOOLTIPS: dict[ResampleAlgorithm, str] = {
     ResampleAlgorithm.LANCZOS: "Wysoka jakość, najlepszy dla zdjęć i grafiki",
@@ -52,7 +57,7 @@ _RESAMPLE_TOOLTIPS: dict[ResampleAlgorithm, str] = {
     ResampleAlgorithm.BOX: "Szybki i ostry przy dużym zmniejszaniu",
 }
 
-_OVERRIDE_BG = QColor(200, 230, 255)  # light blue highlight for rows with override
+_OVERRIDE_BG = QColor(200, 230, 255)
 _DIALOG_FILTER = (
     "Image files "
     "(*.png *.jpg *.jpeg *.bmp *.gif *.webp *.tiff *.tif *.svg *.heic *.heif *.avif)"
@@ -80,6 +85,10 @@ _COL_SIZE = 1
 _COL_SOURCE = 2
 _COL_BTN = 3
 
+# Item data roles for the preset combo box
+_ROLE_PRESET_TYPE = Qt.ItemDataRole.UserRole  # "builtin" | "user" | "custom"
+_ROLE_PRESET_NAME = Qt.ItemDataRole.UserRole + 1  # str: canonical name
+
 
 class SizeTable(QTableWidget):
     """Per-size table: enable/disable each ICO size and assign a source override."""
@@ -92,8 +101,6 @@ class SizeTable(QTableWidget):
         self._overrides: dict[int, Path] = {}
         self._setup()
         self._populate()
-        # Connect to ThemeManager so placeholder foreground colours update on
-        # theme switch without relying on a repaint that ignores item data.
         from icoforge.utils.theme import get_theme_manager
 
         mgr = get_theme_manager()
@@ -120,15 +127,11 @@ class SizeTable(QTableWidget):
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._on_context_menu)
 
-        # Route drops through the viewport widget, NOT the table itself.
-        # setAcceptDrops(True) on QAbstractItemView activates Qt's internal
-        # drag machinery which can steal the cursor on WSLg/XWayland.
         self.viewport().setAcceptDrops(True)
         self.viewport().installEventFilter(self)
 
     def _populate(self) -> None:
         for row, size in enumerate(self._sizes):
-            # Column 0 — checkbox
             check = QTableWidgetItem()
             check.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
             check.setCheckState(
@@ -137,19 +140,16 @@ class SizeTable(QTableWidget):
             check.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.setItem(row, _COL_CHECK, check)
 
-            # Column 1 — size label
             size_item = QTableWidgetItem(f"{size}x{size}")
             size_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
             size_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.setItem(row, _COL_SIZE, size_item)
 
-            # Column 2 — source path (or default placeholder)
             src_item = QTableWidgetItem(self.tr("(domyślne)"))
             src_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
             src_item.setForeground(self.palette().color(QPalette.ColorRole.PlaceholderText))
             self.setItem(row, _COL_SOURCE, src_item)
 
-            # Column 3 — browse button
             btn = QPushButton(self.tr("Wybierz…"))
             btn.setFixedHeight(22)
             btn.clicked.connect(lambda _checked, s=size: self._on_browse(s))
@@ -160,7 +160,6 @@ class SizeTable(QTableWidget):
         self.itemChanged.connect(self._on_item_changed)
 
     def _refresh_source_foregrounds(self, _theme: str = "") -> None:
-        """Re-apply palette-based foreground colours after a theme switch."""
         placeholder_color = self.palette().color(QPalette.ColorRole.PlaceholderText)
         text_color = self.palette().color(QPalette.ColorRole.Text)
         for row in range(self.rowCount()):
@@ -182,8 +181,6 @@ class SizeTable(QTableWidget):
     def _set_override(self, size: int, path: Path) -> None:
         self._overrides[size] = path
         row = self._row_for_size(size)
-        # Disconnect itemChanged so cosmetic updates don't cascade into
-        # sizes_changed mid-method; emit once explicitly at the end.
         self.itemChanged.disconnect(self._on_item_changed)
         try:
             item = self.item(row, _COL_SOURCE)
@@ -227,8 +224,6 @@ class SizeTable(QTableWidget):
             self.sizes_changed.emit()
 
     def _on_browse(self, size: int) -> None:
-        # Parent to the top-level window so focus returns there after close.
-        # Using self (a child widget) as parent can break focus on WSLg.
         path, _ = QFileDialog.getOpenFileName(
             self.window(),
             self.tr("Źródło dla %1x%2").replace("%1", str(size)).replace("%2", str(size)),
@@ -252,15 +247,14 @@ class SizeTable(QTableWidget):
             self._clear_override(size)
 
     # ------------------------------------------------------------------
-    # Drag & drop (handled via viewport event filter, not the table itself,
-    # to avoid cursor interference from QAbstractItemView's drag machinery)
+    # Drag & drop
     # ------------------------------------------------------------------
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         if obj is self.viewport():
             t = event.type()
             if t == QEvent.Type.DragEnter:
-                de = event  # QDragEnterEvent
+                de = event
                 assert isinstance(de, QDragEnterEvent)
                 if de.mimeData().hasUrls():
                     urls = de.mimeData().urls()
@@ -270,7 +264,7 @@ class SizeTable(QTableWidget):
                 de.ignore()
                 return True
             if t == QEvent.Type.DragMove:
-                dm = event  # QDragMoveEvent
+                dm = event
                 assert isinstance(dm, QDragMoveEvent)
                 if dm.mimeData().hasUrls():
                     dm.acceptProposedAction()
@@ -278,7 +272,7 @@ class SizeTable(QTableWidget):
                     dm.ignore()
                 return True
             if t == QEvent.Type.Drop:
-                drop = event  # QDropEvent
+                drop = event
                 assert isinstance(drop, QDropEvent)
                 urls = drop.mimeData().urls()
                 if urls:
@@ -303,7 +297,6 @@ class SizeTable(QTableWidget):
         return sorted(result)
 
     def set_checked_sizes(self, sizes: frozenset[int]) -> None:
-        """Set which rows are checked without triggering the preset-reset logic."""
         self.itemChanged.disconnect(self._on_item_changed)
         for row, size in enumerate(self._sizes):
             item = self.item(row, _COL_CHECK)
@@ -314,7 +307,6 @@ class SizeTable(QTableWidget):
         self.itemChanged.connect(self._on_item_changed)
 
     def get_size_specs(self) -> tuple[SizeSpec, ...]:
-        """Return checked sizes as SizeSpec tuples, including any overrides."""
         specs: list[SizeSpec] = []
         for row, size in enumerate(self._sizes):
             item = self.item(row, _COL_CHECK)
@@ -332,11 +324,11 @@ class SettingsPanel(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
-        self._updating_preset: bool = False
+        self._loading_preset: bool = False
         self._bg_color: Color = Color(255, 255, 255)
 
         self._size_table: SizeTable
-        self._preset_buttons: dict[str, QRadioButton]
+        self._preset_combo: QComboBox
         self._resample_buttons: dict[ResampleAlgorithm, QRadioButton]
         self._radio_transparent: QRadioButton
         self._radio_color: QRadioButton
@@ -359,6 +351,8 @@ class SettingsPanel(QWidget):
             layout.addWidget(bg_group)
         layout.addStretch()
 
+        self._load_default_preset()
+
     # ------------------------------------------------------------------
     # Group builders
     # ------------------------------------------------------------------
@@ -379,18 +373,29 @@ class SettingsPanel(QWidget):
         group = QGroupBox(self.tr("Preset"))
         vbox = QVBoxLayout(group)
         vbox.setContentsMargins(8, 8, 8, 8)
-        vbox.setSpacing(2)
+        vbox.setSpacing(4)
 
-        self._preset_buttons = {}
-        for name in _PRESETS:
-            rb = QRadioButton(self.tr(name))
-            rb.toggled.connect(
-                lambda checked, n=name: self._on_preset_changed(n) if checked else None
-            )
-            self._preset_buttons[name] = rb
-            vbox.addWidget(rb)
-        self._preset_buttons["Niestandardowy"].setChecked(True)
+        self._preset_combo = QComboBox()
+        self._preset_combo.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
+        self._refresh_preset_combo(select_custom=True)
+        self._preset_combo.currentIndexChanged.connect(self._on_preset_combo_changed)
+        vbox.addWidget(self._preset_combo)
 
+        btn_row = QHBoxLayout()
+        btn_row.setContentsMargins(0, 0, 0, 0)
+        btn_row.setSpacing(4)
+
+        save_btn = QPushButton(self.tr("Zapisz preset…"))
+        save_btn.clicked.connect(self._save_preset_dialog)
+        btn_row.addWidget(save_btn)
+
+        manage_btn = QPushButton(self.tr("Zarządzaj…"))
+        manage_btn.clicked.connect(self._manage_presets_dialog)
+        btn_row.addWidget(manage_btn)
+
+        vbox.addLayout(btn_row)
         return group
 
     def _make_resample_group(self) -> QGroupBox:
@@ -442,7 +447,6 @@ class SettingsPanel(QWidget):
         return group
 
     def _make_bg_remove_group(self) -> QGroupBox | None:
-        """Return a group box for AI bg removal, or None if rembg is not installed."""
         from icoforge.core.bg_remover import MODEL_DOWNLOAD_WARNING, is_available
 
         if not is_available():
@@ -505,6 +509,63 @@ class SettingsPanel(QWidget):
         return group
 
     # ------------------------------------------------------------------
+    # Preset combo helpers
+    # ------------------------------------------------------------------
+
+    def _refresh_preset_combo(self, select_custom: bool = False) -> None:
+        """Rebuild the preset combo box contents from builtins + user presets."""
+        self._preset_combo.blockSignals(True)
+        self._preset_combo.clear()
+
+        # Index 0: custom
+        self._preset_combo.addItem(self.tr(_CUSTOM_PRESET_NAME))
+        model = self._preset_combo.model()
+        assert model is not None
+        model.setData(model.index(0, 0), "custom", _ROLE_PRESET_TYPE)
+        model.setData(model.index(0, 0), _CUSTOM_PRESET_NAME, _ROLE_PRESET_NAME)
+
+        # Separator + built-ins
+        self._preset_combo.insertSeparator(1)
+        for name, _config in BUILTIN_PRESETS.items():
+            idx = self._preset_combo.count()
+            self._preset_combo.addItem(f"🔒 {name}")
+            model.setData(model.index(idx, 0), "builtin", _ROLE_PRESET_TYPE)
+            model.setData(model.index(idx, 0), name, _ROLE_PRESET_NAME)
+
+        # User presets (separator only if any exist)
+        user = list_user_presets()
+        if user:
+            self._preset_combo.insertSeparator(self._preset_combo.count())
+            for name in user:
+                idx = self._preset_combo.count()
+                self._preset_combo.addItem(name)
+                model.setData(model.index(idx, 0), "user", _ROLE_PRESET_TYPE)
+                model.setData(model.index(idx, 0), name, _ROLE_PRESET_NAME)
+
+        if select_custom:
+            self._preset_combo.setCurrentIndex(0)
+
+        self._preset_combo.blockSignals(False)
+
+    def _find_combo_index(self, preset_type: str, name: str) -> int:
+        """Return the combo index for the given preset type+name, or 0 if not found."""
+        model = self._preset_combo.model()
+        assert model is not None
+        for i in range(self._preset_combo.count()):
+            if (
+                model.data(model.index(i, 0), _ROLE_PRESET_TYPE) == preset_type
+                and model.data(model.index(i, 0), _ROLE_PRESET_NAME) == name
+            ):
+                return i
+        return 0
+
+    def _select_preset_in_combo(self, preset_type: str, name: str) -> None:
+        """Set the combo to the given preset without triggering load logic."""
+        self._preset_combo.blockSignals(True)
+        self._preset_combo.setCurrentIndex(self._find_combo_index(preset_type, name))
+        self._preset_combo.blockSignals(False)
+
+    # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
@@ -535,31 +596,85 @@ class SettingsPanel(QWidget):
             remove_bg=remove_bg,
         )
 
+    def load_config(self, config: IcoConfig) -> None:
+        """Populate all panel widgets from *config* without emitting settings_changed.
+
+        Callers should set the preset combo themselves before or after this call.
+        """
+        self._loading_preset = True
+        try:
+            self._size_table.set_checked_sizes(frozenset(s.width for s in config.sizes))
+
+            rb = self._resample_buttons.get(config.resample)
+            if rb:
+                rb.setChecked(True)
+
+            if config.background is TRANSPARENT:
+                self._radio_transparent.setChecked(True)
+            else:
+                self._radio_color.setChecked(True)
+                bg = config.background
+                assert isinstance(bg, Color)
+                self._bg_color = bg
+                self._update_color_button()
+                self._color_btn.setEnabled(True)
+
+            self._auto_trim_check.setChecked(config.auto_trim)
+            self._trim_padding_spin.setValue(config.auto_trim_padding)
+            self._trim_padding_spin.setEnabled(config.auto_trim)
+        finally:
+            self._loading_preset = False
+
+        self.settings_changed.emit()
+
     # ------------------------------------------------------------------
     # Slots
     # ------------------------------------------------------------------
 
     def _on_size_table_changed(self) -> None:
-        if self._updating_preset:
+        if self._loading_preset:
             return
-        self._updating_preset = True
-        self._preset_buttons["Niestandardowy"].setChecked(True)
-        self._updating_preset = False
+        self._select_preset_in_combo("custom", _CUSTOM_PRESET_NAME)
         self.settings_changed.emit()
 
-    def _on_preset_changed(self, name: str) -> None:
-        if self._updating_preset:
+    def _on_preset_combo_changed(self, index: int) -> None:
+        if self._loading_preset:
             return
-        sizes = _PRESETS.get(name)
-        if sizes is None:
+        model = self._preset_combo.model()
+        assert model is not None
+        preset_type = model.data(model.index(index, 0), _ROLE_PRESET_TYPE)
+        preset_name = model.data(model.index(index, 0), _ROLE_PRESET_NAME)
+        if preset_type is None:
+            # Separator or invalid item — revert to custom
+            self._preset_combo.blockSignals(True)
+            self._preset_combo.setCurrentIndex(0)
+            self._preset_combo.blockSignals(False)
+            return
+        if preset_type == "custom":
             self.settings_changed.emit()
             return
-        self._updating_preset = True
-        self._size_table.set_checked_sizes(sizes)
-        self._updating_preset = False
-        self.settings_changed.emit()
+        if preset_type == "builtin":
+            config = BUILTIN_PRESETS.get(preset_name)
+            if config is not None:
+                self.load_config(config)
+                self._select_preset_in_combo("builtin", preset_name)
+            return
+        if preset_type == "user":
+            try:
+                config = load_preset(preset_name)
+                self.load_config(config)
+                self._select_preset_in_combo("user", preset_name)
+            except (FileNotFoundError, ValueError) as exc:
+                QMessageBox.warning(
+                    self,
+                    self.tr("Błąd wczytywania presetu"),
+                    self.tr("Nie można wczytać presetu:\n%1").replace("%1", str(exc)),
+                )
+                self._select_preset_in_combo("custom", _CUSTOM_PRESET_NAME)
 
     def _on_resample_changed(self, _algo: ResampleAlgorithm) -> None:
+        if not self._loading_preset:
+            self._select_preset_in_combo("custom", _CUSTOM_PRESET_NAME)
         self.settings_changed.emit()
 
     def _on_remove_bg_toggled(self, _checked: bool) -> None:
@@ -567,13 +682,19 @@ class SettingsPanel(QWidget):
 
     def _on_trim_toggled(self, checked: bool) -> None:
         self._trim_padding_spin.setEnabled(checked)
+        if not self._loading_preset:
+            self._select_preset_in_combo("custom", _CUSTOM_PRESET_NAME)
         self.settings_changed.emit()
 
     def _on_trim_padding_changed(self, _value: int) -> None:
+        if not self._loading_preset:
+            self._select_preset_in_combo("custom", _CUSTOM_PRESET_NAME)
         self.settings_changed.emit()
 
     def _on_bg_radio_toggled(self, checked: bool) -> None:
         self._color_btn.setEnabled(self._radio_color.isChecked())
+        if not self._loading_preset:
+            self._select_preset_in_combo("custom", _CUSTOM_PRESET_NAME)
         if checked:
             self.settings_changed.emit()
 
@@ -583,6 +704,7 @@ class SettingsPanel(QWidget):
         if color.isValid():
             self._bg_color = Color(color.red(), color.green(), color.blue())
             self._update_color_button()
+            self._select_preset_in_combo("custom", _CUSTOM_PRESET_NAME)
             self.settings_changed.emit()
 
     def _update_color_button(self) -> None:
@@ -590,3 +712,81 @@ class SettingsPanel(QWidget):
         self._color_btn.setStyleSheet(
             f"background-color: rgb({c.r}, {c.g}, {c.b}); border: 1px solid #888;"
         )
+
+    # ------------------------------------------------------------------
+    # Preset dialogs
+    # ------------------------------------------------------------------
+
+    def _save_preset_dialog(self) -> None:
+        """Show an input dialog and save the current config as a named preset."""
+        name, ok = QInputDialog.getText(
+            self,
+            self.tr("Zapisz preset"),
+            self.tr("Nazwa presetu:"),
+        )
+        if not ok or not name.strip():
+            return
+        name = name.strip()
+
+        if name in BUILTIN_PRESETS:
+            QMessageBox.warning(
+                self,
+                self.tr("Nazwa zarezerwowana"),
+                self.tr('Nie można nadpisać wbudowanego presetu "%1".').replace("%1", name),
+            )
+            return
+
+        user_presets = list_user_presets()
+        if name in user_presets:
+            reply = QMessageBox.question(
+                self,
+                self.tr("Nadpisać?"),
+                self.tr('Preset "%1" już istnieje. Nadpisać?').replace("%1", name),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+        save_preset(name, self.get_config())
+        self._refresh_preset_combo()
+        self._select_preset_in_combo("user", name)
+
+    def _manage_presets_dialog(self) -> None:
+        """Open the preset manager dialog."""
+        from icoforge.gui.widgets.presets_manager_dialog import PresetsManagerDialog
+
+        dlg = PresetsManagerDialog(self)
+        dlg.exec()
+        # Reload combo in case the user renamed/deleted/set default
+        idx = self._preset_combo.currentIndex()
+        combo_model = self._preset_combo.model()
+        if combo_model is not None:
+            midx = combo_model.index(idx, 0)
+            current_type = combo_model.data(midx, _ROLE_PRESET_TYPE)
+            current_name = combo_model.data(midx, _ROLE_PRESET_NAME)
+        else:
+            current_type = current_name = None
+        self._refresh_preset_combo()
+        if current_type and current_name:
+            self._select_preset_in_combo(current_type, current_name)
+
+    def _load_default_preset(self) -> None:
+        """If a default preset is configured, load it into the panel."""
+        default = get_setting(_SETTINGS_KEY_DEFAULT_PRESET, "")
+        if not default:
+            return
+        if default in BUILTIN_PRESETS:
+            config = BUILTIN_PRESETS[default]
+            self.load_config(config)
+            self._select_preset_in_combo("builtin", default)
+        else:
+            try:
+                config = load_preset(default)
+                self.load_config(config)
+                self._select_preset_in_combo("user", default)
+            except (FileNotFoundError, ValueError):
+                pass  # stale default — ignore silently
+
+
+# Re-export so callers that imported from here still work
+__all__ = ["_SETTINGS_KEY_DEFAULT_PRESET", "SettingsPanel", "SizeTable"]
