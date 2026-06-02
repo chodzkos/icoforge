@@ -24,9 +24,6 @@ _SWP_NOZORDER = 0x0004
 _SWP_NOACTIVATE = 0x0010
 _SWP_FRAMECHANGED = 0x0020
 
-# WM_NCACTIVATE triggers a full redraw of the non-client (titlebar) area.
-_WM_NCACTIVATE = 0x0086
-
 
 def set_titlebar_dark(window: QWidget, dark: bool) -> None:
     """Apply dark or light titlebar styling to *window* on Windows.
@@ -118,11 +115,17 @@ def set_titlebar_dark(window: QWidget, dark: bool) -> None:
         )
         logger.info("  SetWindowPos(SWP_FRAMECHANGED) -> %s", "OK" if swp_result else "FAIL")
 
-        # Step 2: WM_NCACTIVATE — force a visual repaint of the non-client area.
-        # On Windows 10, SWP_FRAMECHANGED updates the DWM attribute but does NOT
-        # always trigger a visible redraw of the titlebar on an already-visible
-        # window. Sending a fake deactivate (wParam=0) followed by a fake
-        # reactivate (wParam=1) forces a full NC-area redraw.
+        # Wymuś przemalowanie paska - fix dla Windows 10:
+        # 1. WM_NCACTIVATE: rozwiązuje problem braku odświeżenia przy
+        #    przełączeniu dark→light (pasek zostawał ciemny)
+        # 2. RedrawWindow: niweluje jasne tło pod tekstem tytułu okna
+        #    (artefakt Windows 10 przy DWMWA_USE_IMMERSIVE_DARK_MODE)
+        WM_NCACTIVATE = 0x0086
+        RDW_FRAME = 0x0400
+        RDW_INVALIDATE = 0x0001
+        RDW_UPDATENOW = 0x0100
+        RDW_NOCHILDREN = 0x0040
+
         user32.SendMessageW.argtypes = [
             wintypes.HWND,
             wintypes.UINT,
@@ -130,9 +133,21 @@ def set_titlebar_dark(window: QWidget, dark: bool) -> None:
             wintypes.LPARAM,
         ]
         user32.SendMessageW.restype = wintypes.LPARAM
-        user32.SendMessageW(hwnd, _WM_NCACTIVATE, 0, 0)  # fake deactivate
-        user32.SendMessageW(hwnd, _WM_NCACTIVATE, 1, 0)  # fake reactivate
-        logger.info("  WM_NCACTIVATE redraw -> OK")
+        user32.SendMessageW(hwnd, WM_NCACTIVATE, 0, 0)
+        user32.SendMessageW(hwnd, WM_NCACTIVATE, 1, 0)
+        logger.info("  WM_NCACTIVATE -> OK")
+
+        user32.RedrawWindow.argtypes = [
+            wintypes.HWND,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            wintypes.UINT,
+        ]
+        user32.RedrawWindow.restype = wintypes.BOOL
+        user32.RedrawWindow(
+            hwnd, None, None, RDW_FRAME | RDW_INVALIDATE | RDW_UPDATENOW | RDW_NOCHILDREN
+        )
+        logger.info("  RedrawWindow(RDW_FRAME) -> OK")
 
     except Exception as exc:
         logger.exception("set_titlebar_dark FAILED with exception: %s", exc)
