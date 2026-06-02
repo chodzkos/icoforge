@@ -53,8 +53,8 @@ icoforge = "icoforge.__main__:run_gui"
 icoforge-cli = "icoforge.cli:main"
 
 [project.urls]
-Repository = "https://github.com/your-user/icoforge"
-Issues = "https://github.com/your-user/icoforge/issues"
+Repository = "https://github.com/chodzkos/icoforge"
+Issues = "https://github.com/chodzkos/icoforge/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/icoforge"]
