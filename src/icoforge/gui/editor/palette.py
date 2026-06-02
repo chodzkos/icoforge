@@ -545,24 +545,27 @@ class PaletteWidget(QWidget):
             self._on_reset_palette()
 
     def _on_save_palette(self) -> None:
-        path_str, _ = QFileDialog.getSaveFileName(
-            self,
-            self.tr("Zapisz paletę"),
-            "",
-            self.tr("JSON (*.json);;Wszystkie pliki (*)"),
-        )
-        if path_str:
-            self.save_palette(Path(path_str))
+        from icoforge.utils.theme import get_theme_manager
+        from icoforge.utils.window_theme import apply_theme_to_dialog
+
+        dlg = QFileDialog(self, self.tr("Zapisz paletę"))
+        dlg.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+        dlg.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+        dlg.setNameFilters([self.tr("JSON (*.json)"), self.tr("Wszystkie pliki (*)")])
+        apply_theme_to_dialog(dlg, get_theme_manager())
+        if dlg.exec() and dlg.selectedFiles():
+            self.save_palette(Path(dlg.selectedFiles()[0]))
 
     def _on_load_palette(self) -> None:
-        path_str, _ = QFileDialog.getOpenFileName(
-            self,
-            self.tr("Wczytaj paletę"),
-            "",
-            self.tr("JSON (*.json);;Wszystkie pliki (*)"),
-        )
-        if path_str:
-            self.load_palette(Path(path_str))
+        from icoforge.utils.theme import get_theme_manager
+        from icoforge.utils.window_theme import apply_theme_to_dialog
+
+        dlg = QFileDialog(self, self.tr("Wczytaj paletę"))
+        dlg.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+        dlg.setNameFilters([self.tr("JSON (*.json)"), self.tr("Wszystkie pliki (*)")])
+        apply_theme_to_dialog(dlg, get_theme_manager())
+        if dlg.exec() and dlg.selectedFiles():
+            self.load_palette(Path(dlg.selectedFiles()[0]))
 
     def _on_reset_palette(self) -> None:
         self.set_colors(list(_DEFAULT_PALETTE))

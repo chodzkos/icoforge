@@ -119,6 +119,15 @@ class _ExeIconPickerDialog(QDialog):
             item.setData(256, i)
             self._list.addItem(item)
 
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        from icoforge.utils.theme import get_theme_manager
+        from icoforge.utils.window_theme import apply_theme_to_dialog
+
+        mgr = get_theme_manager()
+        if mgr is not None:
+            apply_theme_to_dialog(self, mgr)
+
     def selected_icons(self) -> list[tuple[int, bytes]]:
         result = []
         for item in self._list.selectedItems():
@@ -353,14 +362,25 @@ class MainWindow(QMainWindow):
         source = self.source_path
         if source is None:
             return
-        path, selected_filter = QFileDialog.getSaveFileName(
-            self,
-            self.tr("Zapisz plik"),
-            "",
-            self.tr("Pliki ICO (*.ico);;Pliki ICNS (*.icns);;Pliki kursora CUR (*.cur)"),
+        from icoforge.utils.window_theme import apply_theme_to_dialog
+
+        dlg_save = QFileDialog(self, self.tr("Zapisz plik"))
+        dlg_save.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+        dlg_save.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+        dlg_save.setNameFilters(
+            [
+                self.tr("Pliki ICO (*.ico)"),
+                self.tr("Pliki ICNS (*.icns)"),
+                self.tr("Pliki kursora CUR (*.cur)"),
+            ]
         )
+        apply_theme_to_dialog(dlg_save, self._theme_manager)
+        if not dlg_save.exec():
+            return
+        path = dlg_save.selectedFiles()[0]
         if not path:
             return
+        selected_filter = dlg_save.selectedNameFilter()
 
         if "icns" in selected_filter.lower():
             if not path.lower().endswith(".icns"):
@@ -457,6 +477,10 @@ class MainWindow(QMainWindow):
         buttons.rejected.connect(dlg.reject)
         layout.addWidget(buttons)
 
+        from icoforge.utils.window_theme import apply_theme_to_dialog
+
+        apply_theme_to_dialog(dlg, self._theme_manager)
+
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
 
@@ -483,11 +507,16 @@ class MainWindow(QMainWindow):
         if source is None:
             return
 
-        output_dir = QFileDialog.getExistingDirectory(
-            self,
-            self.tr("Wybierz folder wyjściowy dla Favicon Set"),
-            "",
-        )
+        from icoforge.utils.window_theme import apply_theme_to_dialog
+
+        dlg_dir = QFileDialog(self, self.tr("Wybierz folder wyjściowy dla Favicon Set"))
+        dlg_dir.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+        dlg_dir.setFileMode(QFileDialog.FileMode.Directory)
+        dlg_dir.setOption(QFileDialog.Option.ShowDirsOnly, True)
+        apply_theme_to_dialog(dlg_dir, self._theme_manager)
+        if not dlg_dir.exec():
+            return
+        output_dir = dlg_dir.selectedFiles()[0]
         if not output_dir:
             return
 
@@ -600,12 +629,13 @@ class MainWindow(QMainWindow):
             )
 
     def _on_edit_ico(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            self.tr("Otwórz plik ICO do edycji"),
-            "",
-            self.tr("Pliki ICO (*.ico)"),
-        )
+        from icoforge.utils.window_theme import apply_theme_to_dialog
+
+        dlg_ico = QFileDialog(self, self.tr("Otwórz plik ICO do edycji"))
+        dlg_ico.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+        dlg_ico.setNameFilter(self.tr("Pliki ICO (*.ico)"))
+        apply_theme_to_dialog(dlg_ico, self._theme_manager)
+        path = dlg_ico.selectedFiles()[0] if dlg_ico.exec() else ""
         if path:
             try:
                 self._editor_window = EditorWindow(Path(path))
@@ -621,12 +651,18 @@ class MainWindow(QMainWindow):
                 )
 
     def _on_extract_exe(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            self.tr("Wybierz plik EXE/DLL/OCX"),
-            "",
-            self.tr("Pliki Windows PE (*.exe *.dll *.ocx);;Wszystkie pliki (*)"),
+        from icoforge.utils.window_theme import apply_theme_to_dialog
+
+        dlg_exe = QFileDialog(self, self.tr("Wybierz plik EXE/DLL/OCX"))
+        dlg_exe.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+        dlg_exe.setNameFilters(
+            [
+                self.tr("Pliki Windows PE (*.exe *.dll *.ocx)"),
+                self.tr("Wszystkie pliki (*)"),
+            ]
         )
+        apply_theme_to_dialog(dlg_exe, self._theme_manager)
+        path = dlg_exe.selectedFiles()[0] if dlg_exe.exec() else ""
         if not path:
             return
 
@@ -666,7 +702,12 @@ class MainWindow(QMainWindow):
         if not selected:
             return
 
-        output_dir = QFileDialog.getExistingDirectory(self, self.tr("Wybierz folder zapisu"), "")
+        dlg_out = QFileDialog(self, self.tr("Wybierz folder zapisu"))
+        dlg_out.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+        dlg_out.setFileMode(QFileDialog.FileMode.Directory)
+        dlg_out.setOption(QFileDialog.Option.ShowDirsOnly, True)
+        apply_theme_to_dialog(dlg_out, self._theme_manager)
+        output_dir = dlg_out.selectedFiles()[0] if dlg_out.exec() else ""
         if not output_dir:
             return
 
@@ -790,6 +831,9 @@ class MainWindow(QMainWindow):
                 lambda _t: self._update_about_logo(logo_label)
             )
 
+        from icoforge.utils.window_theme import apply_theme_to_dialog
+
+        apply_theme_to_dialog(dlg, self._theme_manager)
         dlg.exec()
 
     def _update_about_logo(self, label: QLabel) -> None:

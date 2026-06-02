@@ -66,6 +66,9 @@ class DropZoneFrame(QFrame):
     def mousePressEvent(self, event: QMouseEvent) -> None:
         """Handle click to open file selection dialog."""
         if event.button() == Qt.MouseButton.LeftButton:
+            from icoforge.utils.theme import get_theme_manager
+            from icoforge.utils.window_theme import apply_theme_to_dialog
+
             dialog = QFileDialog(
                 self,
                 self.tr("Wybierz pliki PNG do optymalizacji"),
@@ -79,6 +82,7 @@ class DropZoneFrame(QFrame):
                 " QListView, QTreeView { border: 1px solid palette(mid); }"
                 " QSplitter::handle { background: palette(mid); }"
             )
+            apply_theme_to_dialog(dialog, get_theme_manager())
             if dialog.exec():
                 selected = dialog.selectedFiles()
                 if selected:
@@ -235,9 +239,16 @@ class OptimizationPanel(QWidget):
 
     def _on_choose_folder(self) -> None:
         """Open folder selection dialog."""
-        folder = QFileDialog.getExistingDirectory(self, self.tr("Wybierz folder wyjściowy"))
-        if folder:
-            self._selected_folder = Path(folder)
+        from icoforge.utils.theme import get_theme_manager
+        from icoforge.utils.window_theme import apply_theme_to_dialog
+
+        dlg = QFileDialog(self, self.tr("Wybierz folder wyjściowy"))
+        dlg.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+        dlg.setFileMode(QFileDialog.FileMode.Directory)
+        dlg.setOption(QFileDialog.Option.ShowDirsOnly, True)
+        apply_theme_to_dialog(dlg, get_theme_manager())
+        if dlg.exec() and dlg.selectedFiles():
+            self._selected_folder = Path(dlg.selectedFiles()[0])
             self._folder_button.setText(f".../{self._selected_folder.name}")
 
     def _on_optimize_clicked(self) -> None:
@@ -329,9 +340,15 @@ class OptimizationPanel(QWidget):
 
     def _on_export_csv(self) -> None:
         """Export results to CSV file."""
-        path_str, _ = QFileDialog.getSaveFileName(
-            self, self.tr("Zapisz raport"), "", self.tr("CSV (*.csv)")
-        )
+        from icoforge.utils.theme import get_theme_manager
+        from icoforge.utils.window_theme import apply_theme_to_dialog
+
+        dlg_csv = QFileDialog(self, self.tr("Zapisz raport"))
+        dlg_csv.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+        dlg_csv.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+        dlg_csv.setNameFilter(self.tr("CSV (*.csv)"))
+        apply_theme_to_dialog(dlg_csv, get_theme_manager())
+        path_str = dlg_csv.selectedFiles()[0] if dlg_csv.exec() else ""
         if not path_str:
             return
 

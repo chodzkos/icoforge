@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QShowEvent
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -54,6 +55,15 @@ class PresetsManagerDialog(QDialog):
         layout.addWidget(buttons)
 
         self._refresh_list()
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        from icoforge.utils.theme import get_theme_manager
+        from icoforge.utils.window_theme import apply_theme_to_dialog
+
+        mgr = get_theme_manager()
+        if mgr is not None:
+            apply_theme_to_dialog(self, mgr)
 
     # ------------------------------------------------------------------
     # UI builders
@@ -226,12 +236,14 @@ class PresetsManagerDialog(QDialog):
         self._refresh_list()
 
     def _on_import(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            self.tr("Importuj preset"),
-            "",
-            self.tr("Preset IcoForge (*.json);;Wszystkie pliki (*)"),
-        )
+        from icoforge.utils.theme import get_theme_manager
+        from icoforge.utils.window_theme import apply_theme_to_dialog
+
+        dlg = QFileDialog(self, self.tr("Importuj preset"))
+        dlg.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+        dlg.setNameFilters([self.tr("Preset IcoForge (*.json)"), self.tr("Wszystkie pliki (*)")])
+        apply_theme_to_dialog(dlg, get_theme_manager())
+        path = dlg.selectedFiles()[0] if dlg.exec() else ""
         if not path:
             return
         try:
@@ -255,12 +267,18 @@ class PresetsManagerDialog(QDialog):
         name = self._current_user_name()
         if name is None:
             return
-        path, _ = QFileDialog.getSaveFileName(
-            self,
-            self.tr("Eksportuj preset"),
-            f"{name}.json",
-            self.tr("Preset IcoForge (*.json);;Wszystkie pliki (*)"),
+        from icoforge.utils.theme import get_theme_manager
+        from icoforge.utils.window_theme import apply_theme_to_dialog
+
+        dlg_exp = QFileDialog(self, self.tr("Eksportuj preset"))
+        dlg_exp.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+        dlg_exp.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+        dlg_exp.setNameFilters(
+            [self.tr("Preset IcoForge (*.json)"), self.tr("Wszystkie pliki (*)")]
         )
+        dlg_exp.selectFile(f"{name}.json")
+        apply_theme_to_dialog(dlg_exp, get_theme_manager())
+        path = dlg_exp.selectedFiles()[0] if dlg_exp.exec() else ""
         if not path:
             return
         try:

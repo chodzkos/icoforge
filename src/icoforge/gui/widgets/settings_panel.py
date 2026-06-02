@@ -224,14 +224,18 @@ class SizeTable(QTableWidget):
             self.sizes_changed.emit()
 
     def _on_browse(self, size: int) -> None:
-        path, _ = QFileDialog.getOpenFileName(
+        from icoforge.utils.theme import get_theme_manager
+        from icoforge.utils.window_theme import apply_theme_to_dialog
+
+        dlg = QFileDialog(
             self.window(),
             self.tr("Źródło dla %1x%2").replace("%1", str(size)).replace("%2", str(size)),
-            "",
-            _DIALOG_FILTER,
         )
-        if path:
-            self._set_override(size, Path(path))
+        dlg.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+        dlg.setNameFilter(_DIALOG_FILTER)
+        apply_theme_to_dialog(dlg, get_theme_manager())
+        if dlg.exec() and dlg.selectedFiles():
+            self._set_override(size, Path(dlg.selectedFiles()[0]))
 
     def _on_context_menu(self, pos: QPoint) -> None:
         row = self.rowAt(pos.y())

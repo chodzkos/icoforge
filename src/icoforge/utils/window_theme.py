@@ -155,3 +155,27 @@ def set_titlebar_dark(window: QWidget, dark: bool) -> None:
 
     except Exception as exc:
         logger.exception("set_titlebar_dark FAILED with exception: %s", exc)
+
+
+def apply_theme_to_dialog(dialog: QWidget, theme_manager: object) -> None:
+    """Apply dark or light DWM titlebar to *dialog* as soon as its handle exists.
+
+    Safe to call before ``show()`` or ``exec()``: if the native window handle
+    does not exist yet a zero-delay timer is used so the DWM call fires on the
+    first event-loop tick after the dialog appears.
+
+    On non-Windows platforms this is a no-op.
+
+    Args:
+        dialog: The dialog (or any top-level QWidget) to style.
+        theme_manager: Application ThemeManager.  Passing ``None`` is safe.
+    """
+    if sys.platform != "win32" or theme_manager is None:
+        return
+    dark: bool = getattr(theme_manager, "current_resolved", lambda: "light")() == "dark"
+    if int(dialog.winId()) != 0:
+        set_titlebar_dark(dialog, dark)
+    else:
+        from PySide6.QtCore import QTimer
+
+        QTimer.singleShot(0, lambda: set_titlebar_dark(dialog, dark))
