@@ -723,32 +723,41 @@ class SettingsPanel(QWidget):
 
     def _save_preset_dialog(self) -> None:
         """Show an input dialog and save the current config as a named preset."""
-        name, ok = QInputDialog.getText(
-            self,
-            self.tr("Zapisz preset"),
-            self.tr("Nazwa presetu:"),
-        )
-        if not ok or not name.strip():
+        from icoforge.utils.theme import get_theme_manager
+        from icoforge.utils.window_theme import apply_theme_to_dialog
+
+        mgr = get_theme_manager()
+
+        input_dlg = QInputDialog(self)
+        input_dlg.setWindowTitle(self.tr("Zapisz preset"))
+        input_dlg.setLabelText(self.tr("Nazwa presetu:"))
+        apply_theme_to_dialog(input_dlg, mgr)
+        if input_dlg.exec() != QInputDialog.DialogCode.Accepted:
             return
-        name = name.strip()
+        name = input_dlg.textValue().strip()
+        if not name:
+            return
 
         if name in BUILTIN_PRESETS:
-            QMessageBox.warning(
-                self,
-                self.tr("Nazwa zarezerwowana"),
-                self.tr('Nie można nadpisać wbudowanego presetu "%1".').replace("%1", name),
+            warn = QMessageBox(self)
+            warn.setWindowTitle(self.tr("Nazwa zarezerwowana"))
+            warn.setText(
+                self.tr('Nie można nadpisać wbudowanego presetu "%1".').replace("%1", name)
             )
+            apply_theme_to_dialog(warn, mgr)
+            warn.exec()
             return
 
         user_presets = list_user_presets()
         if name in user_presets:
-            reply = QMessageBox.question(
-                self,
-                self.tr("Nadpisać?"),
-                self.tr('Preset "%1" już istnieje. Nadpisać?').replace("%1", name),
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            confirm = QMessageBox(self)
+            confirm.setWindowTitle(self.tr("Nadpisać?"))
+            confirm.setText(self.tr('Preset "%1" już istnieje. Nadpisać?').replace("%1", name))
+            confirm.setStandardButtons(
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
-            if reply != QMessageBox.StandardButton.Yes:
+            apply_theme_to_dialog(confirm, mgr)
+            if confirm.exec() != QMessageBox.StandardButton.Yes:
                 return
 
         save_preset(name, self.get_config())

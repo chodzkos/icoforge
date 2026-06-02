@@ -68,20 +68,6 @@ def run_gui() -> int:
         lambda _: theme_manager.apply(theme_manager.current_setting())
     )
 
-    # Install a native event filter that intercepts WM_NCACTIVATE(wParam=0)
-    # and blocks the light "inactive" titlebar repaint in dark mode.
-    import sys
-
-    if sys.platform == "win32":
-        from icoforge.utils.native_event_filter import TitlebarEventFilter
-
-        titlebar_filter = TitlebarEventFilter()
-        app.installNativeEventFilter(titlebar_filter)
-        titlebar_filter.set_dark(theme_manager.current_resolved() == "dark")
-        theme_manager.theme_changed.connect(
-            lambda resolved: titlebar_filter.set_dark(resolved == "dark")
-        )
-
     from icoforge.gui.main_window import main as gui_main
 
     return gui_main(app, theme_manager=theme_manager)

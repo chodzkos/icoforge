@@ -44,8 +44,8 @@ class DropZoneFrame(QFrame):
         self.setFrameShape(QFrame.Shape.StyledPanel)
         # Use #dropZoneFrame so the rule never cascades into child QFileDialogs.
         self.setStyleSheet(
-            "QFrame#dropZoneFrame { border: 2px dashed #aaa; border-radius: 4px;"
-            " background-color: #f9f9f9; }"
+            "QFrame#dropZoneFrame { border: 2px dashed palette(mid); border-radius: 4px;"
+            " background-color: palette(base); }"
         )
         self.setAcceptDrops(True)
         self.setMinimumHeight(60)

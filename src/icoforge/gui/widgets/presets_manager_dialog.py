@@ -163,24 +163,42 @@ class PresetsManagerDialog(QDialog):
     # Slots
     # ------------------------------------------------------------------
 
+    def _themed_msgbox(
+        self,
+        title: str,
+        text: str,
+        buttons: QMessageBox.StandardButton = QMessageBox.StandardButton.Ok,
+    ) -> int:
+        """Show a QMessageBox with the correct dark/light titlebar."""
+        from icoforge.utils.theme import get_theme_manager
+        from icoforge.utils.window_theme import apply_theme_to_dialog
+
+        msg = QMessageBox(self)
+        msg.setWindowTitle(title)
+        msg.setText(text)
+        msg.setStandardButtons(buttons)
+        apply_theme_to_dialog(msg, get_theme_manager())
+        return int(msg.exec())
+
     def _on_rename(self) -> None:
         old_name = self._current_user_name()
         if old_name is None:
             return
-        new_name, ok = QInputDialog.getText(
-            self,
-            self.tr("Zmień nazwę"),
-            self.tr("Nowa nazwa:"),
-            text=old_name,
-        )
-        if not ok or not new_name.strip():
+        from icoforge.utils.theme import get_theme_manager
+        from icoforge.utils.window_theme import apply_theme_to_dialog
+
+        input_dlg = QInputDialog(self)
+        input_dlg.setWindowTitle(self.tr("Zmień nazwę"))
+        input_dlg.setLabelText(self.tr("Nowa nazwa:"))
+        input_dlg.setTextValue(old_name)
+        apply_theme_to_dialog(input_dlg, get_theme_manager())
+        if input_dlg.exec() != QInputDialog.DialogCode.Accepted:
             return
-        new_name = new_name.strip()
-        if new_name == old_name:
+        new_name = input_dlg.textValue().strip()
+        if not new_name or new_name == old_name:
             return
         if new_name in BUILTIN_PRESETS:
-            QMessageBox.warning(
-                self,
+            self._themed_msgbox(
                 self.tr("Nazwa zarezerwowana"),
                 self.tr('Nazwa "%1" jest zarezerwowana dla wbudowanego presetu.').replace(
                     "%1", new_name
@@ -188,8 +206,7 @@ class PresetsManagerDialog(QDialog):
             )
             return
         if new_name in list_user_presets():
-            reply = QMessageBox.question(
-                self,
+            reply = self._themed_msgbox(
                 self.tr("Nadpisać?"),
                 self.tr('Preset "%1" już istnieje. Nadpisać?').replace("%1", new_name),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -199,9 +216,8 @@ class PresetsManagerDialog(QDialog):
         try:
             rename_preset(old_name, new_name)
         except (FileNotFoundError, OSError) as exc:
-            QMessageBox.critical(self, self.tr("Błąd"), str(exc))
+            self._themed_msgbox(self.tr("Błąd"), str(exc))
             return
-        # Update default setting if the renamed preset was the default
         if get_setting(_SETTINGS_KEY_DEFAULT_PRESET, "") == old_name:
             save_setting(_SETTINGS_KEY_DEFAULT_PRESET, new_name)
         self._refresh_list()
@@ -210,8 +226,7 @@ class PresetsManagerDialog(QDialog):
         name = self._current_user_name()
         if name is None:
             return
-        reply = QMessageBox.question(
-            self,
+        reply = self._themed_msgbox(
             self.tr("Usuń preset"),
             self.tr('Usunąć preset "%1"?').replace("%1", name),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,

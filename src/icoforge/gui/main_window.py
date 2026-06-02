@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QSize, Qt, QThreadPool, QUrl
+from PySide6.QtCore import QEvent, QSize, Qt, QThreadPool, QUrl
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
@@ -789,6 +789,11 @@ class MainWindow(QMainWindow):
         # Apply the titlebar colour on the very first paint; subsequent changes
         # are handled by _on_theme_changed which is connected in __init__.
         if self._theme_manager is not None:
+            set_titlebar_dark(self, self._theme_manager.current_resolved() == "dark")
+
+    def changeEvent(self, event: QEvent) -> None:
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.ActivationChange and self._theme_manager is not None:
             set_titlebar_dark(self, self._theme_manager.current_resolved() == "dark")
 
     def _on_theme_changed(self, resolved: str) -> None:
