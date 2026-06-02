@@ -48,7 +48,9 @@ def write_icns(target: Path, images: list[Image.Image]) -> None:
     before encoding.
 
     Args:
-        target: Destination path; parent directory must exist.
+        target: Destination path; parent directory is created automatically
+            if it does not exist (consistent with :func:`write_ico` and
+            :func:`write_cur`).
         images: PIL images to include.  At least one image is required.
 
     Raises:
@@ -82,6 +84,7 @@ def write_icns(target: Path, images: list[Image.Image]) -> None:
     total_len = 8 + len(payload)  # file header (8 bytes) + all blocks
     header = b"icns" + struct.pack(">I", total_len)
 
+    target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(header + payload)
 
 
