@@ -24,6 +24,9 @@ _SWP_NOZORDER = 0x0004
 _SWP_NOACTIVATE = 0x0010
 _SWP_FRAMECHANGED = 0x0020
 
+# WM_NCACTIVATE triggers a full redraw of the non-client (titlebar) area.
+_WM_NCACTIVATE = 0x0086
+
 
 def set_titlebar_dark(window: QWidget, dark: bool) -> None:
     """Apply dark or light titlebar styling to *window* on Windows.
@@ -91,11 +94,10 @@ def set_titlebar_dark(window: QWidget, dark: bool) -> None:
                 "OK" if hr19 == 0 else "FAIL",
             )
 
-        # The DWM does not repaint the non-client frame of an already-visible
-        # window until a frame change is signalled. Nudge it with SetWindowPos
-        # (no move, no resize, no z-order change) so the new titlebar colour
-        # shows immediately instead of only after the next move/resize.
         user32 = ctypes.windll.user32
+
+        # Step 1: SetWindowPos with SWP_FRAMECHANGED — signals a frame-metrics
+        # change to the DWM so it updates the DWMWA attribute we just set.
         user32.SetWindowPos.argtypes = [
             wintypes.HWND,
             wintypes.HWND,
@@ -115,6 +117,22 @@ def set_titlebar_dark(window: QWidget, dark: bool) -> None:
             _SWP_NOSIZE | _SWP_NOMOVE | _SWP_NOZORDER | _SWP_NOACTIVATE | _SWP_FRAMECHANGED,
         )
         logger.info("  SetWindowPos(SWP_FRAMECHANGED) -> %s", "OK" if swp_result else "FAIL")
+
+        # Step 2: WM_NCACTIVATE — force a visual repaint of the non-client area.
+        # On Windows 10, SWP_FRAMECHANGED updates the DWM attribute but does NOT
+        # always trigger a visible redraw of the titlebar on an already-visible
+        # window. Sending a fake deactivate (wParam=0) followed by a fake
+        # reactivate (wParam=1) forces a full NC-area redraw.
+        user32.SendMessageW.argtypes = [
+            wintypes.HWND,
+            wintypes.UINT,
+            wintypes.WPARAM,
+            wintypes.LPARAM,
+        ]
+        user32.SendMessageW.restype = wintypes.LPARAM
+        user32.SendMessageW(hwnd, _WM_NCACTIVATE, 0, 0)  # fake deactivate
+        user32.SendMessageW(hwnd, _WM_NCACTIVATE, 1, 0)  # fake reactivate
+        logger.info("  WM_NCACTIVATE redraw -> OK")
 
     except Exception as exc:
         logger.exception("set_titlebar_dark FAILED with exception: %s", exc)

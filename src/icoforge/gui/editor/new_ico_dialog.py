@@ -6,7 +6,7 @@ import io
 
 from PIL import Image
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QShowEvent
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -69,6 +69,15 @@ class NewIcoDialog(QDialog):
 
         self._update_preview()
         self._update_ok_state()
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        from icoforge.utils.theme import get_theme_manager
+        from icoforge.utils.window_theme import set_titlebar_dark
+
+        mgr = get_theme_manager()
+        if mgr is not None:
+            set_titlebar_dark(self, mgr.current_resolved() == "dark")
 
     # ------------------------------------------------------------------
     # UI builders
