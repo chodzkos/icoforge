@@ -24,6 +24,13 @@ _SWP_NOZORDER = 0x0004
 _SWP_NOACTIVATE = 0x0010
 _SWP_FRAMECHANGED = 0x0020
 
+# Non-client repaint flags/messages used after changing DWM titlebar mode.
+_WM_NCACTIVATE = 0x0086
+_RDW_FRAME = 0x0400
+_RDW_INVALIDATE = 0x0001
+_RDW_UPDATENOW = 0x0100
+_RDW_NOCHILDREN = 0x0040
+
 
 def set_titlebar_dark(window: QWidget, dark: bool) -> None:
     """Apply dark or light titlebar styling to *window* on Windows.
@@ -120,12 +127,6 @@ def set_titlebar_dark(window: QWidget, dark: bool) -> None:
         #    przełączeniu dark→light (pasek zostawał ciemny)
         # 2. RedrawWindow: niweluje jasne tło pod tekstem tytułu okna
         #    (artefakt Windows 10 przy DWMWA_USE_IMMERSIVE_DARK_MODE)
-        WM_NCACTIVATE = 0x0086
-        RDW_FRAME = 0x0400
-        RDW_INVALIDATE = 0x0001
-        RDW_UPDATENOW = 0x0100
-        RDW_NOCHILDREN = 0x0040
-
         user32.SendMessageW.argtypes = [
             wintypes.HWND,
             wintypes.UINT,
@@ -133,8 +134,8 @@ def set_titlebar_dark(window: QWidget, dark: bool) -> None:
             wintypes.LPARAM,
         ]
         user32.SendMessageW.restype = wintypes.LPARAM
-        user32.SendMessageW(hwnd, WM_NCACTIVATE, 0, 0)
-        user32.SendMessageW(hwnd, WM_NCACTIVATE, 1, 0)
+        user32.SendMessageW(hwnd, _WM_NCACTIVATE, 0, 0)
+        user32.SendMessageW(hwnd, _WM_NCACTIVATE, 1, 0)
         logger.info("  WM_NCACTIVATE -> OK")
 
         user32.RedrawWindow.argtypes = [
@@ -145,7 +146,10 @@ def set_titlebar_dark(window: QWidget, dark: bool) -> None:
         ]
         user32.RedrawWindow.restype = wintypes.BOOL
         user32.RedrawWindow(
-            hwnd, None, None, RDW_FRAME | RDW_INVALIDATE | RDW_UPDATENOW | RDW_NOCHILDREN
+            hwnd,
+            None,
+            None,
+            _RDW_FRAME | _RDW_INVALIDATE | _RDW_UPDATENOW | _RDW_NOCHILDREN,
         )
         logger.info("  RedrawWindow(RDW_FRAME) -> OK")
 
