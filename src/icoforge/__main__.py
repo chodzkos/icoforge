@@ -20,6 +20,10 @@ def _force_xcb_on_wsl() -> None:
 
 def run_gui() -> int:
     """Launch the PySide6 GUI."""
+    import logging
+
+    logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
+
     _force_xcb_on_wsl()
 
     from icoforge.core import heic_loader

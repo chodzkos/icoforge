@@ -10,9 +10,12 @@ On every other platform the public function is a no-op.
 
 from __future__ import annotations
 
+import logging
 import sys
 
 from PySide6.QtWidgets import QWidget
+
+logger = logging.getLogger(__name__)
 
 # SetWindowPos flags (winuser.h) used to force a non-client frame repaint.
 _SWP_NOSIZE = 0x0001
@@ -35,17 +38,31 @@ def set_titlebar_dark(window: QWidget, dark: bool) -> None:
             titlebar.
     """
     if sys.platform != "win32":
+        logger.debug("set_titlebar_dark: no-op (not win32)")
         return
     try:
         import ctypes
+        import platform
         from ctypes import wintypes
+
+        raw_id = int(window.winId())
+        logger.info(
+            "set_titlebar_dark: dark=%s  winId=%d  window=%s  Windows=%s",
+            dark,
+            raw_id,
+            type(window).__name__,
+            platform.version(),
+        )
+
+        if raw_id == 0:
+            logger.warning("set_titlebar_dark: winId() == 0 — window has no native handle yet")
+            return
 
         # IMPORTANT: wrap the handle in wintypes.HWND (pointer-sized). Passing a
         # plain Python int lets ctypes marshal it as a 32-bit C int, which
         # TRUNCATES the 64-bit HWND on 64-bit Windows so DwmSetWindowAttribute
-        # receives an invalid handle and silently fails — the classic cause of
-        # "the titlebar never turns dark".
-        hwnd = wintypes.HWND(int(window.winId()))
+        # receives an invalid handle and silently fails.
+        hwnd = wintypes.HWND(raw_id)
         value = ctypes.c_int(1 if dark else 0)
 
         dwm = ctypes.windll.dwmapi
@@ -58,10 +75,21 @@ def set_titlebar_dark(window: QWidget, dark: bool) -> None:
         dwm.DwmSetWindowAttribute.restype = ctypes.c_long
 
         # DWMWA_USE_IMMERSIVE_DARK_MODE = 20 (Windows 10 build 2004 / 20H1+)
-        result = dwm.DwmSetWindowAttribute(hwnd, 20, ctypes.byref(value), ctypes.sizeof(value))
-        if result != 0:
+        hr20 = dwm.DwmSetWindowAttribute(hwnd, 20, ctypes.byref(value), ctypes.sizeof(value))
+        logger.info(
+            "  DwmSetWindowAttribute(attr=20) -> HRESULT=0x%08X (%s)",
+            hr20,
+            "OK" if hr20 == 0 else "FAIL",
+        )
+
+        if hr20 != 0:
             # Fallback: attribute 19 was used in pre-release builds of 20H1
-            dwm.DwmSetWindowAttribute(hwnd, 19, ctypes.byref(value), ctypes.sizeof(value))
+            hr19 = dwm.DwmSetWindowAttribute(hwnd, 19, ctypes.byref(value), ctypes.sizeof(value))
+            logger.info(
+                "  DwmSetWindowAttribute(attr=19) -> HRESULT=0x%08X (%s)",
+                hr19,
+                "OK" if hr19 == 0 else "FAIL",
+            )
 
         # The DWM does not repaint the non-client frame of an already-visible
         # window until a frame change is signalled. Nudge it with SetWindowPos
@@ -77,7 +105,7 @@ def set_titlebar_dark(window: QWidget, dark: bool) -> None:
             ctypes.c_int,
             wintypes.UINT,
         ]
-        user32.SetWindowPos(
+        swp_result = user32.SetWindowPos(
             hwnd,
             None,
             0,
@@ -86,5 +114,7 @@ def set_titlebar_dark(window: QWidget, dark: bool) -> None:
             0,
             _SWP_NOSIZE | _SWP_NOMOVE | _SWP_NOZORDER | _SWP_NOACTIVATE | _SWP_FRAMECHANGED,
         )
-    except Exception:
-        pass  # Wine, Windows 7, missing dwmapi — silently ignore
+        logger.info("  SetWindowPos(SWP_FRAMECHANGED) -> %s", "OK" if swp_result else "FAIL")
+
+    except Exception as exc:
+        logger.exception("set_titlebar_dark FAILED with exception: %s", exc)

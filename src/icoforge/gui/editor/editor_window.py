@@ -744,8 +744,11 @@ class EditorWindow(QMainWindow):
             set_titlebar_dark(self, mgr.current_resolved() == "dark")
 
     def _on_theme_changed(self, resolved: str) -> None:
+        import logging
+
         from icoforge.utils.window_theme import set_titlebar_dark
 
+        logging.getLogger(__name__).info("EditorWindow._on_theme_changed: resolved=%s", resolved)
         set_titlebar_dark(self, resolved == "dark")
 
     def closeEvent(self, event: QCloseEvent) -> None:
