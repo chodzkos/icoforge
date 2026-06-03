@@ -142,15 +142,32 @@ class OptimizationPanel(QWidget):
         self._level_slider.setValue(4)
         self._level_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         self._level_slider.setTickInterval(1)
+        self._level_slider.setToolTip(
+            self.tr("0 = najszybszy (duży plik), 6 = najwolniejszy (najmniejszy plik). Domyślnie 4")
+        )
         level_layout.addWidget(self._level_slider)
         level_layout.addWidget(QLabel(self.tr("Mniejszy")))
         options_layout.addLayout(level_layout)
 
         # Checkboxes
         self._zopfli_checkbox = QCheckBox(self.tr("Tryb Zopfli (wolny, maksymalna kompresja)"))
+        self._zopfli_checkbox.setToolTip(
+            self.tr("Dodatkowe 5-10% oszczednosci wzgledem poziomu 6; znacznie wolniejszy")
+        )
         self._strip_metadata_checkbox = QCheckBox(self.tr("Usuń metadane (GPS, data, aparat)"))
         self._strip_metadata_checkbox.setChecked(True)
+        self._strip_metadata_checkbox.setToolTip(
+            self.tr(
+                "Usuwa bloki tEXt, iTXt, zTXt, eXIf, tIME. Zawartość pikseli pozostaje bez zmian"
+            )
+        )
         self._preserve_icc_checkbox = QCheckBox(self.tr("Zachowaj profil kolorów ICC"))
+        self._preserve_icc_checkbox.setToolTip(
+            self.tr(
+                "Zachowaj chunk iCCP/sRGB nawet gdy metadane są usuwane "
+                "(ważne dla plików Adobe RGB lub CMYK)"
+            )
+        )
 
         options_layout.addWidget(self._zopfli_checkbox)
         options_layout.addWidget(self._strip_metadata_checkbox)
@@ -160,8 +177,13 @@ class OptimizationPanel(QWidget):
         save_layout = QHBoxLayout()
         self._inplace_radio = QRadioButton(self.tr("Zapisz w miejscu"))
         self._inplace_radio.setChecked(True)
+        self._inplace_radio.setToolTip(self.tr("Nadpisz plik źródłowy zoptymalizowaną wersją"))
         self._folder_radio = QRadioButton(self.tr("Zapisz do folderu:"))
+        self._folder_radio.setToolTip(
+            self.tr("Zapisz pliki wynikowe w wybranym folderze (oryginały bez zmian)")
+        )
         self._folder_button = QPushButton(self.tr("Wybierz..."))
+        self._folder_button.setToolTip(self.tr("Wybierz folder wyjściowy"))
         self._folder_button.setEnabled(False)
         self._folder_button.clicked.connect(self._on_choose_folder)
         self._folder_radio.toggled.connect(self._folder_button.setEnabled)
@@ -180,6 +202,9 @@ class OptimizationPanel(QWidget):
         button_layout = QHBoxLayout()
         self._optimize_button = QPushButton(self.tr("Optymalizuj"))
         self._optimize_button.setMinimumHeight(40)
+        self._optimize_button.setToolTip(
+            self.tr("Uruchom optymalizację wszystkich plików w kolejce")
+        )
         self._optimize_button.clicked.connect(self._on_optimize_clicked)
         button_layout.addStretch()
         button_layout.addWidget(self._optimize_button)
@@ -209,6 +234,9 @@ class OptimizationPanel(QWidget):
         export_layout = QHBoxLayout()
         self._export_button = QPushButton(self.tr("Eksportuj raport CSV"))
         self._export_button.setVisible(False)
+        self._export_button.setToolTip(
+            self.tr("Zapisz tabelę wyników (plik, rozmiar przed/po, oszczędność %) do pliku CSV")
+        )
         self._export_button.clicked.connect(self._on_export_csv)
         export_layout.addStretch()
         export_layout.addWidget(self._export_button)

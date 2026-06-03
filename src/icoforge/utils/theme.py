@@ -110,7 +110,37 @@ class ThemeManager(QObject):
             self._app.setPalette(qdarktheme.load_palette("dark"))
         else:
             self._apply_native_light()
+        self._apply_tooltip_style(resolved)
         self._force_refresh()
+
+    def _apply_tooltip_style(self, resolved: str) -> None:
+        """Append a QToolTip rule to the app stylesheet for the current theme.
+
+        The default Qt tooltip colours are unreadable in dark mode (dark text
+        on dark background).  We inject a clearly delimited block so the rule
+        can be replaced without touching the rest of the stylesheet.
+        """
+        if resolved == "dark":
+            tooltip_style = """
+QToolTip {
+    background-color: #2d2d2d;
+    color: #e0e0e0;
+    border: 1px solid #555555;
+    padding: 4px 6px;
+    border-radius: 3px;
+}"""
+        else:
+            tooltip_style = """
+QToolTip {
+    background-color: #ffffc0;
+    color: #1a1a1a;
+    border: 1px solid #b0a000;
+    padding: 4px 6px;
+    border-radius: 3px;
+}"""
+        current = self._app.styleSheet()
+        base = current.split("/* TOOLTIP_STYLE */")[0].rstrip()
+        self._app.setStyleSheet(base + "\n/* TOOLTIP_STYLE */\n" + tooltip_style)
 
     def _apply_native_light(self) -> None:
         """Restore the original native Qt appearance (pre-qdarktheme state)."""
