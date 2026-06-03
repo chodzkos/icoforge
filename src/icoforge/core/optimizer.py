@@ -149,7 +149,9 @@ def verify_lossless(original: Path, optimized: Path) -> bool:
     Returns:
         True if every pixel value matches.
     """
-    img1 = Image.open(original).convert("RGBA")
-    img2 = Image.open(optimized).convert("RGBA")
-    # Compare images by converting to bytes
-    return img1.tobytes() == img2.tobytes()
+    with Image.open(original) as img1, Image.open(optimized) as img2:
+        # convert() materialises pixel data into new in-memory Images so the
+        # returned bytes are independent of the file handles before they close.
+        data1 = img1.convert("RGBA").tobytes()
+        data2 = img2.convert("RGBA").tobytes()
+    return data1 == data2

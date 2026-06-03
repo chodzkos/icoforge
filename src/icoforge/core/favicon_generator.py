@@ -114,20 +114,18 @@ def _load_rgba(source: Path) -> Image.Image:
     if suffix == ".svg":
         from icoforge.core.svg_loader import rasterize_svg
 
-        img = rasterize_svg(source, 512, 512)
-    elif suffix in {".heic", ".heif", ".avif"}:
+        return rasterize_svg(source, 512, 512)
+
+    if suffix in {".heic", ".heif", ".avif"}:
         from icoforge.core.heic_loader import load_heic
 
-        img = load_heic(source)
-    else:
-        supported = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".tiff", ".tif"}
-        if suffix not in supported:
-            raise ValueError(
-                f"Unsupported source format: '{suffix}'. Supported: {sorted(supported)}"
-            )
-        img = Image.open(source)
+        return load_heic(source)
 
-    return img.convert("RGBA")
+    supported = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".tiff", ".tif"}
+    if suffix not in supported:
+        raise ValueError(f"Unsupported source format: '{suffix}'. Supported: {sorted(supported)}")
+    with Image.open(source) as _img:
+        return _img.convert("RGBA")
 
 
 def _resize_cover(img: Image.Image, size: int, resample: Image.Resampling) -> Image.Image:

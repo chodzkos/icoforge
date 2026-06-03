@@ -75,4 +75,5 @@ def load_heic(source: Path) -> Image.Image:
         raise FileNotFoundError(source)
 
     register_heif_opener()
-    return Image.open(source).convert("RGBA")
+    with Image.open(source) as img:
+        return img.convert("RGBA")

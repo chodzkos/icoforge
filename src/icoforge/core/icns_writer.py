@@ -120,7 +120,8 @@ def render_and_write_icns(
     if invalid:
         raise ValueError(f"Unsupported ICNS size(s) {invalid}. Supported: {sorted(_VALID_SIZES)}.")
 
-    src = Image.open(source).convert("RGBA")
+    with Image.open(source) as _src:
+        src = _src.convert("RGBA")
     images: list[Image.Image] = []
     total = len(sizes)
 
