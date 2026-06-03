@@ -10,6 +10,19 @@ Projekt stosuje [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.2.11] - 2026-06-03
+
+### Naprawione
+
+- **Błąd [WinError 2] podczas instalacji AI na Windows** — `_find_python()`
+  zwracała string (np. `"C:\Windows\py.EXE -3"`), który następnie był
+  parsowany przez `shlex.split()`. Parser shlex traktuje backslashe
+  po uniksowemu (jako znaki ucieczki), przez co ścieżki Windows były
+  uszkadzane. Funkcja zwraca teraz `list[str]` bezpośrednio, omijając
+  `shlex.split()` całkowicie. Dodano też flagę `--no-warn-script-location`.
+
+---
+
 ## [1.2.10] - 2026-06-03
 
 ### Naprawione
