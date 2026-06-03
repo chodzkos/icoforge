@@ -65,3 +65,46 @@ def test_editor_window_persists_in_main(qtbot, test_ico: Path) -> None:
     # Verify it's stored and accessible
     assert main._editor_window is not None
     assert isinstance(main._editor_window, EditorWindow)
+
+
+# ---------------------------------------------------------------------------
+# _save_cur hotspot spinbox range
+# ---------------------------------------------------------------------------
+
+
+def test_hotspot_spinbox_range_uses_min_frame_size(qtbot, tmp_path: Path) -> None:
+    """Spinbox maximum must be min_size-1, not max_size-1.
+
+    With sizes 16+32, max valid hotspot is (15,15) — the top-left of the
+    smallest frame minus one.  The old code used max_size which allowed
+    (31,31), placing the hotspot outside the 16x16 frame.
+    """
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QDialog, QSpinBox
+
+    main = MainWindow()
+    qtbot.addWidget(main)
+
+    # Configure the panel to include sizes 16 and 32
+    main._settings_panel._size_table.set_checked_sizes(frozenset({16, 32}))
+
+    captured_maxima: list[int] = []
+
+    def _inspect_and_reject() -> None:
+        # The hotspot dialog is a child of `main`; find it while it blocks.
+        for dlg in main.findChildren(QDialog):
+            if dlg.isVisible():
+                for sb in dlg.findChildren(QSpinBox):
+                    captured_maxima.append(sb.maximum())
+                dlg.reject()
+                return
+
+    QTimer.singleShot(0, _inspect_and_reject)
+    # _save_cur blocks inside dlg.exec(); the timer fires during that loop.
+    # render_frames is NOT reached because we reject the dialog.
+    main._save_cur(tmp_path / "dummy.png", tmp_path / "out.cur")
+
+    assert captured_maxima, "No QSpinBox found in the hotspot dialog"
+    assert all(m == 15 for m in captured_maxima), (
+        f"Expected spinbox maximum 15 (min_size-1=16-1), got {captured_maxima}"
+    )
