@@ -484,13 +484,21 @@ class HelpWindow(QDialog):
             )
         }</p>
 
-<h4>{self.tr("Krok 1 - instalacja biblioteki")}</h4>
-<p>{self.tr("Otworz wiersz polecen (cmd lub PowerShell) i wpisz:")}</p>
-<pre style="{pre}">pip install rembg</pre>
-<p>{self.tr("Jesli pojawi sie blad, sprobuj kolejno:")}</p>
-<pre style="{pre}">pip install onnxruntime
-pip install "numpy&lt;2.0"
-pip install rembg</pre>
+<h4>{self.tr("Krok 1 - instalacja przez instalator GUI")}</h4>
+<p>{
+            self.tr(
+                "W aplikacji wybierz menu <b>Narzedzia &rarr; Zainstaluj model AI...</b><br>"
+                "Kliknij przycisk <b>Zainstaluj</b> i poczekaj na zakonczenie.<br>"
+                "Wymagane polaczenie z internetem (~200 MB do pobrania)."
+            )
+        }</p>
+<p>{
+            self.tr(
+                "Alternatywnie, jezeli checkbox &bdquo;Usun tlo (AI)&rdquo; jest widoczny "
+                "w panelu konwersji, kliknij przycisk <b>Zainstaluj model AI...</b> "
+                "bezposrednio tam."
+            )
+        }</p>
 
 <h4>{self.tr("Krok 2 - pobranie modelu")}</h4>
 <p>{
@@ -504,13 +512,11 @@ pip install rembg</pre>
 <pre style="{pre}">C:\\Users\\&lt;TWOJA_NAZWA&gt;\\.u2net\\u2net.onnx</pre>
 <p>{self.tr("Kolejne uruchomienia nie wymagaja pobierania.")}</p>
 
-<h4>{self.tr("Krok 3 - weryfikacja")}</h4>
-<p>{self.tr("Sprawdz poprawnosc instalacji w wierszu polecen:")}</p>
-<pre style="{pre}">python -c "import rembg; print('rembg OK')"</pre>
+<h4>{self.tr("Krok 3 - restart i uzycie")}</h4>
 <p>{
             self.tr(
-                "Jesli wyswietli sie <b>rembg OK</b> - restart IcoForge "
-                'i opcja "Usun tlo (AI)" pojawi sie w ustawieniach konwersji.'
+                "Zamknij i uruchom ponownie IcoForge.<br>"
+                'Opcja "Usun tlo (AI)" pojawi sie automatycznie w ustawieniach konwersji.'
             )
         }</p>
 

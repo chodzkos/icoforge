@@ -3,12 +3,16 @@
 
 from pathlib import Path
 
+from PyInstaller.utils.hooks import copy_metadata  # noqa: E402
+
 ROOT = Path(SPECPATH)  # noqa: F821  – SPECPATH injected by PyInstaller
 
 # ---------------------------------------------------------------------------
 # Data files to bundle
 # ---------------------------------------------------------------------------
-datas = [
+# copy_metadata bundles the icoforge-X.Y.Z.dist-info directory so that
+# importlib.metadata.version("icoforge") works inside the frozen exe.
+datas = copy_metadata("icoforge") + [
     # Qt translation files for Polish/English UI
     (str(ROOT / "src" / "icoforge" / "translations"), "icoforge/translations"),
 ]

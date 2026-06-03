@@ -229,6 +229,9 @@ class MainWindow(QMainWindow):
             self._theme_dark_action.triggered.connect(lambda: _mgr.apply("dark"))
             self._theme_light_action.triggered.connect(lambda: _mgr.apply("light"))
 
+        tools_menu = menubar.addMenu(self.tr("Narz&ędzia"))
+        tools_menu.addAction(self.tr("&Zainstaluj model AI…"), self._on_ai_installer)
+
         help_menu = menubar.addMenu(self.tr("P&omoc"))
         help_action = help_menu.addAction(self.tr("&Instrukcja obsługi"), self._on_help)
         help_action.setShortcut("F1")
@@ -811,6 +814,11 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:
         save_window_state(self)
         super().closeEvent(event)
+
+    def _on_ai_installer(self) -> None:
+        from icoforge.gui.ai_installer import AiInstallerDialog
+
+        AiInstallerDialog(self).exec()
 
     def _on_help(self) -> None:
         from icoforge.gui.help_window import HelpWindow

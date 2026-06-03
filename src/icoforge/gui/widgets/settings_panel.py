@@ -473,7 +473,22 @@ class SettingsPanel(QWidget):
         from icoforge.core.bg_remover import MODEL_DOWNLOAD_WARNING, is_available
 
         if not is_available():
-            return None
+            group = QGroupBox(self.tr("Usuwanie tła (AI)"))
+            vbox = QVBoxLayout(group)
+            vbox.setContentsMargins(8, 8, 8, 8)
+            vbox.setSpacing(4)
+            note = QLabel(
+                "<small><i>" + self.tr("Biblioteka rembg nie jest zainstalowana.") + "</i></small>"
+            )
+            note.setWordWrap(True)
+            vbox.addWidget(note)
+            install_btn = QPushButton(self.tr("Zainstaluj model AI…"))
+            install_btn.setToolTip(
+                self.tr("Otwiera instalator rembg i onnxruntime do folderu ai_packages/")
+            )
+            install_btn.clicked.connect(self._on_open_ai_installer)
+            vbox.addWidget(install_btn)
+            return group
 
         group = QGroupBox(self.tr("Usuwanie tła (AI)"))
         vbox = QVBoxLayout(group)
@@ -816,6 +831,11 @@ class SettingsPanel(QWidget):
         self._refresh_preset_combo()
         if current_type and current_name:
             self._select_preset_in_combo(current_type, current_name)
+
+    def _on_open_ai_installer(self) -> None:
+        from icoforge.gui.ai_installer import AiInstallerDialog
+
+        AiInstallerDialog(self.window()).exec()
 
     def _load_default_preset(self) -> None:
         """If a default preset is configured, load it into the panel."""

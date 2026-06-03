@@ -1,3 +1,6 @@
+# AI model packages installed next to the exe
+ai_packages/
+
 # Python
 __pycache__/
 *.py[cod]

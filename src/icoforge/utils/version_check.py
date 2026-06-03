@@ -14,14 +14,28 @@ _RELEASES_URL = "https://github.com/chodzkos/icoforge/releases"
 def get_installed_version() -> str:
     """Return the installed package version string.
 
+    Resolution order:
+    1. ``importlib.metadata`` — works in dev and in PyInstaller bundles when
+       ``copy_metadata("icoforge")`` is added to the spec's *datas*.
+    2. ``icoforge._version.__version__`` — static fallback baked into the
+       source tree; used when the .dist-info directory is absent (e.g. older
+       bundles or running directly from source without ``pip install -e .``).
+
     Returns:
-        Version string (e.g. ``"1.2.3"``), or ``"nieznana"`` if the package
-        metadata is not available (e.g. running from source without install).
+        Version string (e.g. ``"1.2.8"``), or ``"0.0.0"`` as a last resort.
     """
     try:
         return pkg_version("icoforge")
     except PackageNotFoundError:
-        return "nieznana"
+        pass
+    except Exception:
+        pass
+    try:
+        from icoforge._version import __version__
+
+        return __version__
+    except Exception:
+        return "0.0.0"
 
 
 def get_latest_release_version(timeout: int = 5) -> str | None:
