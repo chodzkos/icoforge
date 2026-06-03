@@ -17,7 +17,9 @@ from icoforge.core.bg_remover import (
 )
 
 
-def _png_b64(mode: str = "RGBA", size: tuple[int, int] = (4, 4), color: object = (0, 0, 0, 0)) -> bytes:
+def _png_b64(
+    mode: str = "RGBA", size: tuple[int, int] = (4, 4), color: object = (0, 0, 0, 0)
+) -> bytes:
     """Encode a PIL image as base64 PNG bytes (simulates subprocess stdout)."""
     img = Image.new(mode, size, color)  # type: ignore[arg-type]
     buf = io.BytesIO()
@@ -42,7 +44,9 @@ class TestIsAvailable:
 
 
 class TestRemoveBackground:
-    def _mock_proc(self, returncode: int = 0, stdout: bytes = b"", stderr: bytes = b"") -> MagicMock:
+    def _mock_proc(
+        self, returncode: int = 0, stdout: bytes = b"", stderr: bytes = b""
+    ) -> MagicMock:
         proc = MagicMock()
         proc.returncode = returncode
         proc.stdout = stdout
@@ -56,7 +60,10 @@ class TestRemoveBackground:
         with (
             patch("icoforge.core.bg_remover.REMBG_AVAILABLE", True),
             patch("icoforge.core.bg_remover._find_python", return_value=["python3"]),
-            patch("icoforge.core.bg_remover.subprocess.run", return_value=self._mock_proc(stdout=output)),
+            patch(
+                "icoforge.core.bg_remover.subprocess.run",
+                return_value=self._mock_proc(stdout=output),
+            ),
         ):
             result = remove_background(src)
 
@@ -70,7 +77,10 @@ class TestRemoveBackground:
         with (
             patch("icoforge.core.bg_remover.REMBG_AVAILABLE", True),
             patch("icoforge.core.bg_remover._find_python", return_value=["python3"]),
-            patch("icoforge.core.bg_remover.subprocess.run", return_value=self._mock_proc(stdout=output)),
+            patch(
+                "icoforge.core.bg_remover.subprocess.run",
+                return_value=self._mock_proc(stdout=output),
+            ),
         ):
             result = remove_background(src)
 
@@ -133,7 +143,9 @@ class TestConverterIntegration:
         config = IcoConfig(sizes=(SizeSpec(32, 32),), remove_bg=True)
 
         with (
-            patch("icoforge.core.bg_remover.remove_background", return_value=rgba_result) as mock_rb,
+            patch(
+                "icoforge.core.bg_remover.remove_background", return_value=rgba_result
+            ) as mock_rb,
             patch("icoforge.core.bg_remover.REMBG_AVAILABLE", True),
         ):
             convert(src, dst, config)
