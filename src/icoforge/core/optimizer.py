@@ -101,9 +101,12 @@ def optimize_png(
     out_path = target or source
     bytes_before = source.stat().st_size
 
-    # Validate it's a real PNG
+    # Validate it's a real PNG; use a context manager so the file handle is
+    # released immediately — critical on Windows where an open handle blocks
+    # a subsequent in-place write to the same path.
     try:
-        _ = Image.open(source)
+        with Image.open(source) as img:
+            img.verify()
     except OSError as exc:
         raise ValueError(f"Cannot open image: {exc}") from exc
 
