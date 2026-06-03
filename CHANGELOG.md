@@ -10,6 +10,24 @@ Projekt stosuje [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.2.12] - 2026-06-04
+
+### Naprawione
+
+- **Crash aplikacji po instalacji ai_packages** — dodanie `ai_packages/`
+  do `sys.path` powodowało konflikty wersji między numpy/Pillow z ai_packages
+  (numpy 2.4, Pillow 12.x) a wersjami zbundlowanymi przez PyInstaller.
+  Rembg działa teraz w izolowanym procesie (`subprocess`): obraz jest
+  przesyłany przez stdin jako base64 PNG, wynik wraca stdout. Główna
+  aplikacja nie importuje rembg ani numpy z ai_packages.
+- **Wydzielono `utils/python_finder.py`** — `find_python()` przeniesione
+  z `gui/ai_installer.py` do współdzielonego modułu, żeby `core/` nie
+  musiał importować z `gui/`.
+- **Dodano `gui/bg_remove_worker.py`** — `BgRemoveWorker` (QThread)
+  do nieblokującego wywołania usuwania tła z GUI.
+
+---
+
 ## [1.2.11] - 2026-06-03
 
 ### Naprawione
