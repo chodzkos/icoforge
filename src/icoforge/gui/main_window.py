@@ -6,7 +6,8 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QEvent, QSize, Qt, QThreadPool, QUrl
+from PySide6.QtCore import QEvent, QSize, Qt, QThread, QThreadPool, QUrl
+from PySide6.QtCore import Signal as _Signal
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
@@ -140,7 +141,9 @@ class MainWindow(QMainWindow):
     def __init__(self, theme_manager: ThemeManager | None = None) -> None:
         super().__init__()
         self._theme_manager = theme_manager
-        self.setWindowTitle("IcoForge")
+        from icoforge.utils.version_check import get_installed_version
+
+        self.setWindowTitle(f"IcoForge {get_installed_version()}")
         self.setMinimumSize(700, 500)
         self.resize(900, 600)
         icon_path = get_resource_path("assets/icoforge.ico")
@@ -816,19 +819,16 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def _on_about(self) -> None:
-        from importlib.metadata import PackageNotFoundError
-        from importlib.metadata import version as pkg_version
+        from icoforge.utils.version_check import get_installed_version
+        from icoforge.utils.window_theme import apply_theme_to_dialog
 
-        try:
-            app_version = pkg_version("icoforge")
-        except PackageNotFoundError:
-            app_version = "dev"
+        app_version = get_installed_version()
 
         dlg = QDialog(self)
         dlg.setWindowTitle(self.tr("O IcoForge"))
-        dlg.setFixedWidth(340)
+        dlg.setFixedWidth(360)
         layout = QVBoxLayout(dlg)
-        layout.setSpacing(10)
+        layout.setSpacing(8)
         layout.setContentsMargins(20, 20, 20, 20)
 
         logo_label = QLabel()
@@ -837,13 +837,18 @@ class MainWindow(QMainWindow):
         logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(logo_label)
 
-        name_label = QLabel("<b>IcoForge</b>")
+        name_label = QLabel("<b style='font-size:16px'>IcoForge</b>")
         name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(name_label)
 
         version_label = QLabel(self.tr("Wersja %1").replace("%1", app_version))
         version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(version_label)
+
+        update_label = QLabel(self.tr("Sprawdzam aktualizacje…"))
+        update_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        update_label.setOpenExternalLinks(True)
+        layout.addWidget(update_label)
 
         desc_label = QLabel(self.tr("Konwerter, optymalizator i edytor pikseli dla ikon ICO."))
         desc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -865,15 +870,38 @@ class MainWindow(QMainWindow):
         buttons.accepted.connect(dlg.accept)
         layout.addWidget(buttons)
 
+        # Background update check — must not block the UI
+        class _UpdateThread(QThread):
+            result = _Signal(bool, str)
+
+            def run(self) -> None:
+                from icoforge.utils.version_check import is_update_available
+
+                self.result.emit(*is_update_available())
+
+        thread = _UpdateThread(dlg)
+
+        def _on_result(available: bool, new_ver: str) -> None:
+            if available:
+                update_label.setText(
+                    f'<a href="https://github.com/chodzkos/icoforge/releases">'
+                    f"{self.tr('Dostepna aktualizacja')}: {new_ver}</a>"
+                )
+            else:
+                update_label.setText(self.tr("Masz najnowsza wersje."))
+
+        thread.result.connect(_on_result)
+        thread.start()
+
         if self._theme_manager is not None:
             self._theme_manager.theme_changed.connect(
                 lambda _t: self._update_about_logo(logo_label)
             )
 
-        from icoforge.utils.window_theme import apply_theme_to_dialog
-
         apply_theme_to_dialog(dlg, self._theme_manager)
         dlg.exec()
+        thread.quit()
+        thread.wait()
 
     def _update_about_logo(self, label: QLabel) -> None:
         """Load the logo choosing a dark- or light-mode variant when available."""
