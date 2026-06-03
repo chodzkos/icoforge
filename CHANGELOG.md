@@ -10,6 +10,21 @@ Projekt stosuje [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.2.10] - 2026-06-03
+
+### Naprawione
+
+- **Instalator AI uruchamiał kopię aplikacji zamiast pip** — w bundlu
+  PyInstaller `sys.executable` wskazuje na `IcoForge.exe`, nie na Pythona.
+  Nowa funkcja `_find_python()` wyszukuje prawdziwego interpretera Python 3.x
+  w kolejności: Windows Launcher (`py -3`) → `python3.xx` w PATH →
+  typowe lokalizacje instalacyjne Windows (`%LOCALAPPDATA%/Programs/Python/`,
+  `C:/PythonXXX/`). Każdy kandydat jest weryfikowany przez `python --version`
+  i odfiltrowywany jeśli ścieżka zawiera "IcoForge". Przy braku Pythona
+  wyświetlany jest czytelny komunikat z instrukcją instalacji.
+
+---
+
 ## [1.2.9] - 2026-06-03
 
 ### Naprawione
