@@ -227,6 +227,9 @@ class MainWindow(QMainWindow):
             self._theme_light_action.triggered.connect(lambda: _mgr.apply("light"))
 
         help_menu = menubar.addMenu(self.tr("P&omoc"))
+        help_action = help_menu.addAction(self.tr("&Instrukcja obsługi"), self._on_help)
+        help_action.setShortcut("F1")
+        help_menu.addSeparator()
         help_menu.addAction(self.tr("&O programie"), self._on_about)
         help_menu.addSeparator()
 
@@ -806,12 +809,26 @@ class MainWindow(QMainWindow):
         save_window_state(self)
         super().closeEvent(event)
 
+    def _on_help(self) -> None:
+        from icoforge.gui.help_window import HelpWindow
+
+        dlg = HelpWindow(self)
+        dlg.exec()
+
     def _on_about(self) -> None:
+        from importlib.metadata import PackageNotFoundError
+        from importlib.metadata import version as pkg_version
+
+        try:
+            app_version = pkg_version("icoforge")
+        except PackageNotFoundError:
+            app_version = "dev"
+
         dlg = QDialog(self)
         dlg.setWindowTitle(self.tr("O IcoForge"))
-        dlg.setFixedWidth(320)
+        dlg.setFixedWidth(340)
         layout = QVBoxLayout(dlg)
-        layout.setSpacing(12)
+        layout.setSpacing(10)
         layout.setContentsMargins(20, 20, 20, 20)
 
         logo_label = QLabel()
@@ -820,12 +837,29 @@ class MainWindow(QMainWindow):
         logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(logo_label)
 
-        text_label = QLabel(
-            self.tr("<b>IcoForge</b><br>Konwerter, optymalizator i edytor pikseli dla ikon ICO.")
+        name_label = QLabel("<b>IcoForge</b>")
+        name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(name_label)
+
+        version_label = QLabel(self.tr("Wersja %1").replace("%1", app_version))
+        version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(version_label)
+
+        desc_label = QLabel(self.tr("Konwerter, optymalizator i edytor pikseli dla ikon ICO."))
+        desc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        desc_label.setWordWrap(True)
+        layout.addWidget(desc_label)
+
+        link_label = QLabel(
+            '<a href="https://github.com/chodzkos/icoforge">github.com/chodzkos/icoforge</a>'
         )
-        text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        text_label.setWordWrap(True)
-        layout.addWidget(text_label)
+        link_label.setOpenExternalLinks(True)
+        link_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(link_label)
+
+        license_label = QLabel(self.tr("Licencja: MIT"))
+        license_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(license_label)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
         buttons.accepted.connect(dlg.accept)

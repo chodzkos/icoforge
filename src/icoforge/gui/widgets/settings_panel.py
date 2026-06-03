@@ -50,11 +50,18 @@ _CUSTOM_PRESET_NAME = "Niestandardowy"
 _SETTINGS_KEY_DEFAULT_PRESET = "default_preset"
 
 _RESAMPLE_TOOLTIPS: dict[ResampleAlgorithm, str] = {
-    ResampleAlgorithm.LANCZOS: "Wysoka jakość, najlepszy dla zdjęć i grafiki",
-    ResampleAlgorithm.BICUBIC: "Płynna interpolacja, dobry wybór ogólny",
-    ResampleAlgorithm.BILINEAR: "Szybki, wystarczający dla małych ikon",
-    ResampleAlgorithm.NEAREST: "Bez interpolacji, zachowuje ostre krawędzie (pixel art)",
-    ResampleAlgorithm.BOX: "Szybki i ostry przy dużym zmniejszaniu",
+    ResampleAlgorithm.LANCZOS: "Najlepsza jakość dla zdjęć i gradientów",
+    ResampleAlgorithm.BICUBIC: "Dobra jakość, szybszy od Lanczos",
+    ResampleAlgorithm.BILINEAR: "Szybki; wystarczający przy małych zmianach rozmiaru",
+    ResampleAlgorithm.NEAREST: "Pixel art — ostre krawędzie bez rozmycia",
+    ResampleAlgorithm.BOX: "Optymalny przy dużym zmniejszeniu (np. 256→16 px)",
+}
+
+_PRESET_TOOLTIPS: dict[str, str] = {
+    "Niestandardowy": "Ręczny wybór rozmiarów",
+    "Windows App Icon": "Pełny zestaw Windows: 16, 20, 24, 32, 40, 48, 64, 96, 128, 256 px",
+    "Favicon (16/32/48)": "Zestaw dla strony WWW: 16, 32, 48 px",
+    "Web (16/32/64/128)": "Zestaw webowy: 16, 32, 64, 128 px",
 }
 
 _OVERRIDE_BG = QColor(200, 230, 255)
@@ -383,6 +390,7 @@ class SettingsPanel(QWidget):
         self._preset_combo.setSizeAdjustPolicy(
             QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
         )
+        self._preset_combo.setToolTip(self.tr("Wybierz gotowy preset rozmiarów lub zapisz własny"))
         self._refresh_preset_combo(select_custom=True)
         self._preset_combo.currentIndexChanged.connect(self._on_preset_combo_changed)
         vbox.addWidget(self._preset_combo)
@@ -392,10 +400,16 @@ class SettingsPanel(QWidget):
         btn_row.setSpacing(4)
 
         save_btn = QPushButton(self.tr("Zapisz preset…"))
+        save_btn.setToolTip(
+            self.tr("Zapisz bieżącą konfigurację (rozmiary, resample, tło…) jako nazwany preset")
+        )
         save_btn.clicked.connect(self._save_preset_dialog)
         btn_row.addWidget(save_btn)
 
         manage_btn = QPushButton(self.tr("Zarządzaj…"))
+        manage_btn.setToolTip(
+            self.tr("Zmień nazwę, usuń lub ustaw preset domyślny; importuj/eksportuj JSON")
+        )
         manage_btn.clicked.connect(self._manage_presets_dialog)
         btn_row.addWidget(manage_btn)
 
@@ -429,15 +443,20 @@ class SettingsPanel(QWidget):
 
         self._radio_transparent = QRadioButton(self.tr("Przezroczyste"))
         self._radio_transparent.setChecked(True)
+        self._radio_transparent.setToolTip(
+            self.tr("Piksele bez kanału alpha (np. JPG) staną się przezroczyste w ICO")
+        )
         self._radio_transparent.toggled.connect(self._on_bg_radio_toggled)
         vbox.addWidget(self._radio_transparent)
 
         self._radio_color = QRadioButton(self.tr("Kolor"))
+        self._radio_color.setToolTip(self.tr("Skomponuj obraz bez alpha na wybranym kolorze tła"))
         self._radio_color.toggled.connect(self._on_bg_radio_toggled)
 
         self._color_btn = QPushButton()
         self._color_btn.setFixedWidth(32)
         self._color_btn.setEnabled(False)
+        self._color_btn.setToolTip(self.tr("Kliknij aby wybrać kolor tła"))
         self._update_color_button()
         self._color_btn.clicked.connect(self._on_color_button_clicked)
 
@@ -527,6 +546,11 @@ class SettingsPanel(QWidget):
         assert model is not None
         model.setData(model.index(0, 0), "custom", _ROLE_PRESET_TYPE)
         model.setData(model.index(0, 0), _CUSTOM_PRESET_NAME, _ROLE_PRESET_NAME)
+        model.setData(
+            model.index(0, 0),
+            self.tr(_PRESET_TOOLTIPS.get(_CUSTOM_PRESET_NAME, "")),
+            Qt.ItemDataRole.ToolTipRole,
+        )
 
         # Separator + built-ins
         self._preset_combo.insertSeparator(1)
@@ -535,6 +559,11 @@ class SettingsPanel(QWidget):
             self._preset_combo.addItem(f"🔒 {name}")
             model.setData(model.index(idx, 0), "builtin", _ROLE_PRESET_TYPE)
             model.setData(model.index(idx, 0), name, _ROLE_PRESET_NAME)
+            model.setData(
+                model.index(idx, 0),
+                self.tr(_PRESET_TOOLTIPS.get(name, name)),
+                Qt.ItemDataRole.ToolTipRole,
+            )
 
         # User presets (separator only if any exist)
         user = list_user_presets()
@@ -545,6 +574,11 @@ class SettingsPanel(QWidget):
                 self._preset_combo.addItem(name)
                 model.setData(model.index(idx, 0), "user", _ROLE_PRESET_TYPE)
                 model.setData(model.index(idx, 0), name, _ROLE_PRESET_NAME)
+                model.setData(
+                    model.index(idx, 0),
+                    self.tr("Preset użytkownika: %1").replace("%1", name),
+                    Qt.ItemDataRole.ToolTipRole,
+                )
 
         if select_custom:
             self._preset_combo.setCurrentIndex(0)
