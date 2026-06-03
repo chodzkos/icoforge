@@ -9,9 +9,9 @@ from PySide6.QtCore import QThread, Signal
 class BgRemoveWorker(QThread):
     """Run remove_background() in a background thread."""
 
-    finished: Signal = Signal(object)  # Image.Image on success
-    error: Signal = Signal(str)
-    progress_text: Signal = Signal(str)
+    finished = Signal(object)  # Image.Image on success
+    error = Signal(str)
+    progress_text = Signal(str)
 
     def __init__(self, image: Image.Image) -> None:
         super().__init__()
