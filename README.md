@@ -147,17 +147,29 @@ jednorazowo — kolejne uruchomienia używają zapisanego modelu.
 # GUI
 icoforge
 
-# CLI — konwersja
-icoforge-cli convert input.png output.ico --sizes 16,32,48,256
+# CLI — konwersja ICO/ICNS/CUR (format wyjscia wybierany po rozszerzeniu TARGET)
+icoforge-cli convert input.png output.ico  --sizes 16,32,48,256
+icoforge-cli convert input.png output.icns --sizes 16,32,64,128,256,512,1024
+icoforge-cli convert input.png cursor.cur  --sizes 32,48 --hotspot 0,0
 
-# CLI — optymalizacja (domyslnie tworzy input.min.png, zrodlo nietkniete)
+# CLI — zestaw favicon (favicon.ico + apple-touch-icon.png + manifesty PWA)
+icoforge-cli favicon input.png ./favicon-out
+
+# CLI — ekstrakcja ikon z pliku PE (EXE/DLL)
+icoforge-cli extract-icons app.exe ./icons
+
+# CLI — optymalizacja PNG (domyslnie tworzy input.min.png, zrodlo nietkniete)
 icoforge-cli optimize input.png
 icoforge-cli optimize input.png --output compressed.png   # podana sciezka
 icoforge-cli optimize input.png --in-place                # nadpisz zrodlo
 icoforge-cli optimize a.png b.png --in-place              # wiele plikow
 
-# CLI — usuwanie tła
+# CLI — usuwanie tła AI
 icoforge-cli convert input.png output.ico --sizes 256 --remove-bg
+
+# CLI — presety konwersji
+icoforge-cli presets list
+icoforge-cli convert input.png output.ico --preset "Windows App Icon"
 ```
 
 ---

@@ -57,7 +57,7 @@ Status: `[ ]` planowane, `[~]` w trakcie, `[x]` gotowe.
 
 - [x] Drag & drop plików i folderów
 - [x] Podgląd ICO w 1:1 i powiększeniu
-- [ ] Preset system (zapis konfiguracji jako JSON)
+- [x] Preset system (zapis konfiguracji jako JSON; wbudowane + użytkownika, import/eksport, domyslny preset)
 - [x] CLI równolegle do GUI dla każdej funkcji
 - [x] Wymuszanie aspektu (centrowanie z paddingiem)
 
