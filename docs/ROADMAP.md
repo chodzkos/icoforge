@@ -161,6 +161,6 @@ Każda faza ma kryteria zakończenia. Nie przechodź do następnej fazy bez uko�
 - [x] Tryb ciemny / jasny (Widok -> Motyw; auto-detekcja OS; jasny = natywny Qt)
 - [x] Lista ostatnio otwartych plikow (Recent Files, max 10)
 - [x] Zapamietywanie pozycji i rozmiaru okna
-- [ ] Preset system (zapis konfiguracji konwersji jako JSON)
+- [x] Preset system (zapis konfiguracji konwersji jako JSON; `core/presets.py`, panel GUI, CLI `--preset` i `presets list/show`)
 - [ ] AppImage dla Linux / DMG dla macOS
 - [ ] Auto-update (GitHub Releases)

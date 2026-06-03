@@ -520,3 +520,66 @@ class TestOptimizeCli:
         assert result.exit_code == 0, result.output
         assert a.stat().st_size <= size_a_before
         assert b.stat().st_size <= size_b_before
+
+
+# ---------------------------------------------------------------------------
+# .cur hotspot validation
+# ---------------------------------------------------------------------------
+
+
+class TestCurHotspotValidation:
+    """Hotspot must lie inside every frame; out-of-bounds → non-zero exit, no file."""
+
+    def test_hotspot_outside_smallest_frame_fails(self, tmp_path: Path) -> None:
+        src = _make_png(tmp_path)
+        out = tmp_path / "out.cur"
+        result = CliRunner().invoke(
+            main,
+            ["convert", str(src), str(out), "--sizes", "16", "--hotspot", "64,64"],
+        )
+        assert result.exit_code != 0
+        assert not out.exists(), "Output .cur must NOT be created for invalid hotspot"
+        assert "hotspot" in result.output.lower() or "hotspot" in (result.stderr or "").lower()
+
+    def test_hotspot_equals_frame_size_fails(self, tmp_path: Path) -> None:
+        """Hotspot at exactly (size, size) is out of bounds (0-indexed)."""
+        src = _make_png(tmp_path)
+        out = tmp_path / "out.cur"
+        result = CliRunner().invoke(
+            main,
+            ["convert", str(src), str(out), "--sizes", "32", "--hotspot", "32,32"],
+        )
+        assert result.exit_code != 0
+        assert not out.exists()
+
+    def test_hotspot_outside_smaller_of_two_frames_fails(self, tmp_path: Path) -> None:
+        """Hotspot valid for large frame but outside the small one → reject."""
+        src = _make_png(tmp_path)
+        out = tmp_path / "out.cur"
+        result = CliRunner().invoke(
+            main,
+            ["convert", str(src), str(out), "--sizes", "16,32", "--hotspot", "20,20"],
+        )
+        assert result.exit_code != 0
+        assert not out.exists()
+
+    def test_hotspot_0_0_always_valid(self, tmp_path: Path) -> None:
+        src = _make_png(tmp_path)
+        out = tmp_path / "out.cur"
+        result = CliRunner().invoke(
+            main,
+            ["convert", str(src), str(out), "--sizes", "32", "--hotspot", "0,0"],
+        )
+        assert result.exit_code == 0, result.output
+        assert out.exists()
+
+    def test_hotspot_at_max_valid_coordinate(self, tmp_path: Path) -> None:
+        """Hotspot at (size-1, size-1) is the last valid pixel."""
+        src = _make_png(tmp_path)
+        out = tmp_path / "out.cur"
+        result = CliRunner().invoke(
+            main,
+            ["convert", str(src), str(out), "--sizes", "32", "--hotspot", "31,31"],
+        )
+        assert result.exit_code == 0, result.output
+        assert out.exists()

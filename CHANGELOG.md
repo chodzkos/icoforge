@@ -6,6 +6,54 @@ Projekt stosuje [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [Unreleased]
+
+### Dodane
+
+- **System presetów konwersji** — zapis i wczytywanie nazwanych konfiguracji
+  ICO jako pliki JSON (`core/presets.py`). Wbudowane presety tylko do odczytu
+  (Windows App Icon, Favicon, Web). Panel GUI z QComboBox, przyciskami
+  „Zapisz preset…" i „Zarządzaj…" (zmiana nazwy, usunięcie, eksport/import,
+  ustawienie domyślnego). CLI: `--preset "nazwa"` do `convert`,
+  `presets list`, `presets show "nazwa"`.
+- **Walidacja hotspotu kursora** — `icoforge-cli convert … .cur --hotspot X,Y`
+  zwraca błąd jeśli hotspot leży poza najmniejszą ramką; plik .cur nie
+  powstaje. Analogicznie spinboxy w GUI ograniczone do `min_size - 1`.
+
+### Naprawione
+
+- **Otwarty uchwyt do pliku podczas walidacji PNG** (`optimizer.py`) —
+  `Image.open(source)` bez context managera trzymało uchwyt do GC; na
+  Windows blokuje późniejszy zapis in-place. Zastąpiono przez
+  `with Image.open(source) as img: img.verify()`.
+- **Context managery dla wszystkich `Image.open` w `core/`** —
+  `optimizer.verify_lossless`, `converter._load_rgba`, `icns_writer`,
+  `favicon_generator`, `heic_loader` używają teraz `with Image.open(…)`,
+  gwarantując zwolnienie uchwytu niezależnie od GC.
+- **Spójność writerów — `write_icns` tworzy katalog nadrzędny** —
+  `target.parent.mkdir(parents=True, exist_ok=True)` dodane przed
+  `write_bytes`, analogicznie jak w `write_ico` i `write_cur`.
+- **Pasek tytułu pozostaje ciemny gdy dialog jest aktywny** —
+  `changeEvent(ActivationChange)` w `MainWindow` i `EditorWindow`
+  wymusza ponowne zastosowanie `set_titlebar_dark` przy każdej zmianie
+  aktywacji, eliminując jasny flash przy otwieraniu dialogów.
+- **Białe tło pola drag-and-drop w zakładce Optymalizacja** —
+  hardcoded `#f9f9f9` / `#aaa` zastąpione rolami palety
+  (`palette(base)` / `palette(mid)`).
+- **Dialogi presetów (Zapisz, Zmień nazwę, Usuń) miały jasny pasek** —
+  `QInputDialog` i `QMessageBox` tworzone jako instancje z
+  `apply_theme_to_dialog` zamiast statycznych wywołań.
+
+### Zmienione
+
+- **Status pakietu** — klasyfikator zmieniony z `3 - Alpha` na `4 - Beta`.
+- **URL repozytorium** — placeholder `your-user/icoforge` zastąpiony
+  właściwym adresem `chodzkos/icoforge` w `pyproject.toml`.
+- **Wymagana wersja Pythona w README** — poprawiono z `3.10–3.12` na
+  `3.11–3.12`, zgodnie z `requires-python = ">=3.11"`.
+
+---
+
 ## [1.2.3] - 2026-06-01
 
 ### Naprawione

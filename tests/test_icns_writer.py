@@ -166,3 +166,18 @@ class TestValidation:
         img = Image.new("RGBA", (32, 64), (0, 0, 0, 255))
         with pytest.raises(ValueError, match="square"):
             write_icns(tmp_path / "x.icns", [img])
+
+
+# ---------------------------------------------------------------------------
+# Parent directory creation
+# ---------------------------------------------------------------------------
+
+
+class TestParentDirectoryCreation:
+    def test_creates_missing_parent_dirs(self, tmp_path: Path) -> None:
+        """write_icns must create intermediate directories like write_ico/write_cur do."""
+        out = tmp_path / "a" / "b" / "out.icns"
+        assert not out.parent.exists()
+        write_icns(out, [_solid(16)])
+        assert out.exists()
+        assert out.read_bytes()[:4] == b"icns"

@@ -262,19 +262,19 @@ def _load_rgba(path: Path, background: Background) -> Image.Image:
     Returns:
         RGBA image ready for resizing.
     """
-    img = Image.open(path)
+    # img.convert() materialises all pixel data into a new in-memory Image that
+    # is fully independent of the source file handle, so closing the handle
+    # inside the with-block is safe even though the converted Image is used
+    # after it.
+    with Image.open(path) as img:
+        if img.mode in ("RGBA", "LA", "P"):
+            # Native alpha (or palette with transparency index) — convert and
+            # return; with-block exits cleanly after convert() loads all data.
+            return img.convert("RGBA")
+        # Everything else (RGB, L, CMYK, …): no alpha present.
+        rgba = img.convert("RGBA")  # pixels become fully opaque (alpha = 255)
 
-    # Modes with native alpha.
-    if img.mode in ("RGBA", "LA"):
-        return img.convert("RGBA")
-
-    # Palette mode — may embed a transparency index.
-    if img.mode == "P":
-        return img.convert("RGBA")
-
-    # Everything else (RGB, L, CMYK, …): no alpha present.
-    rgba = img.convert("RGBA")  # pixels become fully opaque (alpha = 255)
-
+    # File handle closed; rgba is an in-memory RGBA Image.
     if background == TRANSPARENT:
         return rgba
 

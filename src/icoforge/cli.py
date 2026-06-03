@@ -629,6 +629,13 @@ def _convert_cur(
     )
     hs = _parse_hotspot(hotspot)
 
+    for spec in size_specs:
+        if hs[0] >= spec.width or hs[1] >= spec.height:
+            raise click.BadParameter(
+                f"Hotspot {hs} is outside {spec.width}x{spec.height}.",
+                param_hint="'--hotspot'",
+            )
+
     try:
         frames = run_render(source, config, progress=_progress_callback)
     except FileNotFoundError as exc:
