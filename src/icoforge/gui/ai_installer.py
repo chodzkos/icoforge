@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -25,6 +28,55 @@ def _ai_packages_dir() -> Path:
     return Path(__file__).resolve().parents[3] / "ai_packages"
 
 
+def _find_python() -> str | None:
+    """Znajdź interpreter Pythona 3.x w systemie.
+
+    W trybie PyInstaller sys.executable to bundlowany exe - nie Python.
+    Szukamy prawdziwego Pythona w PATH i typowych lokalizacjach Windows.
+    """
+    if not getattr(sys, "frozen", False):
+        return sys.executable
+
+    candidates: list[list[str]] = []
+
+    py_launcher = shutil.which("py")
+    if py_launcher:
+        candidates.append([py_launcher, "-3"])
+
+    for name in ("python3.12", "python3.11", "python3.10", "python3", "python"):
+        path = shutil.which(name)
+        if path and "IcoForge" not in path and "icoforge" not in path.lower():
+            candidates.append([path])
+
+    local_app_data = os.environ.get("LOCALAPPDATA", "")
+    static_paths = [
+        Path(local_app_data) / "Programs/Python/Python312/python.exe",
+        Path(local_app_data) / "Programs/Python/Python311/python.exe",
+        Path(local_app_data) / "Programs/Python/Python310/python.exe",
+        Path("C:/Python312/python.exe"),
+        Path("C:/Python311/python.exe"),
+        Path("C:/Python310/python.exe"),
+    ]
+    for p in static_paths:
+        if p.exists():
+            candidates.append([str(p)])
+
+    for cmd in candidates:
+        try:
+            result = subprocess.run(
+                [*cmd, "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if "Python 3" in result.stdout + result.stderr:
+                return " ".join(cmd)
+        except Exception:
+            continue
+
+    return None
+
+
 class _InstallWorker(QThread):
     """Background thread that runs ``pip install rembg onnxruntime``."""
 
@@ -36,11 +88,24 @@ class _InstallWorker(QThread):
         self._target = target
 
     def run(self) -> None:
-        import subprocess
+        import shlex
+
+        python_cmd = _find_python()
+
+        if python_cmd is None:
+            self.log_line.emit(
+                "✗ Nie znaleziono Pythona 3.x w systemie.\n"
+                "Zainstaluj Python 3.11+ ze strony python.org\n"
+                "i upewnij sie ze jest dodany do PATH."
+            )
+            self.finished.emit(False)
+            return
+
+        self.log_line.emit(f"Uzyty Python: {python_cmd}")
 
         target = str(self._target)
         cmd = [
-            sys.executable,
+            *shlex.split(python_cmd),
             "-m",
             "pip",
             "install",
