@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QScrollArea,
     QTabWidget,
+    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
@@ -78,6 +79,11 @@ class HelpWindow(QDialog):
         tabs.addTab(_scroll(self._make_optimization_tab()), self.tr("Optymalizacja PNG"))
         tabs.addTab(_scroll(self._make_editor_tab()), self.tr("Edytor"))
         tabs.addTab(_scroll(self._make_cli_tab()), self.tr("CLI"))
+
+        self._ai_browser = self._make_ai_model_tab()
+        tabs.addTab(self._ai_browser, self.tr("Model AI"))
+
+        self._ai_theme_connected = False
         layout.addWidget(tabs)
 
         close_btn = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
@@ -98,6 +104,12 @@ class HelpWindow(QDialog):
         mgr = get_theme_manager()
         if mgr is not None:
             apply_theme_to_dialog(self, mgr)
+            if not self._ai_theme_connected:
+                mgr.theme_changed.connect(self._update_ai_html)
+                self._ai_theme_connected = True
+            self._update_ai_html(mgr.current_resolved())
+        else:
+            self._update_ai_html("light")
 
     def closeEvent(self, event: object) -> None:
         settings = QSettings("IcoForge", "IcoForge")
@@ -428,3 +440,122 @@ class HelpWindow(QDialog):
         label.setTextFormat(Qt.TextFormat.RichText)
         layout.addWidget(label)
         return w
+
+    # ------------------------------------------------------------------
+    # AI model tab (QTextBrowser with theme-aware pre/table colours)
+    # ------------------------------------------------------------------
+
+    def _make_ai_model_tab(self) -> QTextBrowser:
+        """Return a QTextBrowser for the AI model installation guide."""
+        browser = QTextBrowser()
+        browser.setOpenExternalLinks(True)
+        browser.setReadOnly(True)
+        # Content is set on first showEvent once the theme is known.
+        return browser
+
+    def _update_ai_html(self, resolved: str = "light") -> None:
+        """Re-render the AI tab HTML with colours matching *resolved* theme."""
+        if resolved == "dark":
+            pre_bg, pre_fg = "#1e1e1e", "#d4d4d4"
+            th_bg, th_fg = "#2d2d2d", "#e0e0e0"
+            td_bg, td_fg = "#252525", "#cccccc"
+            border = "#444444"
+        else:
+            pre_bg, pre_fg = "#f4f4f4", "#1a1a1a"
+            th_bg, th_fg = "#e8e8e8", "#1a1a1a"
+            td_bg, td_fg = "#ffffff", "#1a1a1a"
+            border = "#cccccc"
+
+        pre = (
+            f"background:{pre_bg};color:{pre_fg};"
+            "padding:8px;border-radius:4px;white-space:pre-wrap;"
+            "font-family:monospace;font-size:13px"
+        )
+        th = f"background:{th_bg};color:{th_fg};padding:6px 10px;text-align:left"
+        td = f"background:{td_bg};color:{td_fg};padding:5px 10px"
+        tbl = f"border-collapse:collapse;border-color:{border};margin:6px 0;width:100%"
+
+        html = f"""
+<h3>{self.tr("Usuwanie tla przez AI (rembg)")}</h3>
+<p>{
+            self.tr(
+                'Funkcja "Usun tlo (AI)" wymaga jednorazowej instalacji '
+                "biblioteki rembg i pobrania modelu (~170 MB)."
+            )
+        }</p>
+
+<h4>{self.tr("Krok 1 - instalacja biblioteki")}</h4>
+<p>{self.tr("Otworz wiersz polecen (cmd lub PowerShell) i wpisz:")}</p>
+<pre style="{pre}">pip install rembg</pre>
+<p>{self.tr("Jesli pojawi sie blad, sprobuj kolejno:")}</p>
+<pre style="{pre}">pip install onnxruntime
+pip install "numpy&lt;2.0"
+pip install rembg</pre>
+
+<h4>{self.tr("Krok 2 - pobranie modelu")}</h4>
+<p>{
+            self.tr(
+                "Model pobiera sie automatycznie przy pierwszym uzyciu "
+                'funkcji "Usun tlo (AI)" w aplikacji.<br>'
+                "Rozmiar: ~170 MB. Wymagane polaczenie z internetem.<br>"
+                "Model zapisywany jest w:"
+            )
+        }</p>
+<pre style="{pre}">C:\\Users\\&lt;TWOJA_NAZWA&gt;\\.u2net\\u2net.onnx</pre>
+<p>{self.tr("Kolejne uruchomienia nie wymagaja pobierania.")}</p>
+
+<h4>{self.tr("Krok 3 - weryfikacja")}</h4>
+<p>{self.tr("Sprawdz poprawnosc instalacji w wierszu polecen:")}</p>
+<pre style="{pre}">python -c "import rembg; print('rembg OK')"</pre>
+<p>{
+            self.tr(
+                "Jesli wyswietli sie <b>rembg OK</b> - restart IcoForge "
+                'i opcja "Usun tlo (AI)" pojawi sie w ustawieniach konwersji.'
+            )
+        }</p>
+
+<h4>{self.tr("Dostepne modele (opcjonalnie)")}</h4>
+<table border="1" cellpadding="0" cellspacing="0" style="{tbl}">
+<tr>
+  <th style="{th}">{self.tr("Model")}</th>
+  <th style="{th}">{self.tr("Rozmiar")}</th>
+  <th style="{th}">{self.tr("Zastosowanie")}</th>
+</tr>
+<tr>
+  <td style="{td}">u2net</td>
+  <td style="{td}">176 MB</td>
+  <td style="{td}">{self.tr("Domyslny, ogolny - dobry do wiekszosci obrazow")}</td>
+</tr>
+<tr>
+  <td style="{td}">u2net_human_seg</td>
+  <td style="{td}">176 MB</td>
+  <td style="{td}">{self.tr("Sylwetki ludzi")}</td>
+</tr>
+<tr>
+  <td style="{td}">u2netp</td>
+  <td style="{td}">4 MB</td>
+  <td style="{td}">{self.tr("Szybki, mniejsza dokladnosc")}</td>
+</tr>
+<tr>
+  <td style="{td}">silueta</td>
+  <td style="{td}">44 MB</td>
+  <td style="{td}">{self.tr("Dobry do obiektow i produktow")}</td>
+</tr>
+</table>
+<p>{self.tr("Zmiane modelu znajdziesz w Ustawieniach - Model AI.")}</p>
+
+<h4>{self.tr("Wymagania systemowe")}</h4>
+<ul>
+<li>{self.tr("Python 3.11 lub nowszy")}</li>
+<li>{
+            self.tr(
+                "Visual C++ Redistributable 2019+ "
+                '(<a href="https://aka.ms/vs/17/release/vc_redist.x64.exe">'
+                "pobierz tutaj</a>)"
+            )
+        }</li>
+<li>{self.tr("~500 MB wolnego miejsca na dysku")}</li>
+<li>{self.tr("Dziala bez karty GPU (CPU wystarczy)")}</li>
+</ul>
+"""
+        self._ai_browser.setHtml(html)
