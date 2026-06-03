@@ -10,6 +10,31 @@ Projekt stosuje [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.2.9] - 2026-06-03
+
+### Naprawione
+
+- **Wersja "nieznana" w skompilowanym exe** — `icoforge.spec` dołącza teraz
+  `.dist-info` przez `copy_metadata("icoforge")`, dzięki czemu
+  `importlib.metadata.version()` działa wewnątrz bundla PyInstaller.
+  Dodano statyczny fallback `src/icoforge/_version.py` (`__version__`)
+  używany gdy metadane pakietu są niedostępne.
+- **Przycisk tytułu paska aplikacji pokazuje numer wersji** —
+  `MainWindow` ustawia tytuł `IcoForge X.Y.Z` na starcie.
+
+### Dodane
+
+- **Instalator modelu AI (rembg)** — nowe menu **Narzędzia → Zainstaluj
+  model AI…** oraz przycisk w panelu konwersji gdy `rembg` nie jest
+  zainstalowane. `AiInstallerDialog` uruchamia `pip install rembg
+  onnxruntime --target ai_packages/` w wątku tła z podglądem logów.
+  Folder `ai_packages/` obok exe jest automatycznie dodawany do
+  `sys.path` przez `bg_remover._setup_ai_packages_path()`.
+- **`ai_packages/` w `.gitignore`** — lokalne pakiety AI nie są
+  commitowane do repozytorium.
+
+---
+
 ## [1.2.8] - 2026-06-03
 
 ### Dodane
