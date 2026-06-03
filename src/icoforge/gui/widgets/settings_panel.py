@@ -470,9 +470,9 @@ class SettingsPanel(QWidget):
         return group
 
     def _make_bg_remove_group(self) -> QGroupBox | None:
-        from icoforge.core.bg_remover import MODEL_DOWNLOAD_WARNING, is_available
+        from icoforge.core.bg_remover import MODEL_DOWNLOAD_WARNING, REMBG_AVAILABLE
 
-        if not is_available():
+        if not REMBG_AVAILABLE:
             group = QGroupBox(self.tr("Usuwanie tła (AI)"))
             vbox = QVBoxLayout(group)
             vbox.setContentsMargins(8, 8, 8, 8)
