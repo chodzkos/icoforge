@@ -28,14 +28,14 @@ def _ai_packages_dir() -> Path:
     return Path(__file__).resolve().parents[3] / "ai_packages"
 
 
-def _find_python() -> str | None:
+def _find_python() -> list[str] | None:
     """Znajdź interpreter Pythona 3.x w systemie.
 
     W trybie PyInstaller sys.executable to bundlowany exe - nie Python.
     Szukamy prawdziwego Pythona w PATH i typowych lokalizacjach Windows.
     """
     if not getattr(sys, "frozen", False):
-        return sys.executable
+        return [sys.executable]
 
     candidates: list[list[str]] = []
 
@@ -70,7 +70,7 @@ def _find_python() -> str | None:
                 timeout=5,
             )
             if "Python 3" in result.stdout + result.stderr:
-                return " ".join(cmd)
+                return cmd
         except Exception:
             continue
 
@@ -88,11 +88,9 @@ class _InstallWorker(QThread):
         self._target = target
 
     def run(self) -> None:
-        import shlex
+        python_parts = _find_python()
 
-        python_cmd = _find_python()
-
-        if python_cmd is None:
+        if not python_parts:
             self.log_line.emit(
                 "✗ Nie znaleziono Pythona 3.x w systemie.\n"
                 "Zainstaluj Python 3.11+ ze strony python.org\n"
@@ -101,19 +99,20 @@ class _InstallWorker(QThread):
             self.finished.emit(False)
             return
 
-        self.log_line.emit(f"Uzyty Python: {python_cmd}")
+        self.log_line.emit(f"Uzywam Pythona: {python_parts[0]}")
+        self.log_line.emit(f"Cel instalacji: {self._target}\n")
 
-        target = str(self._target)
         cmd = [
-            *shlex.split(python_cmd),
+            *python_parts,
             "-m",
             "pip",
             "install",
             "rembg",
             "onnxruntime",
             "--target",
-            target,
+            str(self._target),
             "--no-cache-dir",
+            "--no-warn-script-location",
         ]
         try:
             proc = subprocess.Popen(
