@@ -9,7 +9,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 from PIL import Image
 
-from icoforge.core.bg_remover import BgRemoveError, is_available, is_rembg_available, remove_background
+from icoforge.core.bg_remover import (
+    BgRemoveError,
+    is_available,
+    is_rembg_available,
+    remove_background,
+)
 
 
 def _png_b64(mode: str = "RGBA", size: tuple[int, int] = (4, 4), color: object = (0, 0, 0, 0)) -> bytes:
@@ -127,9 +132,11 @@ class TestConverterIntegration:
         rgba_result = Image.new("RGBA", (64, 64), (255, 100, 50, 255))
         config = IcoConfig(sizes=(SizeSpec(32, 32),), remove_bg=True)
 
-        with patch("icoforge.core.bg_remover.remove_background", return_value=rgba_result) as mock_rb:
-            with patch("icoforge.core.bg_remover.REMBG_AVAILABLE", True):
-                convert(src, dst, config)
+        with (
+            patch("icoforge.core.bg_remover.remove_background", return_value=rgba_result) as mock_rb,
+            patch("icoforge.core.bg_remover.REMBG_AVAILABLE", True),
+        ):
+            convert(src, dst, config)
 
         mock_rb.assert_called_once()
 
