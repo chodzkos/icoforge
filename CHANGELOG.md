@@ -8,6 +8,10 @@ Projekt stosuje [Semantic Versioning](https://semver.org/lang/pl/).
 
 ## [Unreleased]
 
+---
+
+## [1.2.8] - 2026-06-03
+
 ### Dodane
 
 - **System presetów konwersji** — zapis i wczytywanie nazwanych konfiguracji
@@ -18,7 +22,20 @@ Projekt stosuje [Semantic Versioning](https://semver.org/lang/pl/).
   `presets list`, `presets show "nazwa"`.
 - **Walidacja hotspotu kursora** — `icoforge-cli convert … .cur --hotspot X,Y`
   zwraca błąd jeśli hotspot leży poza najmniejszą ramką; plik .cur nie
-  powstaje. Analogicznie spinboxy w GUI ograniczone do `min_size - 1`.
+  powstaje. Spinboxy w GUI ograniczone do `min_size - 1`.
+- **Okno pomocy (F1)** — `Pomoc → Instrukcja obsługi` otwiera okno z
+  zakładkami: Konwersja, Optymalizacja PNG, Edytor, CLI, Model AI (przewodnik
+  instalacji rembg krok po kroku z tabela modeli).
+- **Tooltips na wszystkich opcjach GUI** — preset combo, przyciski, suwak
+  poziomu kompresji, checkboxy Zopfli/metadane/ICC, opcje zapisu, narzędzia
+  edytora.
+- **Czytelne tooltips w trybie ciemnym** — `ThemeManager._apply_tooltip_style`
+  wstrzykuje do styleshetu regułę `QToolTip` z odpowiednimi kolorami dla
+  dark (`#2d2d2d / #e0e0e0`) i light (`#ffffc0 / #1a1a1a`).
+- **Okno „O programie" — wersja i link GitHub** — wersja pobierana dynamicznie
+  z metadanych pakietu; klikalne łącze do GitHub; sprawdzanie aktualizacji
+  w tle przez GitHub Releases API (nie blokuje UI).
+- **Tytuł paska aplikacji z numerem wersji** — np. „IcoForge 1.2.8".
 
 ### Naprawione
 
