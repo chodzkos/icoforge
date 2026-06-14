@@ -27,6 +27,7 @@ from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtGui import QPalette
 from PySide6.QtWidgets import QApplication
 
+from icoforge.gui import icons as icon_provider
 from icoforge.utils.settings import get_setting, save_setting
 
 THEMES: tuple[str, ...] = ("auto", "dark", "light")
@@ -55,6 +56,9 @@ class ThemeManager(QObject):
         self._default_style = app.style().objectName()
         self._default_palette = QPalette(app.palette())
         self._default_stylesheet = app.styleSheet()
+        icon_provider.set_color_resolver(
+            lambda token: self._current_palette_tokens().get(token, "#dde1ec")
+        )
 
     # ------------------------------------------------------------------
     # Public API
@@ -72,6 +76,7 @@ class ThemeManager(QObject):
         save_setting("theme", theme)
         resolved = self._resolve(theme)
         self._apply_resolved(resolved)
+        icon_provider.clear_cache()
         self.theme_changed.emit(resolved)
 
     def restore(self) -> None:
@@ -80,6 +85,7 @@ class ThemeManager(QObject):
         if saved not in THEMES:
             saved = "auto"
         self._apply_resolved(self._resolve(saved))
+        icon_provider.clear_cache()
 
     def current_resolved(self) -> str:
         """Return the currently active theme: ``"dark"`` or ``"light"``."""
@@ -112,6 +118,29 @@ class ThemeManager(QObject):
             self._apply_native_light()
         self._apply_tooltip_style(resolved)
         self._force_refresh()
+
+    def _current_palette_tokens(self) -> dict[str, str]:
+        """Return semantic colour tokens for recolourable SVG icons."""
+        palette = self._app.palette()
+        role = QPalette.ColorRole
+        is_dark = palette.color(role.Window).lightness() < 128
+
+        def color(palette_role: QPalette.ColorRole) -> str:
+            return palette.color(palette_role).name()
+
+        return {
+            "fg": color(role.WindowText),
+            "fg2": color(role.Text),
+            "fg3": color(role.PlaceholderText),
+            "accent": color(role.Highlight),
+            "accent2": color(role.Link),
+            "red": "#ff6b6b" if is_dark else "#d70015",
+            "amber": "#ffd166" if is_dark else "#b25000",
+            "bg": color(role.Window),
+            "bg2": color(role.AlternateBase),
+            "bg3": color(role.Base),
+            "border": color(role.Mid),
+        }
 
     def _apply_tooltip_style(self, resolved: str) -> None:
         """Append a QToolTip rule to the app stylesheet for the current theme.
