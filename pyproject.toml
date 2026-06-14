@@ -59,6 +59,10 @@ Issues = "https://github.com/chodzkos/icoforge/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["src/icoforge"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"assets/icons" = "assets/icons"
+"LICENSE-icons" = "LICENSE-icons"
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"

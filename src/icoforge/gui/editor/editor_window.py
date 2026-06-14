@@ -5,8 +5,16 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QEvent, QPoint, Qt
-from PySide6.QtGui import QAction, QCloseEvent, QColor, QFont, QKeySequence, QShowEvent
+from PySide6.QtCore import QEvent, QPoint, QSize, Qt
+from PySide6.QtGui import (
+    QAction,
+    QActionGroup,
+    QCloseEvent,
+    QColor,
+    QFont,
+    QKeySequence,
+    QShowEvent,
+)
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -38,9 +46,12 @@ from icoforge.gui.editor.tools import (
     SelectTool,
     Tool,
 )
+from icoforge.gui.icons import get_icon
 
 if TYPE_CHECKING:
     from PIL import Image
+
+    from icoforge.utils.theme import ThemeManager
 
 
 class EditorWindow(QMainWindow):
@@ -77,6 +88,14 @@ class EditorWindow(QMainWindow):
         self._user_set_zoom = False
 
         self._synced_sizes: set[int] = set()
+        self._theme_manager: ThemeManager | None = None
+        self._icon_actions: dict[QAction, str] = {}
+        self._tool_actions: dict[str, QAction] = {}
+        self._edit_actions: dict[str, QAction] = {}
+        self._zoom_actions: dict[str, QAction] = {}
+        self._color_actions: dict[str, QAction] = {}
+        self._tool_action_group = QActionGroup(self)
+        self._tool_action_group.setExclusive(True)
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -140,13 +159,35 @@ class EditorWindow(QMainWindow):
 
         from icoforge.utils.theme import get_theme_manager
 
-        mgr = get_theme_manager()
-        if mgr is not None:
-            mgr.theme_changed.connect(self._on_theme_changed)
+        self._theme_manager = get_theme_manager()
+        if self._theme_manager is not None:
+            self._theme_manager.theme_changed.connect(self._on_theme_changed)
+            self._theme_manager.theme_changed.connect(self._refresh_icons)
 
     # ------------------------------------------------------------------
     # Setup
     # ------------------------------------------------------------------
+
+    def _register_icon_action(self, action: QAction, icon_name: str) -> None:
+        self._icon_actions[action] = icon_name
+        action.setIcon(get_icon(icon_name))
+
+    def _refresh_icons(self, _resolved: str | None = None) -> None:
+        """Refresh action icons after the IconProvider cache has been cleared."""
+        for action, icon_name in self._icon_actions.items():
+            action.setIcon(get_icon(icon_name))
+
+    def _setup_icon_toolbar(self, toolbar: QToolBar) -> None:
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        toolbar.setIconSize(QSize(20, 20))
+        layout = toolbar.layout()
+        if layout is not None:
+            layout.setSpacing(6)
+
+    def _set_active_tool_action(self, tool_name: str) -> None:
+        action = self._tool_actions.get(tool_name)
+        if action is not None and not action.isChecked():
+            action.setChecked(True)
 
     def _setup_menu(self) -> None:
         from icoforge.gui.editor.export_utils import icns_available
@@ -175,92 +216,142 @@ class EditorWindow(QMainWindow):
 
         edit_menu = self.menuBar().addMenu(self.tr("&Edycja"))
 
-        undo_action = self._canvas.undo_stack.createUndoAction(self, self.tr("Cofnij:"))
-        undo_action.setShortcut(QKeySequence("Ctrl+Z"))
-        edit_menu.addAction(undo_action)
+        self._edit_actions["undo"] = self._canvas.undo_stack.createUndoAction(
+            self, self.tr("Cofnij")
+        )
+        self._edit_actions["undo"].setShortcut(QKeySequence("Ctrl+Z"))
+        self._edit_actions["undo"].setToolTip(self.tr("Cofnij (Ctrl+Z)"))
+        self._register_icon_action(self._edit_actions["undo"], "undo")
+        edit_menu.addAction(self._edit_actions["undo"])
 
-        redo_action = self._canvas.undo_stack.createRedoAction(self, self.tr("Ponów:"))
-        redo_action.setShortcuts([QKeySequence("Ctrl+Shift+Z"), QKeySequence("Ctrl+Y")])
-        edit_menu.addAction(redo_action)
+        self._edit_actions["redo"] = self._canvas.undo_stack.createRedoAction(
+            self, self.tr("Ponów")
+        )
+        self._edit_actions["redo"].setShortcuts(
+            [QKeySequence("Ctrl+Shift+Z"), QKeySequence("Ctrl+Y")]
+        )
+        self._edit_actions["redo"].setToolTip(self.tr("Ponów (Ctrl+Shift+Z)"))
+        self._register_icon_action(self._edit_actions["redo"], "redo")
+        edit_menu.addAction(self._edit_actions["redo"])
 
         edit_menu.addSeparator()
 
         copy_action = QAction(self.tr("&Kopiuj"), self)
         copy_action.setShortcut(QKeySequence.StandardKey.Copy)
-        copy_action.setToolTip(self.tr("Kopiuj zaznaczenie (Ctrl+C)"))
+        copy_action.setToolTip(self.tr("Kopiuj (Ctrl+C)"))
         copy_action.triggered.connect(self._on_copy)
+        self._edit_actions["copy"] = copy_action
+        self._register_icon_action(copy_action, "copy")
         edit_menu.addAction(copy_action)
 
         cut_action = QAction(self.tr("Wy&tnij"), self)
         cut_action.setShortcut(QKeySequence.StandardKey.Cut)
-        cut_action.setToolTip(self.tr("Wytnij zaznaczenie do schowka (Ctrl+X)"))
+        cut_action.setToolTip(self.tr("Wytnij (Ctrl+X)"))
         cut_action.triggered.connect(self._on_cut)
+        self._edit_actions["cut"] = cut_action
+        self._register_icon_action(cut_action, "cut")
         edit_menu.addAction(cut_action)
 
         paste_action = QAction(self.tr("&Wklej"), self)
         paste_action.setShortcut(QKeySequence.StandardKey.Paste)
-        paste_action.setToolTip(self.tr("Wklej ze schowka z zachowaniem sprite (Ctrl+V)"))
+        paste_action.setToolTip(self.tr("Wklej (Ctrl+V)"))
         paste_action.triggered.connect(self._on_paste)
+        self._edit_actions["paste"] = paste_action
+        self._register_icon_action(paste_action, "paste")
         edit_menu.addAction(paste_action)
 
     def _setup_toolbar(self) -> None:
         toolbar = QToolBar(self.tr("Narzędzia"))
+        toolbar.setObjectName("editor_tools_toolbar")
+        self._setup_icon_toolbar(toolbar)
         self.addToolBar(toolbar)
 
-        pencil_action = QAction(self.tr("Ołówek (B)"), self)
-        pencil_action.setToolTip(self.tr("Rysowanie odręczne (B)"))
+        pencil_action = QAction(self.tr("Ołówek"), self)
+        pencil_action.setToolTip(self.tr("Ołówek (B)"))
+        pencil_action.setCheckable(True)
         pencil_action.triggered.connect(self._on_tool_pencil)
         pencil_action.setShortcut("B")
+        self._tool_action_group.addAction(pencil_action)
+        self._tool_actions["pencil"] = pencil_action
+        self._register_icon_action(pencil_action, "pencil")
         toolbar.addAction(pencil_action)
 
-        eraser_action = QAction(self.tr("Gumka (E)"), self)
-        eraser_action.setToolTip(self.tr("Ustaw piksele jako przezroczyste (E)"))
+        eraser_action = QAction(self.tr("Gumka"), self)
+        eraser_action.setToolTip(self.tr("Gumka (E)"))
+        eraser_action.setCheckable(True)
         eraser_action.triggered.connect(self._on_tool_eraser)
         eraser_action.setShortcut("E")
+        self._tool_action_group.addAction(eraser_action)
+        self._tool_actions["eraser"] = eraser_action
+        self._register_icon_action(eraser_action, "eraser")
         toolbar.addAction(eraser_action)
 
-        eyedropper_action = QAction(self.tr("Kroplomierz (I)"), self)
-        eyedropper_action.setToolTip(self.tr("Pobierz kolor z płótna (I)"))
+        eyedropper_action = QAction(self.tr("Kroplomierz"), self)
+        eyedropper_action.setToolTip(self.tr("Kroplomierz (I)"))
+        eyedropper_action.setCheckable(True)
         eyedropper_action.triggered.connect(self._on_tool_eyedropper)
         eyedropper_action.setShortcut("I")
+        self._tool_action_group.addAction(eyedropper_action)
+        self._tool_actions["eyedropper"] = eyedropper_action
+        self._register_icon_action(eyedropper_action, "eyedropper")
         toolbar.addAction(eyedropper_action)
 
-        fill_action = QAction(self.tr("Wypełnienie (G)"), self)
-        fill_action.setToolTip(self.tr("Wypełnij obszar z tolerancją (G)"))
+        fill_action = QAction(self.tr("Wypełnienie"), self)
+        fill_action.setToolTip(self.tr("Wypełnienie (G)"))
+        fill_action.setCheckable(True)
         fill_action.triggered.connect(self._on_tool_fill)
         fill_action.setShortcut("G")
+        self._tool_action_group.addAction(fill_action)
+        self._tool_actions["fill"] = fill_action
+        self._register_icon_action(fill_action, "fill")
         toolbar.addAction(fill_action)
 
-        line_action = QAction(self.tr("Linia (L)"), self)
-        line_action.setToolTip(self.tr("Prosta linia, algorytm Bresenhama (L)"))
+        line_action = QAction(self.tr("Linia"), self)
+        line_action.setToolTip(self.tr("Linia (L)"))
+        line_action.setCheckable(True)
         line_action.triggered.connect(self._on_tool_line)
         line_action.setShortcut("L")
+        self._tool_action_group.addAction(line_action)
+        self._tool_actions["line"] = line_action
+        self._register_icon_action(line_action, "line")
         toolbar.addAction(line_action)
 
-        rect_action = QAction(self.tr("Prostokąt (R)"), self)
-        rect_action.setToolTip(self.tr("Prostokąt - obrys lub wypełniony (R)"))
+        rect_action = QAction(self.tr("Prostokąt"), self)
+        rect_action.setToolTip(self.tr("Prostokąt (R)"))
+        rect_action.setCheckable(True)
         rect_action.triggered.connect(self._on_tool_rect)
         rect_action.setShortcut("R")
+        self._tool_action_group.addAction(rect_action)
+        self._tool_actions["rect"] = rect_action
+        self._register_icon_action(rect_action, "rectangle")
         toolbar.addAction(rect_action)
 
-        select_action = QAction(self.tr("Zaznaczenie (S)"), self)
-        select_action.setToolTip(self.tr("Zaznaczenie prostokątne - Ctrl+C/X/V (S)"))
+        select_action = QAction(self.tr("Zaznaczenie"), self)
+        select_action.setToolTip(self.tr("Zaznaczenie (S)"))
+        select_action.setCheckable(True)
         select_action.triggered.connect(self._on_tool_select)
         select_action.setShortcut("S")
+        self._tool_action_group.addAction(select_action)
+        self._tool_actions["select"] = select_action
+        self._register_icon_action(select_action, "selection")
         toolbar.addAction(select_action)
 
         toolbar.addSeparator()
 
         swap_action = QAction(self.tr("Zamień kolory (X)"), self)
-        swap_action.setToolTip(self.tr("Zamień kolory pierwszego/drugiego planu (X)"))
+        swap_action.setToolTip(self.tr("Zamień kolory (X)"))
         swap_action.triggered.connect(self._on_swap_colors)
         swap_action.setShortcut("X")
+        self._color_actions["swap_colors"] = swap_action
+        self._register_icon_action(swap_action, "swap_colors")
         toolbar.addAction(swap_action)
 
-        reset_colors_action = QAction(self.tr("Resetuj kolory (D)"), self)
-        reset_colors_action.setToolTip(self.tr("Resetuj do czarno-białego (D)"))
+        reset_colors_action = QAction(self.tr("Domyślne kolory (D)"), self)
+        reset_colors_action.setToolTip(self.tr("Domyślne kolory (D)"))
         reset_colors_action.triggered.connect(self._on_reset_colors)
         reset_colors_action.setShortcut("D")
+        self._color_actions["reset_colors"] = reset_colors_action
+        self._register_icon_action(reset_colors_action, "reset_colors")
         toolbar.addAction(reset_colors_action)
 
         toolbar.addSeparator()
@@ -300,32 +391,47 @@ class EditorWindow(QMainWindow):
         toolbar.addWidget(self._filled_checkbox)
 
         zoom_toolbar = QToolBar(self.tr("Zoom"))
+        zoom_toolbar.setObjectName("editor_zoom_toolbar")
+        self._setup_icon_toolbar(zoom_toolbar)
         self.addToolBar(zoom_toolbar)
 
-        zoom_out_action = QAction(self.tr("- Pomniejsz"), self)
+        zoom_out_action = QAction(self.tr("Pomniejsz"), self)
+        zoom_out_action.setToolTip(self.tr("Pomniejsz (-)"))
         zoom_out_action.triggered.connect(self._on_zoom_out)
         zoom_out_action.setShortcut(QKeySequence("-"))
+        self._zoom_actions["zoom_out"] = zoom_out_action
+        self._register_icon_action(zoom_out_action, "zoom_out")
         zoom_toolbar.addAction(zoom_out_action)
 
         fit_action = QAction(self.tr("Dopasuj"), self)
+        fit_action.setToolTip(self.tr("Dopasuj do okna (Ctrl+0)"))
         fit_action.triggered.connect(self._on_zoom_fit)
         fit_action.setShortcut(QKeySequence("Ctrl+0"))
+        self._zoom_actions["zoom_fit"] = fit_action
+        self._register_icon_action(fit_action, "zoom_fit")
         zoom_toolbar.addAction(fit_action)
 
         one_to_one_action = QAction("1:1", self)
+        one_to_one_action.setToolTip(self.tr("Rozmiar 1:1 (Ctrl+1)"))
         one_to_one_action.triggered.connect(self._on_zoom_1to1)
         one_to_one_action.setShortcut(QKeySequence("Ctrl+1"))
+        self._zoom_actions["zoom_1to1"] = one_to_one_action
+        self._register_icon_action(one_to_one_action, "zoom_1to1")
         zoom_toolbar.addAction(one_to_one_action)
 
-        zoom_in_action = QAction(self.tr("+ Powiększ"), self)
+        zoom_in_action = QAction(self.tr("Powiększ"), self)
+        zoom_in_action.setToolTip(self.tr("Powiększ (+)"))
         zoom_in_action.triggered.connect(self._on_zoom_in)
-        zoom_in_action.setShortcut(QKeySequence("="))
+        zoom_in_action.setShortcuts([QKeySequence("+"), QKeySequence("=")])
+        self._zoom_actions["zoom_in"] = zoom_in_action
+        self._register_icon_action(zoom_in_action, "zoom_in")
         zoom_toolbar.addAction(zoom_in_action)
 
         zoom_toolbar.addSeparator()
 
         self._zoom_combo = QComboBox()
         self._zoom_combo.setMinimumWidth(80)
+        self._zoom_combo.setToolTip(self.tr("Poziom powiększenia"))
         for level in ZOOM_LEVELS:
             self._zoom_combo.addItem(f"{int(level * 100)}%", level)
         self._zoom_combo.currentIndexChanged.connect(self._on_zoom_combo_changed)
@@ -453,6 +559,7 @@ class EditorWindow(QMainWindow):
         tool.set_size(self._current_size)
         self._canvas.set_tool(tool)
         self._current_tool_name = "pencil"
+        self._set_active_tool_action("pencil")
         self._update_tool_options_visibility()
         self._status_bar.showMessage(self.tr("Narzędzie: %1").replace("%1", self.tr("Ołówek (B)")))
 
@@ -464,6 +571,7 @@ class EditorWindow(QMainWindow):
         tool.set_size(self._current_size)
         self._canvas.set_tool(tool)
         self._current_tool_name = "eraser"
+        self._set_active_tool_action("eraser")
         self._update_tool_options_visibility()
         self._status_bar.showMessage(self.tr("Narzędzie: %1").replace("%1", self.tr("Gumka (E)")))
 
@@ -473,6 +581,7 @@ class EditorWindow(QMainWindow):
         tool = self._tools["eyedropper"]
         self._canvas.set_tool(tool)
         self._current_tool_name = "eyedropper"
+        self._set_active_tool_action("eyedropper")
         self._update_tool_options_visibility()
         self._status_bar.showMessage(
             self.tr("Narzędzie: %1").replace("%1", self.tr("Kroplomierz (I)"))
@@ -488,6 +597,7 @@ class EditorWindow(QMainWindow):
         tool.set_tolerance(self._current_tolerance)
         self._canvas.set_tool(tool)
         self._current_tool_name = "fill"
+        self._set_active_tool_action("fill")
         self._update_tool_options_visibility()
         self._status_bar.showMessage(
             self.tr("Narzędzie: %1").replace("%1", self.tr("Wypełnienie (G)"))
@@ -503,6 +613,7 @@ class EditorWindow(QMainWindow):
         tool.set_size(self._current_size)
         self._canvas.set_tool(tool)
         self._current_tool_name = "line"
+        self._set_active_tool_action("line")
         self._update_tool_options_visibility()
         self._status_bar.showMessage(self.tr("Narzędzie: %1").replace("%1", self.tr("Linia (L)")))
 
@@ -516,6 +627,7 @@ class EditorWindow(QMainWindow):
         tool.filled = self._rect_filled
         self._canvas.set_tool(tool)
         self._current_tool_name = "rect"
+        self._set_active_tool_action("rect")
         self._update_tool_options_visibility()
         self._status_bar.showMessage(
             self.tr("Narzędzie: %1").replace("%1", self.tr("Prostokąt (R)"))
@@ -526,6 +638,7 @@ class EditorWindow(QMainWindow):
             self._create_tools()
         self._canvas.set_tool(self._tools["select"])
         self._current_tool_name = "select"
+        self._set_active_tool_action("select")
         self._update_tool_options_visibility()
         self._status_bar.showMessage(
             self.tr("Narzędzie: %1").replace("%1", self.tr("Zaznaczenie (S)"))

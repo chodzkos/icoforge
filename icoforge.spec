@@ -17,7 +17,7 @@ datas = copy_metadata("icoforge") + [
     (str(ROOT / "src" / "icoforge" / "translations"), "icoforge/translations"),
 ]
 
-# Include non-empty assets directory
+# Include non-empty assets directory, including recolourable SVG icons.
 _assets = ROOT / "assets"
 if any(p for p in _assets.iterdir() if p.name != ".gitkeep"):
     datas.append((str(_assets), "assets"))
