@@ -10,6 +10,33 @@ Projekt stosuje [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.2.13] - 2026-06-14
+
+### Dodane
+
+- **Przebarwialne ikony SVG zgodne z GUI_STANDARD** — dodano `IconProvider`
+  oparty na ikonach Lucide SVG, bez zależności runtime. Ikony są renderowane
+  przez Qt, cache'owane według koloru motywu i dołączane do wheel/PyInstaller.
+- **Ikony w toolbarze edytora** — tekstowe przyciski narzędzi, edycji,
+  zoomu oraz akcji swap/reset kolorów zastąpiono ikonami, przy zachowaniu
+  nazw w `setText()` i tooltipów w formacie „Nazwa (skrót)”.
+
+### Zmienione
+
+- **Narzędzia edytora jako checkable QActionGroup** — Ołówek, Gumka,
+  Kroplomierz, Wypełnienie, Linia, Prostokąt i Zaznaczenie są teraz w jednej
+  ekskluzywnej grupie akcji, więc aktywne narzędzie pozostaje podświetlone.
+- **Ikony odświeżają się przy zmianie motywu** — `ThemeManager` czyści cache
+  ikon przed emisją `theme_changed`, a edytor ponownie ustawia ikony w nowym
+  kolorze.
+
+### Naprawione
+
+- **Mypy dla `BgRemoveWorker`** — usunięto problematyczne adnotacje sygnałów
+  Qt, które powodowały błąd typowania w CI.
+
+---
+
 ## [1.2.12] - 2026-06-04
 
 ### Naprawione
