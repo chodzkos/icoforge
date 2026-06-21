@@ -9,6 +9,26 @@ Projekt stosuje [Semantic Versioning](https://semver.org/lang/pl/).
 ## [Unreleased]
 
 ### Changed
+- **Motyw: porzucono qdarktheme na rzecz brand-Fusion z chodzkos-gui-kit 0.3.4.**
+  `ThemeManager._apply_resolved` używa teraz `chodzkos_gui_kit.qt.theme.apply_theme`
+  (Fusion + paleta marki + QSS + repaint item-views) dla obu motywów — usunięto
+  `qdarktheme.load_stylesheet/load_palette` (dark) oraz natywny restore (light).
+  Usunięto `_apply_tooltip_style` (kit ustawia `QToolTip.setPalette`),
+  `_apply_native_light` i `_force_refresh` (kitowy `_repolish` v0.3.4 repaintuje
+  `QAbstractItemView`). Publiczne API ThemeManagera i sygnał `theme_changed(str)`
+  bez zmian. Usunięto zależność `pyqtdarktheme`. **Light-mode zmienia wygląd
+  (natywny windowsvista → brand-Fusion) — zmiana produktowa.**
+- **Dialogi plików (17/18) na helpery `chodzkos_gui_kit.qt.dialogs`**
+  (`open_file`/`open_files`/`save_file`/`pick_dir`); „Zapisz jako" i „Eksportuj
+  preset" z prefillem nazwy (`save_file(initial_name=…)`). Usunięto wymuszanie
+  `DontUseNativeDialog` — kit wybiera natywny (Explorer w trybie auto) / fallback
+  (z resetem toolbara v2.6) wg reguły rozjazdu. **Zmigrowano WSZYSTKIE 18** —
+  `main_window._on_save_as` (ICO/ICNS/CUR) wybiera format z ROZSZERZENIA ścieżki
+  zamiast `selectedNameFilter()`. Po `src/icoforge` nie ma już ani jednego
+  `QFileDialog` (test strażniczy `test_no_raw_qfiledialog_in_gui` pilnuje tego
+  na CI). `utils/window_theme.py` (`apply_theme_to_dialog`) ZACHOWANE dla pasków
+  tytułu dialogów NIE-plikowych (help, ustawienia, presety, AI-installer) —
+  już kit-backed (od PR titlebar).
 - Pasek tytułu (DWM) pochodzi teraz ze wspólnego **chodzkos-gui-kit 0.3.3**
   (`chodzkos_gui_kit.qt.titlebar` / `winutil.dwm`) — usunięto ciało lokalnego
   `set_titlebar_dark` z `utils/window_theme.py`. Kit ma poprawny marshaling

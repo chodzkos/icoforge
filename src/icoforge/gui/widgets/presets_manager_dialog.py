@@ -9,7 +9,6 @@ from PySide6.QtGui import QShowEvent
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
-    QFileDialog,
     QGroupBox,
     QHBoxLayout,
     QInputDialog,
@@ -251,14 +250,14 @@ class PresetsManagerDialog(QDialog):
         self._refresh_list()
 
     def _on_import(self) -> None:
-        from icoforge.utils.theme import get_theme_manager
-        from icoforge.utils.window_theme import apply_theme_to_dialog
+        from chodzkos_gui_kit.qt.dialogs import open_file
 
-        dlg = QFileDialog(self, self.tr("Importuj preset"))
-        dlg.setOption(QFileDialog.Option.DontUseNativeDialog, True)
-        dlg.setNameFilters([self.tr("Preset IcoForge (*.json)"), self.tr("Wszystkie pliki (*)")])
-        apply_theme_to_dialog(dlg, get_theme_manager())
-        path = dlg.selectedFiles()[0] if dlg.exec() else ""
+        path = open_file(
+            self,
+            self.tr("Importuj preset"),
+            "",
+            self.tr("Preset IcoForge (*.json)") + ";;" + self.tr("Wszystkie pliki (*)"),
+        )
         if not path:
             return
         try:
@@ -282,18 +281,15 @@ class PresetsManagerDialog(QDialog):
         name = self._current_user_name()
         if name is None:
             return
-        from icoforge.utils.theme import get_theme_manager
-        from icoforge.utils.window_theme import apply_theme_to_dialog
+        from chodzkos_gui_kit.qt.dialogs import save_file
 
-        dlg_exp = QFileDialog(self, self.tr("Eksportuj preset"))
-        dlg_exp.setOption(QFileDialog.Option.DontUseNativeDialog, True)
-        dlg_exp.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
-        dlg_exp.setNameFilters(
-            [self.tr("Preset IcoForge (*.json)"), self.tr("Wszystkie pliki (*)")]
+        path = save_file(
+            self,
+            self.tr("Eksportuj preset"),
+            "",
+            self.tr("Preset IcoForge (*.json)") + ";;" + self.tr("Wszystkie pliki (*)"),
+            initial_name=f"{name}.json",
         )
-        dlg_exp.selectFile(f"{name}.json")
-        apply_theme_to_dialog(dlg_exp, get_theme_manager())
-        path = dlg_exp.selectedFiles()[0] if dlg_exp.exec() else ""
         if not path:
             return
         try:

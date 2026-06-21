@@ -10,7 +10,6 @@ from PySide6.QtCore import QPoint, QRect, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QColorDialog,
-    QFileDialog,
     QMenu,
     QPushButton,
     QVBoxLayout,
@@ -545,27 +544,28 @@ class PaletteWidget(QWidget):
             self._on_reset_palette()
 
     def _on_save_palette(self) -> None:
-        from icoforge.utils.theme import get_theme_manager
-        from icoforge.utils.window_theme import apply_theme_to_dialog
+        from chodzkos_gui_kit.qt.dialogs import save_file
 
-        dlg = QFileDialog(self, self.tr("Zapisz paletę"))
-        dlg.setOption(QFileDialog.Option.DontUseNativeDialog, True)
-        dlg.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
-        dlg.setNameFilters([self.tr("JSON (*.json)"), self.tr("Wszystkie pliki (*)")])
-        apply_theme_to_dialog(dlg, get_theme_manager())
-        if dlg.exec() and dlg.selectedFiles():
-            self.save_palette(Path(dlg.selectedFiles()[0]))
+        path = save_file(
+            self,
+            self.tr("Zapisz paletę"),
+            "",
+            self.tr("JSON (*.json)") + ";;" + self.tr("Wszystkie pliki (*)"),
+        )
+        if path:
+            self.save_palette(Path(path))
 
     def _on_load_palette(self) -> None:
-        from icoforge.utils.theme import get_theme_manager
-        from icoforge.utils.window_theme import apply_theme_to_dialog
+        from chodzkos_gui_kit.qt.dialogs import open_file
 
-        dlg = QFileDialog(self, self.tr("Wczytaj paletę"))
-        dlg.setOption(QFileDialog.Option.DontUseNativeDialog, True)
-        dlg.setNameFilters([self.tr("JSON (*.json)"), self.tr("Wszystkie pliki (*)")])
-        apply_theme_to_dialog(dlg, get_theme_manager())
-        if dlg.exec() and dlg.selectedFiles():
-            self.load_palette(Path(dlg.selectedFiles()[0]))
+        path = open_file(
+            self,
+            self.tr("Wczytaj paletę"),
+            "",
+            self.tr("JSON (*.json)") + ";;" + self.tr("Wszystkie pliki (*)"),
+        )
+        if path:
+            self.load_palette(Path(path))
 
     def _on_reset_palette(self) -> None:
         self.set_colors(list(_DEFAULT_PALETTE))
