@@ -1,10 +1,13 @@
-"""Spięcie motywu (qdarktheme) z dialogami: ciemny/jasny pasek tytułu (DWM).
+"""Pasek tytułu (DWM) dla custom-dialogów IcoForge — helper specyficzny dla appki.
 
-Sam pasek tytułu liczy wspólny ``chodzkos_gui_kit`` (DWM z poprawnym marshalingiem
-64-bit HWND + repaint ramki Win10) — patrz ``chodzkos_gui_kit.qt.titlebar``. Tu
-zostaje tylko IcoForge-specyficzny helper dla dialogów (``apply_theme_to_dialog``)
-spięty z lokalnym ThemeManagerem qdarktheme — materiał do pełnej adopcji motywu
-z kitu (etap 2b). Poza Windows helper jest no-opem.
+File-pickery idą przez kitowe helpery ``chodzkos_gui_kit.qt.dialogs`` (one same
+ustawiają belkę). Tu zostaje tylko ustawianie ciemnego/jasnego paska tytułu dla
+WŁASNYCH dialogów aplikacji (Ustawienia, Pomoc, Presety, AI-installer…). Sam DWM
+liczy wspólny kit — ``chodzkos_gui_kit.qt.titlebar.set_titlebar_dark`` (poprawny
+marshaling 64-bit HWND + repaint ramki Win10). Poza Windows: no-op.
+
+Motyw odczytujemy przez ``theme_manager.current_resolved()`` — kontrakt z shellem
+``icoforge.utils.theme.ThemeManager`` (zwraca ``"dark"`` albo ``"light"``).
 """
 
 from __future__ import annotations
