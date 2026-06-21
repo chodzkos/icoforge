@@ -9,6 +9,14 @@ Projekt stosuje [Semantic Versioning](https://semver.org/lang/pl/).
 ## [Unreleased]
 
 ### Changed
+- Pasek tytułu (DWM) pochodzi teraz ze wspólnego **chodzkos-gui-kit 0.3.3**
+  (`chodzkos_gui_kit.qt.titlebar` / `winutil.dwm`) — usunięto ciało lokalnego
+  `set_titlebar_dark` z `utils/window_theme.py`. Kit ma poprawny marshaling
+  64-bit HWND (`wintypes.HWND` + `argtypes`, naprawia truncację na Win64) oraz
+  pełny repaint ramki (`RedrawWindow(RDW_FRAME)` — niweluje artefakt Win10:
+  jasne tło pod tytułem). `utils/window_theme.py` zostaje z `apply_theme_to_dialog`
+  (spięcie qdarktheme z dialogami) — pełna adopcja motywu z kitu w osobnym kroku.
+  Bump pinu kitu `0.3.1 → 0.3.3`.
 - Ikony edytora pochodzą teraz ze wspólnego pakietu **chodzkos-gui-kit 0.3.1**
   (`chodzkos_gui_kit.qt.icons`) — własny `IconProvider` odzyskany z kitu. Usunięto
   lokalny `gui/icons.py`, `assets/icons/*.svg` i `LICENSE-icons` (kit jest

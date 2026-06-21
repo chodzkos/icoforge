@@ -45,6 +45,8 @@ from PySide6.QtWidgets import (
 if TYPE_CHECKING:
     from icoforge.utils.theme import ThemeManager
 
+from chodzkos_gui_kit.qt.titlebar import set_titlebar_dark
+
 from icoforge.gui.editor.editor_window import EditorWindow
 from icoforge.gui.widgets.file_drop_zone import SUPPORTED_SUFFIXES, FileDropZone
 from icoforge.gui.widgets.optimization_panel import OptimizationPanel
@@ -54,7 +56,6 @@ from icoforge.gui.workers import ConversionWorker
 from icoforge.utils.paths import get_resource_path
 from icoforge.utils.recent_files import add_recent
 from icoforge.utils.window_state import restore_window_state, save_window_state
-from icoforge.utils.window_theme import set_titlebar_dark
 
 
 class _ExeIconPickerDialog(QDialog):

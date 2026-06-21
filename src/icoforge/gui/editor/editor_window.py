@@ -852,8 +852,9 @@ class EditorWindow(QMainWindow):
 
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
+        from chodzkos_gui_kit.qt.titlebar import set_titlebar_dark
+
         from icoforge.utils.theme import get_theme_manager
-        from icoforge.utils.window_theme import set_titlebar_dark
 
         mgr = get_theme_manager()
         if mgr is not None:
@@ -862,8 +863,9 @@ class EditorWindow(QMainWindow):
     def changeEvent(self, event: QEvent) -> None:
         super().changeEvent(event)
         if event.type() == QEvent.Type.ActivationChange:
+            from chodzkos_gui_kit.qt.titlebar import set_titlebar_dark
+
             from icoforge.utils.theme import get_theme_manager
-            from icoforge.utils.window_theme import set_titlebar_dark
 
             mgr = get_theme_manager()
             if mgr is not None:
@@ -872,7 +874,7 @@ class EditorWindow(QMainWindow):
     def _on_theme_changed(self, resolved: str) -> None:
         import logging
 
-        from icoforge.utils.window_theme import set_titlebar_dark
+        from chodzkos_gui_kit.qt.titlebar import set_titlebar_dark
 
         logging.getLogger(__name__).info("EditorWindow._on_theme_changed: resolved=%s", resolved)
         set_titlebar_dark(self, resolved == "dark")
