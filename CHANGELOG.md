@@ -22,11 +22,13 @@ Projekt stosuje [Semantic Versioning](https://semver.org/lang/pl/).
   (`open_file`/`open_files`/`save_file`/`pick_dir`); „Zapisz jako" i „Eksportuj
   preset" z prefillem nazwy (`save_file(initial_name=…)`). Usunięto wymuszanie
   `DontUseNativeDialog` — kit wybiera natywny (Explorer w trybie auto) / fallback
-  wg reguły rozjazdu. Wyjątek: `main_window._on_save_as` zostaje skonfigurowanym
-  `QFileDialog`, bo używa `selectedNameFilter()` (wybór formatu ICO/ICNS/CUR),
-  czego helper kitu nie zwraca. `utils/window_theme.py` (`apply_theme_to_dialog`)
-  ZACHOWANE dla pasków tytułu dialogów NIE-plikowych (help, ustawienia, presety,
-  AI-installer) — już kit-backed (od PR titlebar).
+  (z resetem toolbara v2.6) wg reguły rozjazdu. **Zmigrowano WSZYSTKIE 18** —
+  `main_window._on_save_as` (ICO/ICNS/CUR) wybiera format z ROZSZERZENIA ścieżki
+  zamiast `selectedNameFilter()`. Po `src/icoforge` nie ma już ani jednego
+  `QFileDialog` (test strażniczy `test_no_raw_qfiledialog_in_gui` pilnuje tego
+  na CI). `utils/window_theme.py` (`apply_theme_to_dialog`) ZACHOWANE dla pasków
+  tytułu dialogów NIE-plikowych (help, ustawienia, presety, AI-installer) —
+  już kit-backed (od PR titlebar).
 - Pasek tytułu (DWM) pochodzi teraz ze wspólnego **chodzkos-gui-kit 0.3.3**
   (`chodzkos_gui_kit.qt.titlebar` / `winutil.dwm`) — usunięto ciało lokalnego
   `set_titlebar_dark` z `utils/window_theme.py`. Kit ma poprawny marshaling

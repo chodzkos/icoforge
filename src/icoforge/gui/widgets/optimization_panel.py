@@ -41,7 +41,7 @@ class DropZoneFrame(QFrame):
         super().__init__(parent)
         self.setObjectName("dropZoneFrame")
         self.setFrameShape(QFrame.Shape.StyledPanel)
-        # Use #dropZoneFrame so the rule never cascades into child QFileDialogs.
+        # Reguła celowana w #dropZoneFrame, by nie kaskadowała na dzieci.
         self.setStyleSheet(
             "QFrame#dropZoneFrame { border: 2px dashed palette(mid); border-radius: 4px;"
             " background-color: palette(base); }"

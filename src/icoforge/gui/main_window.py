@@ -22,7 +22,6 @@ from PySide6.QtWidgets import (
     QApplication,
     QDialog,
     QDialogButtonBox,
-    QFileDialog,
     QFormLayout,
     QFrame,
     QHBoxLayout,
@@ -45,7 +44,7 @@ from PySide6.QtWidgets import (
 if TYPE_CHECKING:
     from icoforge.utils.theme import ThemeManager
 
-from chodzkos_gui_kit.qt.dialogs import open_file, pick_dir
+from chodzkos_gui_kit.qt.dialogs import open_file, pick_dir, save_file
 from chodzkos_gui_kit.qt.titlebar import set_titlebar_dark
 
 from icoforge.gui.editor.editor_window import EditorWindow
@@ -373,39 +372,31 @@ class MainWindow(QMainWindow):
         source = self.source_path
         if source is None:
             return
-        from icoforge.utils.window_theme import apply_theme_to_dialog
-
-        dlg_save = QFileDialog(self, self.tr("Zapisz plik"))
-        dlg_save.setOption(QFileDialog.Option.DontUseNativeDialog, True)
-        dlg_save.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
-        dlg_save.setNameFilters(
-            [
-                self.tr("Pliki ICO (*.ico)"),
-                self.tr("Pliki ICNS (*.icns)"),
-                self.tr("Pliki kursora CUR (*.cur)"),
-            ]
+        path = save_file(
+            self,
+            self.tr("Zapisz plik"),
+            "",
+            self.tr("Pliki ICO (*.ico)")
+            + ";;"
+            + self.tr("Pliki ICNS (*.icns)")
+            + ";;"
+            + self.tr("Pliki kursora CUR (*.cur)"),
         )
-        apply_theme_to_dialog(dlg_save, self._theme_manager)
-        if not dlg_save.exec():
-            return
-        path = dlg_save.selectedFiles()[0]
         if not path:
             return
-        selected_filter = dlg_save.selectedNameFilter()
 
-        if "icns" in selected_filter.lower():
-            if not path.lower().endswith(".icns"):
-                path += ".icns"
+        # Format z ROZSZERZENIA — kit save_file nie zwraca wybranego filtra, a dialog
+        # (natywny / fallback) dokleja rozszerzenie wg wybranego filtra do ścieżki.
+        lower = path.lower()
+        if lower.endswith(".icns"):
             self._save_icns(source, Path(path))
             return
 
-        if "cur" in selected_filter.lower():
-            if not path.lower().endswith(".cur"):
-                path += ".cur"
+        if lower.endswith(".cur"):
             self._save_cur(source, Path(path))
             return
 
-        if not path.lower().endswith(".ico"):
+        if not lower.endswith(".ico"):
             path += ".ico"
         target = Path(path)
         config = self._settings_panel.get_config()
