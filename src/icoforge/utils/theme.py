@@ -23,11 +23,13 @@ Usage (anywhere after init)::
 from __future__ import annotations
 
 import qdarktheme
+from chodzkos_gui_kit.palette import DARK, LIGHT
+from chodzkos_gui_kit.qt import icons as icon_provider
+from chodzkos_gui_kit.qt.theme import set_current_palette
 from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtGui import QPalette
 from PySide6.QtWidgets import QApplication
 
-from icoforge.gui import icons as icon_provider
 from icoforge.utils.settings import get_setting, save_setting
 
 THEMES: tuple[str, ...] = ("auto", "dark", "light")
@@ -56,9 +58,10 @@ class ThemeManager(QObject):
         self._default_style = app.style().objectName()
         self._default_palette = QPalette(app.palette())
         self._default_stylesheet = app.styleSheet()
-        icon_provider.set_color_resolver(
-            lambda token: self._current_palette_tokens().get(token, "#dde1ec")
-        )
+        # Ikony pochodzą z gui-kit (IconProvider). Ten manager trzyma WŁASNY motyw
+        # (qdarktheme), więc paletę ikon kitu ustawiamy jawnie publicznym
+        # set_current_palette (bez przemalowania app) — szczegóły: gui-kit §5 v2.8.
+        self._sync_icon_palette(self.current_resolved())
 
     # ------------------------------------------------------------------
     # Public API
@@ -76,7 +79,7 @@ class ThemeManager(QObject):
         save_setting("theme", theme)
         resolved = self._resolve(theme)
         self._apply_resolved(resolved)
-        icon_provider.clear_cache()
+        self._sync_icon_palette(resolved)
         self.theme_changed.emit(resolved)
 
     def restore(self) -> None:
@@ -84,8 +87,9 @@ class ThemeManager(QObject):
         saved = get_setting("theme", default="auto")
         if saved not in THEMES:
             saved = "auto"
-        self._apply_resolved(self._resolve(saved))
-        icon_provider.clear_cache()
+        resolved = self._resolve(saved)
+        self._apply_resolved(resolved)
+        self._sync_icon_palette(resolved)
 
     def current_resolved(self) -> str:
         """Return the currently active theme: ``"dark"`` or ``"light"``."""
@@ -119,28 +123,16 @@ class ThemeManager(QObject):
         self._apply_tooltip_style(resolved)
         self._force_refresh()
 
-    def _current_palette_tokens(self) -> dict[str, str]:
-        """Return semantic colour tokens for recolourable SVG icons."""
-        palette = self._app.palette()
-        role = QPalette.ColorRole
-        is_dark = palette.color(role.Window).lightness() < 128
+    def _sync_icon_palette(self, resolved: str) -> None:
+        """Spina paletę kitowego IconProvidera z rozwiązanym motywem i czyści cache.
 
-        def color(palette_role: QPalette.ColorRole) -> str:
-            return palette.color(palette_role).name()
-
-        return {
-            "fg": color(role.WindowText),
-            "fg2": color(role.Text),
-            "fg3": color(role.PlaceholderText),
-            "accent": color(role.Highlight),
-            "accent2": color(role.Link),
-            "red": "#ff6b6b" if is_dark else "#d70015",
-            "amber": "#ffd166" if is_dark else "#b25000",
-            "bg": color(role.Window),
-            "bg2": color(role.AlternateBase),
-            "bg3": color(role.Base),
-            "border": color(role.Mid),
-        }
+        Ten manager ma WŁASNY motyw (qdarktheme), więc kolor ikon ustawiamy przez
+        publiczne ``set_current_palette`` kitu (jasny/ciemny wariant palety marki),
+        bez przemalowania aplikacji. Po zmianie palety czyścimy cache ikon — widgety
+        przerysują je w slocie ``theme_changed`` (np. ``EditorWindow._refresh_icons``).
+        """
+        set_current_palette(DARK if resolved == "dark" else LIGHT)
+        icon_provider.clear_cache()
 
     def _apply_tooltip_style(self, resolved: str) -> None:
         """Append a QToolTip rule to the app stylesheet for the current theme.

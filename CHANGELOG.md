@@ -8,6 +8,15 @@ Projekt stosuje [Semantic Versioning](https://semver.org/lang/pl/).
 
 ## [Unreleased]
 
+### Changed
+- Ikony edytora pochodzą teraz ze wspólnego pakietu **chodzkos-gui-kit 0.3.1**
+  (`chodzkos_gui_kit.qt.icons`) — własny `IconProvider` odzyskany z kitu. Usunięto
+  lokalny `gui/icons.py`, `assets/icons/*.svg` i `LICENSE-icons` (kit jest
+  właścicielem zestawu Lucide). Kolor ikon przy zmianie motywu ustawiany przez
+  publiczne `set_current_palette()` kitu (manager IcoForge wciąż na qdarktheme —
+  pełna adopcja motywu z kitu w osobnym kroku). PyInstaller zbiera dane pakietu
+  kitu (`collect_data_files`), więc SVG-i trafiają do zbudowanego `.exe`.
+
 ---
 
 ## [1.2.13] - 2026-06-14

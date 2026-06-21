@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from chodzkos_gui_kit.qt.icons import get_icon
 from PySide6.QtCore import QEvent, QPoint, QSize, Qt
 from PySide6.QtGui import (
     QAction,
@@ -46,7 +47,6 @@ from icoforge.gui.editor.tools import (
     SelectTool,
     Tool,
 )
-from icoforge.gui.icons import get_icon
 
 if TYPE_CHECKING:
     from PIL import Image

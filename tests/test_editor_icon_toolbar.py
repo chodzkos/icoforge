@@ -5,6 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from chodzkos_gui_kit.palette import DARK, LIGHT
+from chodzkos_gui_kit.qt import icons
+from chodzkos_gui_kit.qt.theme import set_current_palette
 from PIL import Image
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QAction, QKeySequence
@@ -12,7 +15,6 @@ from PySide6.QtWidgets import QAbstractButton, QToolBar, QToolButton
 
 from icoforge.core.converter import convert
 from icoforge.core.models import IcoConfig, SizeSpec
-from icoforge.gui import icons
 from icoforge.gui.editor.editor_window import EditorWindow
 
 
@@ -153,17 +155,17 @@ def test_editor_icons_refresh_after_theme_icon_cache_clear(qtbot, small_ico: Pat
     qtbot.addWidget(window)
 
     try:
-        icons.set_color_resolver(lambda _token: "#111111")
+        set_current_palette(DARK)
         icons.clear_cache()
         window._refresh_icons()
         dark_key = window._tool_actions["pencil"].icon().cacheKey()
 
-        icons.set_color_resolver(lambda _token: "#eeeeee")
+        set_current_palette(LIGHT)
         icons.clear_cache()
         window._refresh_icons()
         light_key = window._tool_actions["pencil"].icon().cacheKey()
     finally:
+        set_current_palette(DARK)
         icons.clear_cache()
-        icons.set_color_resolver(None)
 
     assert dark_key != light_key
