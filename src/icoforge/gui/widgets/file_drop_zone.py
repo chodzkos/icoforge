@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent, QMouseEvent
-from PySide6.QtWidgets import QFileDialog, QFrame, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget
 
 SUPPORTED_SUFFIXES: frozenset[str] = frozenset(
     {
@@ -58,15 +58,11 @@ class FileDropZone(QFrame):
 
     def open_file_dialog(self) -> None:
         """Open the file-chooser dialog."""
-        from icoforge.utils.theme import get_theme_manager
-        from icoforge.utils.window_theme import apply_theme_to_dialog
+        from chodzkos_gui_kit.qt.dialogs import open_file
 
-        dlg = QFileDialog(self, self.tr("Wybierz plik źródłowy"))
-        dlg.setOption(QFileDialog.Option.DontUseNativeDialog, True)
-        dlg.setNameFilter(_DIALOG_FILTER)
-        apply_theme_to_dialog(dlg, get_theme_manager())
-        if dlg.exec() and dlg.selectedFiles():
-            self.file_loaded.emit(Path(dlg.selectedFiles()[0]))
+        path = open_file(self, self.tr("Wybierz plik źródłowy"), "", _DIALOG_FILTER)
+        if path:
+            self.file_loaded.emit(Path(path))
 
     # ------------------------------------------------------------------
     # Drag-and-drop

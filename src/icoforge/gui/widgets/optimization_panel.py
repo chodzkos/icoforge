@@ -10,7 +10,6 @@ from PySide6.QtGui import QColor, QDragEnterEvent, QDropEvent, QMouseEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
-    QFileDialog,
     QFrame,
     QGroupBox,
     QHBoxLayout,
@@ -66,27 +65,15 @@ class DropZoneFrame(QFrame):
     def mousePressEvent(self, event: QMouseEvent) -> None:
         """Handle click to open file selection dialog."""
         if event.button() == Qt.MouseButton.LeftButton:
-            from icoforge.utils.theme import get_theme_manager
-            from icoforge.utils.window_theme import apply_theme_to_dialog
+            from chodzkos_gui_kit.qt.dialogs import open_files
 
-            dialog = QFileDialog(
+            selected = open_files(
                 self,
                 self.tr("Wybierz pliki PNG do optymalizacji"),
-                "",
                 self.tr("Pliki PNG (*.png);;Wszystkie pliki (*)"),
             )
-            dialog.setFileMode(QFileDialog.FileMode.ExistingFiles)
-            dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
-            dialog.setStyleSheet(
-                "QFrame { border: none; }"
-                " QListView, QTreeView { border: 1px solid palette(mid); }"
-                " QSplitter::handle { background: palette(mid); }"
-            )
-            apply_theme_to_dialog(dialog, get_theme_manager())
-            if dialog.exec():
-                selected = dialog.selectedFiles()
-                if selected:
-                    self.files_dropped.emit([Path(p) for p in selected])
+            if selected:
+                self.files_dropped.emit([Path(p) for p in selected])
 
 
 class OptimizationPanel(QWidget):
@@ -267,16 +254,11 @@ class OptimizationPanel(QWidget):
 
     def _on_choose_folder(self) -> None:
         """Open folder selection dialog."""
-        from icoforge.utils.theme import get_theme_manager
-        from icoforge.utils.window_theme import apply_theme_to_dialog
+        from chodzkos_gui_kit.qt.dialogs import pick_dir
 
-        dlg = QFileDialog(self, self.tr("Wybierz folder wyjściowy"))
-        dlg.setOption(QFileDialog.Option.DontUseNativeDialog, True)
-        dlg.setFileMode(QFileDialog.FileMode.Directory)
-        dlg.setOption(QFileDialog.Option.ShowDirsOnly, True)
-        apply_theme_to_dialog(dlg, get_theme_manager())
-        if dlg.exec() and dlg.selectedFiles():
-            self._selected_folder = Path(dlg.selectedFiles()[0])
+        folder = pick_dir(self, self.tr("Wybierz folder wyjściowy"))
+        if folder:
+            self._selected_folder = Path(folder)
             self._folder_button.setText(f".../{self._selected_folder.name}")
 
     def _on_optimize_clicked(self) -> None:
@@ -368,15 +350,9 @@ class OptimizationPanel(QWidget):
 
     def _on_export_csv(self) -> None:
         """Export results to CSV file."""
-        from icoforge.utils.theme import get_theme_manager
-        from icoforge.utils.window_theme import apply_theme_to_dialog
+        from chodzkos_gui_kit.qt.dialogs import save_file
 
-        dlg_csv = QFileDialog(self, self.tr("Zapisz raport"))
-        dlg_csv.setOption(QFileDialog.Option.DontUseNativeDialog, True)
-        dlg_csv.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
-        dlg_csv.setNameFilter(self.tr("CSV (*.csv)"))
-        apply_theme_to_dialog(dlg_csv, get_theme_manager())
-        path_str = dlg_csv.selectedFiles()[0] if dlg_csv.exec() else ""
+        path_str = save_file(self, self.tr("Zapisz raport"), "", self.tr("CSV (*.csv)"))
         if not path_str:
             return
 

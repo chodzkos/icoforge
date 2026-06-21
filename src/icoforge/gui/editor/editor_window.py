@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from chodzkos_gui_kit.qt.dialogs import pick_dir, save_file
 from chodzkos_gui_kit.qt.icons import get_icon
 from PySide6.QtCore import QEvent, QPoint, QSize, Qt
 from PySide6.QtGui import (
@@ -833,20 +834,16 @@ class EditorWindow(QMainWindow):
             )
 
     def _on_save_as(self) -> None:
-        from PySide6.QtWidgets import QFileDialog
-
-        from icoforge.utils.theme import get_theme_manager
-        from icoforge.utils.window_theme import apply_theme_to_dialog
-
-        dlg = QFileDialog(self, self.tr("Zapisz jako"))
-        dlg.setOption(QFileDialog.Option.DontUseNativeDialog, True)
-        dlg.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
-        dlg.setNameFilter(self.tr("Pliki ICO (*.ico)"))
-        dlg.selectFile(str(self._save_path))
-        apply_theme_to_dialog(dlg, get_theme_manager())
-        if not dlg.exec() or not dlg.selectedFiles():
+        path = save_file(
+            self,
+            self.tr("Zapisz jako"),
+            str(self._save_path.parent),
+            self.tr("Pliki ICO (*.ico)"),
+            initial_name=self._save_path.name,
+        )
+        if not path:
             return
-        self._save_path = Path(dlg.selectedFiles()[0])
+        self._save_path = Path(path)
         self._is_new_file = False
         self._on_save()
 
@@ -942,18 +939,11 @@ class EditorWindow(QMainWindow):
         return list(self._frames)
 
     def _on_export_pngs(self) -> None:
-        from PySide6.QtWidgets import QFileDialog, QMessageBox
+        from PySide6.QtWidgets import QMessageBox
 
         from icoforge.gui.editor.export_utils import export_separate_pngs
-        from icoforge.utils.theme import get_theme_manager
-        from icoforge.utils.window_theme import apply_theme_to_dialog
 
-        dlg_dir = QFileDialog(self, self.tr("Wybierz folder do eksportu PNG"))
-        dlg_dir.setOption(QFileDialog.Option.DontUseNativeDialog, True)
-        dlg_dir.setFileMode(QFileDialog.FileMode.Directory)
-        dlg_dir.setOption(QFileDialog.Option.ShowDirsOnly, True)
-        apply_theme_to_dialog(dlg_dir, get_theme_manager())
-        directory = dlg_dir.selectedFiles()[0] if dlg_dir.exec() else ""
+        directory = pick_dir(self, self.tr("Wybierz folder do eksportu PNG"))
         if not directory:
             return
         frames = self._export_collect_frames()
@@ -968,18 +958,11 @@ class EditorWindow(QMainWindow):
             QMessageBox.critical(self, self.tr("Błąd eksportu"), str(e))
 
     def _on_export_spritesheet(self) -> None:
-        from PySide6.QtWidgets import QFileDialog, QMessageBox
+        from PySide6.QtWidgets import QMessageBox
 
         from icoforge.gui.editor.export_utils import export_spritesheet
-        from icoforge.utils.theme import get_theme_manager
-        from icoforge.utils.window_theme import apply_theme_to_dialog
 
-        dlg_ss = QFileDialog(self, self.tr("Zapisz spritesheet"))
-        dlg_ss.setOption(QFileDialog.Option.DontUseNativeDialog, True)
-        dlg_ss.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
-        dlg_ss.setNameFilter(self.tr("Pliki PNG (*.png)"))
-        apply_theme_to_dialog(dlg_ss, get_theme_manager())
-        path_str = dlg_ss.selectedFiles()[0] if dlg_ss.exec() else ""
+        path_str = save_file(self, self.tr("Zapisz spritesheet"), "", self.tr("Pliki PNG (*.png)"))
         if not path_str:
             return
         if not path_str.lower().endswith(".png"):
@@ -994,18 +977,11 @@ class EditorWindow(QMainWindow):
             QMessageBox.critical(self, self.tr("Błąd eksportu"), str(e))
 
     def _on_export_icns(self) -> None:
-        from PySide6.QtWidgets import QFileDialog, QMessageBox
+        from PySide6.QtWidgets import QMessageBox
 
         from icoforge.gui.editor.export_utils import export_icns
-        from icoforge.utils.theme import get_theme_manager
-        from icoforge.utils.window_theme import apply_theme_to_dialog
 
-        dlg_icns = QFileDialog(self, self.tr("Zapisz ICNS"))
-        dlg_icns.setOption(QFileDialog.Option.DontUseNativeDialog, True)
-        dlg_icns.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
-        dlg_icns.setNameFilter(self.tr("Pliki ICNS (*.icns)"))
-        apply_theme_to_dialog(dlg_icns, get_theme_manager())
-        path_str = dlg_icns.selectedFiles()[0] if dlg_icns.exec() else ""
+        path_str = save_file(self, self.tr("Zapisz ICNS"), "", self.tr("Pliki ICNS (*.icns)"))
         if not path_str:
             return
         if not path_str.lower().endswith(".icns"):
