@@ -30,6 +30,9 @@ dependencies = [
     "pyoxipng>=9.0.0",
     "click>=8.1.7",
     "pyqtdarktheme>=0.1.7",
+    # Przebarwialne ikony SVG (IconProvider) ze wspólnego kitu — własny kod
+    # odzyskany z gui-kit. Tor Qt = extra [qt] (PySide6 już mamy wyżej).
+    "chodzkos-gui-kit[qt] @ git+https://github.com/chodzkos/gui-kit@v0.3.1",
 ]
 
 [project.optional-dependencies]
@@ -56,12 +59,13 @@ icoforge-cli = "icoforge.cli:main"
 Repository = "https://github.com/chodzkos/icoforge"
 Issues = "https://github.com/chodzkos/icoforge/issues"
 
+# Zależność chodzkos-gui-kit to referencja bezpośrednia (git+https @ tag) — do
+# czasu publikacji kitu na PyPI hatchling wymaga jawnej zgody.
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/icoforge"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"assets/icons" = "assets/icons"
-"LICENSE-icons" = "LICENSE-icons"
 
 [tool.ruff]
 line-length = 100

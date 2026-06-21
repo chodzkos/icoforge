@@ -3,7 +3,7 @@
 
 from pathlib import Path
 
-from PyInstaller.utils.hooks import copy_metadata  # noqa: E402
+from PyInstaller.utils.hooks import collect_data_files, copy_metadata  # noqa: E402
 
 ROOT = Path(SPECPATH)  # noqa: F821  – SPECPATH injected by PyInstaller
 
@@ -17,7 +17,12 @@ datas = copy_metadata("icoforge") + [
     (str(ROOT / "src" / "icoforge" / "translations"), "icoforge/translations"),
 ]
 
-# Include non-empty assets directory, including recolourable SVG icons.
+# Recolourable SVG icons now live in the chodzkos-gui-kit package (extracted from
+# IcoForge). Collect its package data (assets/icons/*.svg + LICENSE-icons + py.typed)
+# so importlib.resources.files("chodzkos_gui_kit") resolves them in the frozen exe.
+datas += collect_data_files("chodzkos_gui_kit")
+
+# Include non-empty assets directory (app .ico, logo).
 _assets = ROOT / "assets"
 if any(p for p in _assets.iterdir() if p.name != ".gitkeep"):
     datas.append((str(_assets), "assets"))
