@@ -72,8 +72,9 @@ class NewIcoDialog(QDialog):
 
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
+        from chodzkos_gui_kit.qt.titlebar import set_titlebar_dark
+
         from icoforge.utils.theme import get_theme_manager
-        from icoforge.utils.window_theme import set_titlebar_dark
 
         mgr = get_theme_manager()
         if mgr is not None:

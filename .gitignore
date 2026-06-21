@@ -78,3 +78,6 @@ dist/
 tests/output/
 tests/fixtures/generated/
 *.Zone.Identifier
+
+# Projekt jest pip-owy (CI: pip install -e), bez [tool.uv] — uv.lock ignorujemy.
+uv.lock
