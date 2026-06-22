@@ -8,6 +8,8 @@ Projekt stosuje [Semantic Versioning](https://semver.org/lang/pl/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-06-22
+
 ### Changed
 - **Motyw: porzucono qdarktheme na rzecz brand-Fusion z chodzkos-gui-kit 0.3.4.**
   `ThemeManager._apply_resolved` używa teraz `chodzkos_gui_kit.qt.theme.apply_theme`
