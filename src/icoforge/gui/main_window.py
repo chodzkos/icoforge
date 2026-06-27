@@ -790,10 +790,11 @@ class MainWindow(QMainWindow):
         AiInstallerDialog(self).exec()
 
     def _on_help(self) -> None:
-        from icoforge.gui.help_window import HelpWindow
+        from chodzkos_gui_kit.qt.widgets import HelpWindow
 
-        dlg = HelpWindow(self)
-        dlg.exec()
+        from icoforge.gui.help_window import HELP_TITLE, help_tabs
+
+        HelpWindow(self, title=HELP_TITLE, tabs=help_tabs()).exec()
 
     def _on_about(self) -> None:
         from icoforge.utils.version_check import get_installed_version

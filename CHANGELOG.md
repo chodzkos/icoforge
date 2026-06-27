@@ -8,6 +8,9 @@ Projekt stosuje [Semantic Versioning](https://semver.org/lang/pl/).
 
 ## [Unreleased]
 
+### Changed
+- **Okno pomocy z `chodzkos-gui-kit` (`HelpWindow`, pin `v0.5.0`)** — własna implementacja zastąpiona kitowym widgetem. Treść IcoForge (Konwersja / Optymalizacja PNG / Edytor / CLI / Model AI) zostaje, ale jako lista `(tytuł, html)` wstrzykiwana do `HelpWindow` i składana kitowymi helperami HTML (`section`/`paragraph`/`table`/`code`/`preformatted`) — koniec sztywnych `_make_X_tab` i własnych helperów. **Re-render motywu obejmuje teraz WSZYSTKIE zakładki** (kit przemalowuje treść na `PaletteChange`), nie tylko ręcznie obsługiwaną zakładkę „Model AI". Usunięto persystencję geometrii (`QSettings`) oraz `showEvent`/`apply_theme_to_dialog` z okna pomocy — belkę DWM i re-render robi kit (`TitlebarSync` + `changeEvent`).
+
 ## [1.3.0] - 2026-06-22
 
 ### Changed
