@@ -583,3 +583,90 @@ class TestCurHotspotValidation:
         )
         assert result.exit_code == 0, result.output
         assert out.exists()
+
+
+# ---------------------------------------------------------------------------
+# ICNS default sizes
+# ---------------------------------------------------------------------------
+
+
+def _icns_block_tags(path: Path) -> set[bytes]:
+    """Return the set of 4-byte block tags present in an ICNS file."""
+    import struct
+
+    data = path.read_bytes()
+    tags: set[bytes] = set()
+    offset = 8  # skip the 8-byte file header (magic + total length)
+    while offset < len(data):
+        tag = data[offset : offset + 4]
+        (block_len,) = struct.unpack(">I", data[offset + 4 : offset + 8])
+        if block_len < 8:
+            break
+        tags.add(tag)
+        offset += block_len
+    return tags
+
+
+class TestIcnsDefaultSizes:
+    def test_convert_icns_without_sizes_succeeds(self, tmp_path: Path) -> None:
+        """`convert x.icns` without --sizes must pick ICNS-valid defaults (no 48)."""
+        from icoforge.core.icns_writer import _SIZE_TO_TAG
+
+        src = _make_png(tmp_path, size=(256, 256))
+        out = tmp_path / "out.icns"
+        result = CliRunner().invoke(main, ["convert", str(src), str(out)])
+
+        assert result.exit_code == 0, result.output
+        assert out.exists()
+        assert out.read_bytes()[:4] == b"icns"
+
+        expected = {_SIZE_TO_TAG[s] for s in (16, 32, 64, 128, 256, 512)}
+        assert _icns_block_tags(out) == expected
+
+    def test_convert_icns_explicit_invalid_size_fails(self, tmp_path: Path) -> None:
+        """Explicit --sizes with an ICNS-invalid value (48) must still error out."""
+        src = _make_png(tmp_path)
+        out = tmp_path / "out.icns"
+        result = CliRunner().invoke(main, ["convert", str(src), str(out), "--sizes", "48"])
+
+        assert result.exit_code != 0
+        assert "ICNS" in result.output
+        assert "48" in result.output
+        assert not out.exists()
+
+    def test_convert_icns_explicit_valid_sizes_ok(self, tmp_path: Path) -> None:
+        """Explicit ICNS-valid sizes are honoured unchanged."""
+        from icoforge.core.icns_writer import _SIZE_TO_TAG
+
+        src = _make_png(tmp_path, size=(128, 128))
+        out = tmp_path / "out.icns"
+        result = CliRunner().invoke(main, ["convert", str(src), str(out), "--sizes", "16,32"])
+
+        assert result.exit_code == 0, result.output
+        assert _icns_block_tags(out) == {_SIZE_TO_TAG[16], _SIZE_TO_TAG[32]}
+
+    def test_convert_ico_without_sizes_still_includes_48(self, tmp_path: Path) -> None:
+        """The ICNS default must not change ICO/CUR behaviour (48 stays)."""
+        src = _make_png(tmp_path)
+        out = tmp_path / "out.ico"
+        result = CliRunner().invoke(main, ["convert", str(src), str(out)])
+
+        assert result.exit_code == 0, result.output
+        assert _ico_sizes(out) == {(16, 16), (32, 32), (48, 48), (256, 256)}
+
+    def test_convert_icns_preset_with_invalid_sizes_maps(self, tmp_path: Path) -> None:
+        """A preset aimed at ICNS drops unsupported sizes with a warning."""
+        from icoforge.core.icns_writer import _SIZE_TO_TAG
+
+        src = _make_png(tmp_path, size=(256, 256))
+        out = tmp_path / "out.icns"
+        result = CliRunner().invoke(
+            main,
+            ["convert", str(src), str(out), "--preset", "Windows App Icon"],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "unsupported by ICNS" in result.output
+        # Windows App Icon = 16/20/24/32/40/48/64/96/128/256 → only ICNS-valid remain.
+        expected = {_SIZE_TO_TAG[s] for s in (16, 32, 64, 128, 256)}
+        assert _icns_block_tags(out) == expected
