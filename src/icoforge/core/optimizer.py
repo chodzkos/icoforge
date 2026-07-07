@@ -46,6 +46,7 @@ def optimize_batch(
     paths: list[Path],
     config: OptimizationConfig | None = None,
     progress: Callable[[float], None] | None = None,
+    target_dir: Path | None = None,
 ) -> list[OptimizationResult]:
     """Optimize multiple PNG files in batch.
 
@@ -54,6 +55,10 @@ def optimize_batch(
         config: Optimization parameters. Uses defaults if ``None``.
         progress: Optional callback ``progress(ratio)`` where ratio is 0..1
             indicating overall batch progress.
+        target_dir: When ``None`` (default), each source is optimized in place
+            (the original file is overwritten). When a directory is given, the
+            result for each source is written to ``target_dir/<stem>.min.png``
+            and the original file is left untouched.
 
     Returns:
         List of OptimizationResult for each input file.
@@ -66,7 +71,8 @@ def optimize_batch(
 
     results: list[OptimizationResult] = []
     for i, source in enumerate(paths):
-        result = optimize_png(source, target=source, config=config)
+        target = target_dir / f"{source.stem}.min.png" if target_dir is not None else source
+        result = optimize_png(source, target=target, config=config)
         results.append(result)
         if progress is not None:
             progress((i + 1) / len(paths))
