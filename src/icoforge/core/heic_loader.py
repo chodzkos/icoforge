@@ -15,6 +15,7 @@ of :mod:`icoforge` continues to work without it.
 
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 
 from PIL import Image
@@ -40,7 +41,13 @@ class HeicSupportMissingError(RuntimeError):
 
 
 def register_heif_opener() -> None:
-    """Register the pillow-heif Pillow plugin if the library is available.
+    """Register the pillow-heif Pillow plugins if the library is available.
+
+    Registers the HEIF opener and, additionally, the AVIF opener so that
+    ``.avif`` files are recognised by ``Image.open()``.  The AVIF opener is
+    registered defensively because older ``pillow-heif`` releases do not
+    expose ``register_avif_opener``; when it is missing the call is silently
+    skipped.
 
     Safe to call multiple times — subsequent calls are no-ops.  Does nothing
     (and does not raise) when ``pillow-heif`` is not installed.
@@ -49,6 +56,9 @@ def register_heif_opener() -> None:
     if _pillow_heif is None or _opener_registered:
         return
     _pillow_heif.register_heif_opener()
+    # Older pillow-heif versions lack register_avif_opener — ignore when absent.
+    with contextlib.suppress(AttributeError):
+        _pillow_heif.register_avif_opener()
     _opener_registered = True
 
 
