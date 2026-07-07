@@ -59,6 +59,8 @@ def test_convert_creates_parent_directories(tmp_png: Path, tmp_path: Path) -> No
     target = tmp_path / "deep" / "nested" / "out.ico"
     convert(tmp_png, target, IcoConfig(sizes=(SizeSpec(32, 32),)))
     assert target.exists()
+    with Image.open(target) as ico:
+        assert set(ico.info["sizes"]) == {(32, 32)}
 
 
 # ---------------------------------------------------------------------------
@@ -128,6 +130,10 @@ def test_convert_jpg_with_background_color(tmp_path: Path) -> None:
     )
     convert(src, target, config)
     assert target.exists()
+    with Image.open(target) as ico:
+        assert set(ico.info["sizes"]) == {(32, 32)}
+        # White background composited onto an opaque JPEG stays fully opaque.
+        assert ico.convert("RGBA").getpixel((16, 16))[3] == 255
 
 
 def test_convert_jpg_with_transparent_background(tmp_path: Path) -> None:
@@ -191,7 +197,7 @@ def test_convert_preserve_aspect_false_stretches(tmp_path: Path) -> None:
 
 
 def test_convert_rejects_missing_source(tmp_path: Path) -> None:
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(FileNotFoundError, match="does-not-exist"):
         convert(
             tmp_path / "does-not-exist.png",
             tmp_path / "out.ico",
@@ -289,7 +295,7 @@ def test_render_frames_all_rgba(tmp_png: Path) -> None:
 
 
 def test_render_frames_rejects_missing_source(tmp_path: Path) -> None:
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(FileNotFoundError, match=r"nope\.png"):
         render_frames(tmp_path / "nope.png", IcoConfig(sizes=(SizeSpec(32, 32),)))
 
 
@@ -397,7 +403,7 @@ def test_convert_rejects_missing_source_override(tmp_path: Path, tmp_png: Path) 
             SizeSpec(32, 32),
         )
     )
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(FileNotFoundError, match="does-not-exist"):
         convert(tmp_png, tmp_path / "out.ico", config)
 
 
@@ -461,3 +467,14 @@ def test_16bit_grayscale_source_preserves_tone(tmp_path: Path) -> None:
     assert a == 255
     assert abs(r - 156) <= 4
     assert r == g == b
+
+
+@pytest.mark.parametrize("fixture_name", ["sample_png", "sample_jpg", "sample_gif"])
+def test_convert_shared_sample_fixtures(
+    fixture_name: str, request: pytest.FixtureRequest, tmp_path: Path
+) -> None:
+    """The shared conftest image fixtures convert cleanly to a valid ICO."""
+    src = request.getfixturevalue(fixture_name)
+    target = tmp_path / "out.ico"
+    convert(src, target, IcoConfig(sizes=(SizeSpec(32, 32),)))
+    assert _ico_sizes(target) == {(32, 32)}

@@ -60,6 +60,10 @@ class TestExportSpritesheet:
         out = tmp_path / "sheet.png"
         export_spritesheet(_frames([16, 32, 48]), out)
         assert out.exists()
+        with Image.open(out) as sheet:
+            assert sheet.format == "PNG"
+            assert sheet.mode in ("RGBA", "RGB")
+            assert sheet.width > 0 and sheet.height > 0
 
     def test_width_equals_columns_times_cell(self, tmp_path: Path) -> None:
         out = tmp_path / "sheet.png"
@@ -97,6 +101,8 @@ class TestExportIcns:
         export_icns(_frames([16, 32]), out)
         assert out.exists()
         assert out.stat().st_size > 0
+        # Valid ICNS files start with the 'icns' magic.
+        assert out.read_bytes()[:4] == b"icns"
 
     def test_raises_on_empty_frames(self, tmp_path: Path) -> None:
         with pytest.raises(ValueError, match="No frames"):

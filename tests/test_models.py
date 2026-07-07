@@ -45,9 +45,9 @@ def test_color_rejects_channel_below_zero() -> None:
 
 
 def test_color_rejects_channel_above_255() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"0\.\.255"):
         Color(256, 0, 0)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"0\.\.255"):
         Color(0, 0, 0, 256)
 
 
@@ -74,20 +74,20 @@ def test_sizespec_accepts_valid() -> None:
 
 
 def test_sizespec_rejects_out_of_range() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"1\.\.256"):
         SizeSpec(0, 16)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"1\.\.256"):
         SizeSpec(16, 257)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"1\.\.256"):
         SizeSpec(257, 16)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"1\.\.256"):
         SizeSpec(1, 0)
 
 
 def test_sizespec_rejects_invalid_bit_depth() -> None:
     with pytest.raises(ValueError, match="bit_depth"):
         SizeSpec(32, 32, bit_depth=16)  # type: ignore[arg-type]
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="bit_depth"):
         SizeSpec(32, 32, bit_depth=4)  # type: ignore[arg-type]
 
 
@@ -120,7 +120,7 @@ def test_sizespec_is_hashable() -> None:
 
 
 def test_icoconfig_rejects_empty_sizes() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="at least one"):
         IcoConfig(sizes=())
 
 
@@ -152,9 +152,9 @@ def test_icoconfig_is_hashable() -> None:
 def test_optimization_level_range() -> None:
     OptimizationConfig(level=0)
     OptimizationConfig(level=6)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="oxipng level"):
         OptimizationConfig(level=7)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="oxipng level"):
         OptimizationConfig(level=-1)
 
 
