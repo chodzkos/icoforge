@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -212,6 +213,25 @@ def _collect_source_overrides(
     return overrides
 
 
+def _explicitly_set(ctx: click.Context, name: str) -> bool:
+    """Return ``True`` when option *name* was supplied on the command line or env.
+
+    Used so ``--preset`` can start from the preset's full configuration and only
+    override the fields the user explicitly provided, rather than clobbering them
+    with option defaults.
+
+    Args:
+        ctx: The active Click context.
+        name: The option's Python parameter name (e.g. ``"background"``).
+    """
+    from click.core import ParameterSource
+
+    return ctx.get_parameter_source(name) in (
+        ParameterSource.COMMANDLINE,
+        ParameterSource.ENVIRONMENT,
+    )
+
+
 def _progress_callback(value: float) -> None:
     """Print an in-place ASCII progress bar to stdout."""
     filled = round(value * _BAR_WIDTH)
@@ -312,7 +332,9 @@ def main() -> None:
     ),
 )
 @_per_size_source_options
+@click.pass_context
 def convert(
+    ctx: click.Context,
     source: Path,
     target: Path,
     preset: str | None,
@@ -338,6 +360,7 @@ def convert(
     # Resolve sizes and resample: preset provides defaults, explicit --sizes
     # overrides.  When --sizes is omitted, the default size set depends on the
     # target format because ICNS supports a different set than ICO/CUR.
+    base: IcoConfig | None = None
     resolved_sizes: str
     resolved_resample: str
     if preset:
@@ -391,27 +414,57 @@ def convert(
 
     parsed_sizes = _parse_sizes(resolved_sizes)
     source_overrides = _collect_source_overrides(per_size_sources, parsed_sizes)
-    bd = cast(Literal[8, 24, 32], int(bit_depth))
+
+    # Choose the base SizeSpecs.  With a preset and no explicit --sizes, keep the
+    # preset's full specs (non-square heights, per-size bit_depth and resample);
+    # otherwise derive square specs from the resolved --sizes.
+    base_specs = base.sizes if (base is not None and not sizes) else parsed_sizes
+
+    # bit_depth: an explicit --bit-depth overrides every entry; otherwise each
+    # spec keeps its own depth (from the preset or the SizeSpec default).
+    bit_depth_override: Literal[8, 24, 32] | None = (
+        cast(Literal[8, 24, 32], int(bit_depth)) if _explicitly_set(ctx, "bit_depth") else None
+    )
     size_specs = tuple(
-        SizeSpec(
-            s.width,
-            s.height,
-            bit_depth=bd,
-            resample=s.resample,
+        replace(
+            s,
+            bit_depth=bit_depth_override if bit_depth_override is not None else s.bit_depth,
             source_override=source_overrides.get(s.width, s.source_override),
         )
-        for s in parsed_sizes
+        for s in base_specs
     )
-    bg = _parse_background(background)
-    config = IcoConfig(
-        sizes=size_specs,
-        resample=ResampleAlgorithm(resolved_resample),
-        background=bg,
-        preserve_aspect=keep_aspect,
-        auto_trim=auto_trim,
-        auto_trim_padding=trim_padding,
-        remove_bg=remove_bg,
-    )
+
+    if base is not None:
+        # Start from the preset's complete configuration and override only the
+        # fields the user explicitly passed on the command line.
+        config = replace(
+            base,
+            sizes=size_specs,
+            resample=ResampleAlgorithm(resolved_resample),
+            background=(
+                _parse_background(background)
+                if _explicitly_set(ctx, "background")
+                else base.background
+            ),
+            preserve_aspect=(
+                keep_aspect if _explicitly_set(ctx, "keep_aspect") else base.preserve_aspect
+            ),
+            auto_trim=auto_trim if _explicitly_set(ctx, "auto_trim") else base.auto_trim,
+            auto_trim_padding=(
+                trim_padding if _explicitly_set(ctx, "trim_padding") else base.auto_trim_padding
+            ),
+            remove_bg=remove_bg if _explicitly_set(ctx, "remove_bg") else base.remove_bg,
+        )
+    else:
+        config = IcoConfig(
+            sizes=size_specs,
+            resample=ResampleAlgorithm(resolved_resample),
+            background=_parse_background(background),
+            preserve_aspect=keep_aspect,
+            auto_trim=auto_trim,
+            auto_trim_padding=trim_padding,
+            remove_bg=remove_bg,
+        )
 
     try:
         run_convert(source, target, config, progress=_progress_callback)
