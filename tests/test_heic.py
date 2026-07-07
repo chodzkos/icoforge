@@ -235,6 +235,11 @@ class TestHeicLoading:
         frames = render_frames(heic_file, config)
         assert all(f.mode == "RGBA" for f in frames)
 
+    def test_load_avif_returns_rgba(self, avif_file: Path) -> None:
+        img = load_heic(avif_file)
+        assert img.mode == "RGBA"
+        assert img.size == (64, 64)
+
     def test_convert_avif_produces_ico(self, avif_file: Path, tmp_path: Path) -> None:
         target = tmp_path / "out.ico"
         config = IcoConfig(sizes=(SizeSpec(32, 32),))
