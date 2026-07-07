@@ -627,9 +627,7 @@ class TestIcnsDefaultSizes:
         """Explicit --sizes with an ICNS-invalid value (48) must still error out."""
         src = _make_png(tmp_path)
         out = tmp_path / "out.icns"
-        result = CliRunner().invoke(
-            main, ["convert", str(src), str(out), "--sizes", "48"]
-        )
+        result = CliRunner().invoke(main, ["convert", str(src), str(out), "--sizes", "48"])
 
         assert result.exit_code != 0
         assert "ICNS" in result.output
@@ -642,9 +640,7 @@ class TestIcnsDefaultSizes:
 
         src = _make_png(tmp_path, size=(128, 128))
         out = tmp_path / "out.icns"
-        result = CliRunner().invoke(
-            main, ["convert", str(src), str(out), "--sizes", "16,32"]
-        )
+        result = CliRunner().invoke(main, ["convert", str(src), str(out), "--sizes", "16,32"])
 
         assert result.exit_code == 0, result.output
         assert _icns_block_tags(out) == {_SIZE_TO_TAG[16], _SIZE_TO_TAG[32]}
