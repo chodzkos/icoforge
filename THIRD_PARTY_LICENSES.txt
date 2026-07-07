@@ -1,0 +1,96 @@
+================================================================================
+IcoForge — Third-party license notices
+================================================================================
+
+IcoForge itself is distributed under the MIT License (see LICENSE).
+
+The binary distributions of IcoForge (the Windows installer and the portable
+ZIP) bundle several third-party components. Each remains under its own license,
+reproduced or referenced below. This file is included with every binary build
+to satisfy the notice requirements of those licenses.
+
+--------------------------------------------------------------------------------
+PySide6 / Qt for Python  —  GNU LGPL v3
+--------------------------------------------------------------------------------
+Copyright (C) The Qt Company Ltd. and other contributors.
+
+IcoForge uses PySide6 (Qt for Python) under the terms of the GNU Lesser General
+Public License, version 3 (LGPLv3). The bundled Qt libraries are likewise
+licensed under the LGPLv3.
+
+Under the LGPLv3 you have the right to obtain the source code of PySide6/Qt and
+to modify and relink these libraries with IcoForge. IcoForge dynamically links
+against the bundled Qt/PySide6 shared libraries so that they may be replaced.
+
+  - PySide6 source:  https://code.qt.io/cgit/pyside/pyside-setup.git/
+  - Qt source:       https://download.qt.io/official_releases/qt/
+  - LGPL v3 text:    https://www.gnu.org/licenses/lgpl-3.0.html
+  - GPL v3 text:     https://www.gnu.org/licenses/gpl-3.0.html
+    (the LGPLv3 incorporates the GPLv3 by reference)
+
+--------------------------------------------------------------------------------
+Pillow  —  MIT-CMU (HPND) License
+--------------------------------------------------------------------------------
+Copyright (C) 1997-2011 by Secret Labs AB,
+Copyright (C) 1995-2011 by Fredrik Lundh and contributors,
+Copyright (C) 2010-present by Jeffrey A. Clark and contributors.
+
+  - Project / license: https://github.com/python-pillow/Pillow/blob/main/LICENSE
+
+--------------------------------------------------------------------------------
+NumPy  —  BSD 3-Clause License
+--------------------------------------------------------------------------------
+Copyright (C) 2005-present, NumPy Developers.
+
+  - Project / license: https://github.com/numpy/numpy/blob/main/LICENSE.txt
+
+--------------------------------------------------------------------------------
+click  —  BSD 3-Clause License
+--------------------------------------------------------------------------------
+Copyright (C) 2014 Pallets.
+
+  - Project / license: https://github.com/pallets/click/blob/main/LICENSE.txt
+
+--------------------------------------------------------------------------------
+pyoxipng / oxipng  —  MIT License
+--------------------------------------------------------------------------------
+Copyright (C) the oxipng authors.
+
+  - Project / license: https://github.com/shssoichiro/oxipng/blob/master/LICENSE
+
+--------------------------------------------------------------------------------
+chodzkos-gui-kit  —  bundled shared UI kit
+--------------------------------------------------------------------------------
+Provides the brand-Fusion theme engine, recolourable SVG icons and shared
+dialog/help widgets. Bundled icon and package licenses ship inside the package
+(see LICENSE-icons).
+
+  - Project: https://github.com/chodzkos/gui-kit
+
+--------------------------------------------------------------------------------
+Cairo graphics library (bundled DLLs, Windows builds only)  —  LGPL v2.1 / MPL 1.1
+--------------------------------------------------------------------------------
+When SVG support via cairosvg is available, the Windows builds bundle the Cairo
+runtime DLLs (collected from MSYS2). Cairo is dual-licensed under the GNU LGPL
+v2.1 and the Mozilla Public License 1.1.
+
+  - Project / license: https://www.cairographics.org/
+
+--------------------------------------------------------------------------------
+Optional components (only when the matching extra is installed/bundled)
+--------------------------------------------------------------------------------
+cairosvg      — GNU LGPL v3   — https://github.com/Kozea/CairoSVG
+resvg-py      — MPL 2.0 / MIT — https://github.com/wearepal/resvg-py
+pillow-heif   — BSD 3-Clause  — https://github.com/bigcat88/pillow_heif
+pefile        — MIT License   — https://github.com/erocarrera/pefile
+
+rembg         — MIT License   — https://github.com/danielgatis/rembg
+onnxruntime   — MIT License   — https://github.com/microsoft/onnxruntime
+  (rembg and ONNX Runtime are used only for the optional AI background-removal
+   feature and are not part of the default binary distribution.)
+
+================================================================================
+For questions about license compliance, or to request corresponding source for
+any LGPL-covered component, open an issue at
+https://github.com/chodzkos/icoforge/issues
+================================================================================

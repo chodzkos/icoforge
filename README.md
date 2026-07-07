@@ -40,7 +40,7 @@ do tworzenia ikon od podstaw.
 ### Interfejs
 - GUI (PySide6): drag & drop, podgląd każdego rozmiaru, pasek postępu
 - CLI: `icoforge-cli convert`, `icoforge-cli optimize`
-- Tryb ciemny / jasny: Widok → Motyw (Automatyczny / Ciemny / Jasny); jasny = natywny Qt, ciemny = qdarktheme
+- Tryb ciemny / jasny: Widok → Motyw (Automatyczny / Ciemny / Jasny); oba motywy renderowane przez brand-Fusion z chodzkos-gui-kit
 - Lokalizacja PL/EN z przełącznikiem języka (Pomoc → Język)
 - Ostatnio otwarte pliki (max 10), zapamiętywanie pozycji okna
 - Instalator Windows + wersja portable
@@ -192,3 +192,13 @@ Patrz [docs/ROADMAP.md](docs/ROADMAP.md) i [docs/FEATURES.md](docs/FEATURES.md).
 ## Licencja
 
 MIT
+
+### Licencje zależności
+
+IcoForge (kod własny) jest na licencji MIT. Dystrybucje binarne (instalator
+Windows i wersja portable) dołączają biblioteki firm trzecich na ich własnych
+licencjach — pełne noty znajdziesz w pliku `THIRD_PARTY_LICENSES.txt` dołączanym
+do każdego wydania. W szczególności **PySide6 / Qt** są używane na warunkach
+**GNU LGPL v3**; masz prawo pozyskać ich kod źródłowy oraz zrelinkować je z
+aplikacją. Pozostałe zależności (Pillow, NumPy, click, pyoxipng i opcjonalne
+rembg / ONNX Runtime) są na licencjach MIT / BSD.

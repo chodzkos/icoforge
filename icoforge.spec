@@ -15,6 +15,9 @@ ROOT = Path(SPECPATH)  # noqa: F821  – SPECPATH injected by PyInstaller
 datas = copy_metadata("icoforge") + [
     # Qt translation files for Polish/English UI
     (str(ROOT / "src" / "icoforge" / "translations"), "icoforge/translations"),
+    # Third-party license notices (LGPL/BSD/MIT). Placed at the bundle root so
+    # it ships with both the portable ZIP and the installer.
+    (str(ROOT / "THIRD_PARTY_LICENSES.txt"), "."),
 ]
 
 # Recolourable SVG icons now live in the chodzkos-gui-kit package (extracted from

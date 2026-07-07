@@ -8,6 +8,20 @@ Projekt stosuje [Semantic Versioning](https://semver.org/lang/pl/).
 
 ## [Unreleased]
 
+### Added
+- **`THIRD_PARTY_LICENSES.txt`** — noty licencyjne firm trzecich (PySide6/Qt na
+  LGPL v3, Pillow, NumPy, click, pyoxipng, opcjonalnie rembg/ONNX) dołączane do
+  buildu PyInstaller (`icoforge.spec` → `datas`) i instalatora
+  (`installer/icoforge.iss` → `[Files]`), z odnośnikiem w README oraz w oknie
+  „O programie".
+
+### Fixed
+- Dokumentacja motywu w `README.md` i `docs/ROADMAP.md` — opis zgodny z 1.3.0
+  (oba motywy renderuje brand-Fusion z chodzkos-gui-kit; usunięto nieaktualną
+  wzmiankę o „jasny = natywny Qt, ciemny = qdarktheme").
+
+## [1.4.0] - 2026-07-07
+
 ### Changed
 - **Okno pomocy z `chodzkos-gui-kit` (`HelpWindow`, pin `v0.5.0`)** — własna implementacja zastąpiona kitowym widgetem. Treść IcoForge (Konwersja / Optymalizacja PNG / Edytor / CLI / Model AI) zostaje, ale jako lista `(tytuł, html)` wstrzykiwana do `HelpWindow` i składana kitowymi helperami HTML (`section`/`paragraph`/`table`/`code`/`preformatted`) — koniec sztywnych `_make_X_tab` i własnych helperów. **Re-render motywu obejmuje teraz WSZYSTKIE zakładki** (kit przemalowuje treść na `PaletteChange`), nie tylko ręcznie obsługiwaną zakładkę „Model AI". Usunięto persystencję geometrii (`QSettings`) oraz `showEvent`/`apply_theme_to_dialog` z okna pomocy — belkę DWM i re-render robi kit (`TitlebarSync` + `changeEvent`).
 
