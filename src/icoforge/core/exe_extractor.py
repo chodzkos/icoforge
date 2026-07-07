@@ -63,28 +63,33 @@ def extract_icons_from_exe(path: Path) -> list[bytes]:
     except Exception as exc:
         raise ExeExtractError(f"Cannot open PE file: {exc}") from exc
 
-    if not hasattr(pe, "DIRECTORY_ENTRY_RESOURCE"):
-        return []
+    # Always release the mapped file — on Windows an open pefile handle keeps a
+    # lock on the file, and it leaks the mmap on every platform.
+    try:
+        if not hasattr(pe, "DIRECTORY_ENTRY_RESOURCE"):
+            return []
 
-    # Index individual RT_ICON blobs by their resource ID so we can look
-    # them up when assembling each group.
-    icon_data: dict[int, bytes] = _collect_rt_icons(pe)
+        # Index individual RT_ICON blobs by their resource ID so we can look
+        # them up when assembling each group.
+        icon_data: dict[int, bytes] = _collect_rt_icons(pe)
 
-    result: list[bytes] = []
-    for resource_type in pe.DIRECTORY_ENTRY_RESOURCE.entries:
-        if _res_id(resource_type) != _RT_GROUP_ICON:
-            continue
-        for name_entry in resource_type.directory.entries:
-            for lang_entry in name_entry.directory.entries:
-                offset = lang_entry.data.struct.OffsetToData
-                size = lang_entry.data.struct.Size
-                raw = pe.get_data(offset, size)
-                try:
-                    ico = _build_ico(raw, icon_data)
-                except (struct.error, KeyError, ValueError):
-                    continue  # malformed group — skip
-                result.append(ico)
-    return result
+        result: list[bytes] = []
+        for resource_type in pe.DIRECTORY_ENTRY_RESOURCE.entries:
+            if _res_id(resource_type) != _RT_GROUP_ICON:
+                continue
+            for name_entry in resource_type.directory.entries:
+                for lang_entry in name_entry.directory.entries:
+                    offset = lang_entry.data.struct.OffsetToData
+                    size = lang_entry.data.struct.Size
+                    raw = pe.get_data(offset, size)
+                    try:
+                        ico = _build_ico(raw, icon_data)
+                    except (struct.error, KeyError, ValueError):
+                        continue  # malformed group — skip
+                    result.append(ico)
+        return result
+    finally:
+        pe.close()
 
 
 # ---------------------------------------------------------------------------

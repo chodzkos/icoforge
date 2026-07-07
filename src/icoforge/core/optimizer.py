@@ -112,12 +112,22 @@ def optimize_png(
 
     # Validate it's a real PNG; use a context manager so the file handle is
     # released immediately — critical on Windows where an open handle blocks
-    # a subsequent in-place write to the same path.
+    # a subsequent in-place write to the same path.  Capture the format before
+    # verify() (which may invalidate the image object).
+    fmt: str | None = None
     try:
         with limits.guard_decompression_bomb(), Image.open(source) as img:
+            fmt = img.format
             img.verify()
     except OSError as exc:
         raise ValueError(f"Cannot open image: {exc}") from exc
+
+    # A .png file that is actually another format (e.g. a renamed JPEG) would
+    # otherwise reach oxipng and raise an unhandled PngError.
+    if fmt != "PNG":
+        raise ValueError(
+            f"Expected a PNG image, but {source} is {fmt or 'an unrecognised format'}."
+        )
 
     # Build the set of chunks to keep when stripping metadata.
     # keep_chunks (explicit) union color-profile chunks (when preserve_color_profile=True).

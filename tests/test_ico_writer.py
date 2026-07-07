@@ -202,6 +202,20 @@ def test_bit_depth_24_header_and_png_mode(tmp_path: Path) -> None:
     assert _embedded_png_mode(out) == "RGB"
 
 
+def test_bit_depth_24_transparent_pixels_become_white(tmp_path: Path) -> None:
+    """C5: transparent pixels must composite onto white, not expose black RGB."""
+    out = tmp_path / "out.ico"
+    # Fully transparent image with black RGB under the alpha (0,0,0,0).
+    transparent_black = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
+    write_ico(out, [(transparent_black, SizeSpec(16, 16, bit_depth=24))])
+
+    raw = out.read_bytes()
+    _, _, _, _, _, _, img_size, img_offset = _struct.unpack_from("<BBBBHHII", raw, 6)
+    png = Image.open(_io.BytesIO(raw[img_offset : img_offset + img_size]))
+    assert png.mode == "RGB"
+    assert png.getpixel((8, 8)) == (255, 255, 255)
+
+
 def test_bit_depth_8_header_and_png_mode(tmp_path: Path) -> None:
     """8-bit: bitCount == 8 and embedded PNG is palette mode (P)."""
     out = tmp_path / "out.ico"

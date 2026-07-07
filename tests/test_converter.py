@@ -421,3 +421,43 @@ def test_render_frames_uses_source_override(tmp_path: Path) -> None:
     frames = render_frames(main, config)
     assert frames[0].getpixel((8, 8)) == (0, 255, 0, 255)
     assert frames[1].getpixel((16, 16)) == (255, 0, 0, 255)
+
+
+def test_square_source_letterboxed_into_nonsquare_target(tmp_path: Path) -> None:
+    """C6: a square source into a 64x32 target must letterbox, not stretch."""
+    src = _solid_png(tmp_path, "square.png", (255, 0, 0, 255))
+    config = IcoConfig(sizes=(SizeSpec(64, 32),), preserve_aspect=True)
+    frames = render_frames(src, config)
+    frame = frames[0]
+    assert frame.size == (64, 32)
+    # Square content scaled to fit 64x32 -> 32x16 centred, so left/right bars
+    # are transparent background (not stretched red across the full width).
+    assert frame.getpixel((0, 16))[3] == 0
+    assert frame.getpixel((63, 16))[3] == 0
+    # Centre still shows the source colour.
+    assert frame.getpixel((32, 16)) == (255, 0, 0, 255)
+
+
+def test_matching_aspect_ratio_is_not_letterboxed(tmp_path: Path) -> None:
+    """C6: when source and target ratios match, resize fills the frame fully."""
+    img = Image.new("RGBA", (128, 64), (0, 200, 0, 255))  # 2:1
+    src = tmp_path / "wide2to1.png"
+    img.save(src)
+    config = IcoConfig(sizes=(SizeSpec(64, 32),), preserve_aspect=True)  # also 2:1
+    frame = render_frames(src, config)[0]
+    assert frame.size == (64, 32)
+    # No letterbox bars: every corner is the opaque source colour.
+    for xy in [(0, 0), (63, 0), (0, 31), (63, 31), (32, 16)]:
+        assert frame.getpixel(xy) == (0, 200, 0, 255)
+
+
+def test_16bit_grayscale_source_preserves_tone(tmp_path: Path) -> None:
+    """C7: 16-bit grayscale must be scaled to 8-bit, not clamped to near-white."""
+    src = tmp_path / "gray16.png"
+    Image.new("I;16", (32, 32), 40000).save(src)  # 40000/65535 ~= 0.61
+    frames = render_frames(src, IcoConfig(sizes=(SizeSpec(16, 16),)))
+    r, g, b, a = frames[0].getpixel((8, 8))
+    # 40000 >> 8 == 156; allow small resampling error, must NOT be ~255 (the bug).
+    assert a == 255
+    assert abs(r - 156) <= 4
+    assert r == g == b

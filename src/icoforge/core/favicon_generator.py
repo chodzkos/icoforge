@@ -112,9 +112,12 @@ def _load_rgba(source: Path) -> Image.Image:
     suffix = source.suffix.lower()
 
     if suffix == ".svg":
-        from icoforge.core.svg_loader import rasterize_svg
+        from icoforge.core.svg_loader import rasterize_svg_natural
 
-        return rasterize_svg(source, 512, 512)
+        # Rasterize at the SVG's natural aspect ratio; _resize_cover then
+        # letterboxes to square, preserving proportions (forcing 512x512 here
+        # would stretch a non-square SVG).
+        return rasterize_svg_natural(source)
 
     if suffix in {".heic", ".heif", ".avif"}:
         from icoforge.core.heic_loader import load_heic
@@ -150,6 +153,7 @@ def _write_favicon_ico(img: Image.Image, target: Path, resample: Image.Resamplin
     import tempfile
 
     from icoforge.core.converter import convert as run_convert
+    from icoforge.core.resampling import from_pillow
 
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
         tmp_path = Path(tmp.name)
@@ -157,6 +161,7 @@ def _write_favicon_ico(img: Image.Image, target: Path, resample: Image.Resamplin
         img.save(tmp_path, format="PNG")
         config = IcoConfig(
             sizes=tuple(SizeSpec(s, s) for s in (16, 32, 48)),
+            resample=from_pillow(resample),
         )
         run_convert(tmp_path, target, config)
     finally:

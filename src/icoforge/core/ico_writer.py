@@ -117,9 +117,15 @@ def _encode_png(img: Image.Image, bit_depth: int) -> bytes:
         palette_img = rgba.quantize(colors=256)
         palette_img.save(buf, format="PNG")
     elif bit_depth == 24:
-        # Caller (converter) should already have flattened alpha for configured
-        # background; falling back to white ensures ico_writer stays self-contained.
-        rgb = img.convert("RGB")
+        # 24-bit PNG carries no alpha. A bare convert("RGB") would expose the raw
+        # RGB of transparent pixels (usually black); composite onto white first so
+        # transparency renders as white, matching converter._flatten_alpha. The
+        # caller (converter) normally pre-flattens onto the configured background;
+        # this keeps ico_writer correct on its own too.
+        rgba = img if img.mode == "RGBA" else img.convert("RGBA")
+        canvas = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
+        canvas.alpha_composite(rgba)
+        rgb = canvas.convert("RGB")
         rgb.save(buf, format="PNG")
     else:  # 32
         rgba = img if img.mode == "RGBA" else img.convert("RGBA")

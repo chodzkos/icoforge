@@ -246,3 +246,39 @@ class TestProgress:
 
     def test_no_progress_doesnt_crash(self, source_png: Path, tmp_path: Path) -> None:
         generate_favicon_set(source_png, tmp_path / "out", progress=None)
+
+
+def test_favicon_ico_honors_resample(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """C8: the resample argument must reach the favicon.ico IcoConfig."""
+    from icoforge.core import converter, favicon_generator
+    from icoforge.core.models import IcoConfig, ResampleAlgorithm
+
+    captured: dict[str, object] = {}
+
+    def _spy_convert(src: Path, tgt: Path, config: object, progress: object = None) -> None:
+        captured["config"] = config
+
+    monkeypatch.setattr(converter, "convert", _spy_convert)
+
+    src = tmp_path / "in.png"
+    _solid().save(src, format="PNG")
+    favicon_generator.generate_favicon_set(src, tmp_path / "out", resample=Image.Resampling.NEAREST)
+
+    config = captured["config"]
+    assert isinstance(config, IcoConfig)
+    assert config.resample == ResampleAlgorithm.NEAREST
+
+
+def test_svg_source_rasterized_at_natural_aspect(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """C9: SVG must be rasterized at its natural aspect, not forced to 512x512."""
+    from icoforge.core import favicon_generator, svg_loader
+
+    fake_svg = tmp_path / "logo.svg"
+    fake_svg.write_text("<svg/>", encoding="utf-8")
+    natural = Image.new("RGBA", (100, 50), (0, 0, 255, 255))  # 2:1
+    monkeypatch.setattr(svg_loader, "rasterize_svg_natural", lambda src: natural.copy())
+
+    img = favicon_generator._load_rgba(fake_svg)
+    assert img.size == (100, 50)
