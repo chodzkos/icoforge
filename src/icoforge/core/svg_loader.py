@@ -24,6 +24,8 @@ from pathlib import Path
 
 from PIL import Image
 
+from icoforge.core import limits
+
 # ---------------------------------------------------------------------------
 # Backend detection - run once at import time
 # ---------------------------------------------------------------------------
@@ -93,14 +95,18 @@ def rasterize_svg_natural(source: Path) -> Image.Image:
     if not source.exists():
         raise FileNotFoundError(source)
 
+    limits.check_file_size(source, limits.MAX_SVG_BYTES)
+
     if _ENGINE == "resvg":
         svg_bytes = source.read_bytes()
         png_bytes: bytes = _resvg_py.svg_to_png(svg_bytes)  # type: ignore[attr-defined]
-        return Image.open(io.BytesIO(png_bytes)).convert("RGBA")
+        with limits.guard_decompression_bomb():
+            return Image.open(io.BytesIO(png_bytes)).convert("RGBA")
 
     # cairosvg - omit output_width/output_height to get the natural size
     png_bytes = _cairosvg.svg2png(url=str(source.resolve()))  # type: ignore[attr-defined]
-    return Image.open(io.BytesIO(png_bytes)).convert("RGBA")
+    with limits.guard_decompression_bomb():
+        return Image.open(io.BytesIO(png_bytes)).convert("RGBA")
 
 
 def rasterize_svg(source: Path, width: int, height: int) -> Image.Image:
@@ -130,10 +136,13 @@ def rasterize_svg(source: Path, width: int, height: int) -> Image.Image:
     if width <= 0 or height <= 0:
         raise ValueError(f"width and height must be positive, got {width}x{height}")
 
+    limits.check_file_size(source, limits.MAX_SVG_BYTES)
+
     if _ENGINE == "resvg":
         svg_bytes = source.read_bytes()
         png_bytes: bytes = _resvg_py.svg_to_png(svg_bytes)  # type: ignore[attr-defined]
-        img = Image.open(io.BytesIO(png_bytes)).convert("RGBA")
+        with limits.guard_decompression_bomb():
+            img = Image.open(io.BytesIO(png_bytes)).convert("RGBA")
         if img.size != (width, height):
             img = img.resize((width, height), Image.Resampling.LANCZOS)
         return img
@@ -144,4 +153,5 @@ def rasterize_svg(source: Path, width: int, height: int) -> Image.Image:
         output_width=width,
         output_height=height,
     )
-    return Image.open(io.BytesIO(png_bytes)).convert("RGBA")
+    with limits.guard_decompression_bomb():
+        return Image.open(io.BytesIO(png_bytes)).convert("RGBA")

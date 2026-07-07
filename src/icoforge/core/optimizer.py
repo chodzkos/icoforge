@@ -15,6 +15,7 @@ from pathlib import Path
 import oxipng
 from PIL import Image
 
+from icoforge.core import limits
 from icoforge.core.models import OptimizationConfig
 
 # Chunk types that carry color-reproduction metadata.
@@ -97,6 +98,8 @@ def optimize_png(
     if source.suffix.lower() != ".png":
         raise ValueError(f"Expected .png source, got {source.suffix}")
 
+    limits.check_file_size(source, limits.MAX_PNG_BYTES)
+
     cfg = config or OptimizationConfig()
     out_path = target or source
     bytes_before = source.stat().st_size
@@ -105,7 +108,7 @@ def optimize_png(
     # released immediately — critical on Windows where an open handle blocks
     # a subsequent in-place write to the same path.
     try:
-        with Image.open(source) as img:
+        with limits.guard_decompression_bomb(), Image.open(source) as img:
             img.verify()
     except OSError as exc:
         raise ValueError(f"Cannot open image: {exc}") from exc

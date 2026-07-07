@@ -8,6 +8,7 @@ from pathlib import Path
 
 from PIL import IcoImagePlugin, Image
 
+from icoforge.core import limits
 from icoforge.core.models import SizeSpec
 
 
@@ -37,6 +38,8 @@ def read_ico(path: Path) -> list[tuple[Image.Image, SizeSpec]]:
     if path.suffix.lower() != ".ico":
         raise ValueError(f"Expected .ico file, got {path.suffix}")
 
+    limits.check_file_size(path, limits.MAX_ICO_BYTES)
+
     data = path.read_bytes()
 
     if len(data) < 6:
@@ -61,10 +64,13 @@ def read_ico(path: Path) -> list[tuple[Image.Image, SizeSpec]]:
     frames: list[tuple[Image.Image, SizeSpec]] = []
     for idx in range(len(ico.entry)):
         try:
-            img = ico.frame(idx)  # type: ignore[no-untyped-call]
+            with limits.guard_decompression_bomb():
+                img = ico.frame(idx)  # type: ignore[no-untyped-call]
+                rgba = img.convert("RGBA")
+        except ValueError:
+            raise
         except Exception as exc:
             raise ValueError(f"Failed to decode image in ICO: {exc}") from exc
-        rgba = img.convert("RGBA")
         w, h = rgba.size
         frames.append((rgba.copy(), SizeSpec(w, h)))
 

@@ -17,7 +17,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from icoforge.core import heic_loader, resampling, svg_loader
+from icoforge.core import heic_loader, limits, resampling, svg_loader
 from icoforge.core.ico_writer import write_ico
 from icoforge.core.models import (
     TRANSPARENT,
@@ -118,6 +118,8 @@ def _validate_source(source: Path) -> None:
         raise ValueError(
             f"Unsupported source format: '{suffix}'. Supported: {sorted(_SUPPORTED_SUFFIXES)}"
         )
+    max_bytes = limits.MAX_SVG_BYTES if suffix in _SVG_SUFFIXES else limits.MAX_IMAGE_BYTES
+    limits.check_file_size(source, max_bytes)
 
 
 def _validate_sources(source: Path, config: IcoConfig) -> None:
@@ -266,7 +268,7 @@ def _load_rgba(path: Path, background: Background) -> Image.Image:
     # is fully independent of the source file handle, so closing the handle
     # inside the with-block is safe even though the converted Image is used
     # after it.
-    with Image.open(path) as img:
+    with limits.guard_decompression_bomb(), Image.open(path) as img:
         if img.mode in ("RGBA", "LA", "P"):
             # Native alpha (or palette with transparency index) — convert and
             # return; with-block exits cleanly after convert() loads all data.

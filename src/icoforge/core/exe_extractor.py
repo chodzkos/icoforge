@@ -20,6 +20,8 @@ import struct
 from pathlib import Path
 from typing import Any
 
+from icoforge.core import limits
+
 # RT_* resource type IDs (Windows SDK winuser.h)
 _RT_ICON = 3
 _RT_GROUP_ICON = 14
@@ -46,6 +48,8 @@ def extract_icons_from_exe(path: Path) -> list[bytes]:
     """
     if not path.exists():
         raise FileNotFoundError(path)
+
+    limits.check_file_size(path, limits.MAX_PE_BYTES)
 
     try:
         import pefile  # lazy import; pefile is an optional dependency
