@@ -62,6 +62,42 @@ def _load_named_preset(name: str) -> IcoConfig:
 # by the built-in presets (windows + favicon).
 _PER_SIZE_FLAG_SIZES: tuple[int, ...] = (16, 20, 24, 32, 40, 48, 64, 96, 128, 256)
 
+# Default output sizes when the user omits --sizes.  The set depends on the
+# target format: ICNS supports 16/32/64/128/256/512/1024 (no 48), while ICO/CUR
+# conventionally include 48.
+_DEFAULT_SIZES_RASTER = "16,32,48,256"  # .ico / .cur
+_DEFAULT_SIZES_ICNS = "16,32,64,128,256,512"  # .icns
+
+
+def _icns_sizes_from_preset(preset_name: str, widths: list[int]) -> list[int]:
+    """Map a preset's sizes onto the ICNS-supported set.
+
+    Presets such as "Windows App Icon" include sizes (20, 24, 40, 48, 96) that
+    ICNS cannot store.  Drop the unsupported sizes with a warning; if none of
+    the preset's sizes are valid for ICNS, fall back to the ICNS defaults.
+
+    Args:
+        preset_name: Name of the preset, used in the warning message.
+        widths: Pixel sizes requested by the preset.
+
+    Returns:
+        The subset of *widths* valid for ICNS, or the ICNS defaults if empty.
+    """
+    from icoforge.core.icns_writer import _VALID_SIZES
+
+    valid = [w for w in widths if w in _VALID_SIZES]
+    dropped = [w for w in widths if w not in _VALID_SIZES]
+    if dropped:
+        click.secho(
+            f"Warning: preset {preset_name!r} includes size(s) {dropped} unsupported by "
+            f"ICNS; using {valid or 'ICNS defaults'} instead.",
+            fg="yellow",
+            err=True,
+        )
+    if not valid:
+        return [int(s) for s in _DEFAULT_SIZES_ICNS.split(",")]
+    return valid
+
 
 def _per_size_source_options(func: Callable[..., Any]) -> Callable[..., Any]:
     """Attach ``--source-N`` options (one per :data:`_PER_SIZE_FLAG_SIZES`).
@@ -297,16 +333,31 @@ def convert(
     When TARGET ends with .cur the output is a Windows cursor file.
     Supported ICNS sizes: 16, 32, 64, 128, 256, 512, 1024.
     """
-    # Resolve sizes and resample: preset provides defaults, explicit flags override.
+    suffix = target.suffix.lower()
+
+    # Resolve sizes and resample: preset provides defaults, explicit --sizes
+    # overrides.  When --sizes is omitted, the default size set depends on the
+    # target format because ICNS supports a different set than ICO/CUR.
+    resolved_sizes: str
+    resolved_resample: str
     if preset:
         base = _load_named_preset(preset)
-        resolved_sizes: str = sizes or ",".join(str(s.width) for s in base.sizes)
-        resolved_resample: str = resample or base.resample.value
+        resolved_resample = resample or base.resample.value
+        if sizes:
+            resolved_sizes = sizes
+        else:
+            preset_widths = [s.width for s in base.sizes]
+            if suffix == ".icns":
+                preset_widths = _icns_sizes_from_preset(preset, preset_widths)
+            resolved_sizes = ",".join(str(w) for w in preset_widths)
     else:
-        resolved_sizes = sizes or "16,32,48,256"
         resolved_resample = resample or ResampleAlgorithm.LANCZOS.value
-
-    suffix = target.suffix.lower()
+        if sizes:
+            resolved_sizes = sizes
+        elif suffix == ".icns":
+            resolved_sizes = _DEFAULT_SIZES_ICNS
+        else:
+            resolved_sizes = _DEFAULT_SIZES_RASTER
     if suffix == ".icns":
         _convert_icns(source, target, resolved_sizes, resolved_resample, background, keep_aspect)
         return
