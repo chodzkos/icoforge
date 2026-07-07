@@ -552,13 +552,24 @@ class TestCurHotspotValidation:
         assert result.exit_code != 0
         assert not out.exists()
 
-    def test_hotspot_outside_smaller_of_two_frames_fails(self, tmp_path: Path) -> None:
-        """Hotspot valid for large frame but outside the small one → reject."""
+    def test_hotspot_valid_for_largest_frame_is_accepted(self, tmp_path: Path) -> None:
+        """C11: a hotspot within the largest frame is valid; smaller frames scale it."""
         src = _make_png(tmp_path)
         out = tmp_path / "out.cur"
         result = CliRunner().invoke(
             main,
             ["convert", str(src), str(out), "--sizes", "16,32", "--hotspot", "20,20"],
+        )
+        assert result.exit_code == 0, result.output
+        assert out.exists()
+
+    def test_hotspot_outside_largest_frame_fails(self, tmp_path: Path) -> None:
+        """C11: a hotspot beyond the largest frame is still rejected."""
+        src = _make_png(tmp_path)
+        out = tmp_path / "out.cur"
+        result = CliRunner().invoke(
+            main,
+            ["convert", str(src), str(out), "--sizes", "16,32", "--hotspot", "40,5"],
         )
         assert result.exit_code != 0
         assert not out.exists()
@@ -756,3 +767,49 @@ class TestPresetHonorsFullConfig:
         assert result.exit_code == 0, result.output
         # Letterbox bar is now transparent, not red.
         assert _corner_pixel(out) == (0, 0, 0, 0)
+
+
+class TestIgnoredFlagWarnings:
+    """C15: explicitly-set flags unsupported by .icns/.cur must warn, not vanish."""
+
+    def test_icns_warns_on_ignored_auto_trim(self, tmp_path: Path) -> None:
+        src = _make_png(tmp_path, size=(64, 64))
+        out = tmp_path / "out.icns"
+        result = CliRunner().invoke(main, ["convert", str(src), str(out), "--auto-trim"])
+        assert result.exit_code == 0, result.output
+        assert "ICNS output ignores" in result.output
+        assert "--auto-trim" in result.output
+
+    def test_icns_warns_on_ignored_bit_depth(self, tmp_path: Path) -> None:
+        src = _make_png(tmp_path, size=(64, 64))
+        out = tmp_path / "out.icns"
+        result = CliRunner().invoke(main, ["convert", str(src), str(out), "--bit-depth", "24"])
+        assert result.exit_code == 0, result.output
+        assert "--bit-depth" in result.output
+
+    def test_cur_warns_on_ignored_remove_bg(self, tmp_path: Path) -> None:
+        src = _make_png(tmp_path, size=(32, 32))
+        out = tmp_path / "out.cur"
+        result = CliRunner().invoke(
+            main, ["convert", str(src), str(out), "--sizes", "32", "--remove-bg"]
+        )
+        assert result.exit_code == 0, result.output
+        assert "CUR output ignores" in result.output
+        assert "--remove-bg" in result.output
+
+    def test_cur_bit_depth_not_warned(self, tmp_path: Path) -> None:
+        """bit_depth IS supported by CUR, so it must not be reported as ignored."""
+        src = _make_png(tmp_path, size=(32, 32))
+        out = tmp_path / "out.cur"
+        result = CliRunner().invoke(
+            main, ["convert", str(src), str(out), "--sizes", "32", "--bit-depth", "24"]
+        )
+        assert result.exit_code == 0, result.output
+        assert "ignores" not in result.output
+
+    def test_icns_no_warning_without_ignored_flags(self, tmp_path: Path) -> None:
+        src = _make_png(tmp_path, size=(64, 64))
+        out = tmp_path / "out.icns"
+        result = CliRunner().invoke(main, ["convert", str(src), str(out)])
+        assert result.exit_code == 0, result.output
+        assert "ignores" not in result.output

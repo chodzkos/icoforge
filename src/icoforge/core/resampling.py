@@ -34,6 +34,9 @@ if _missing:
     raise RuntimeError(f"_PILLOW_MAP is missing entries for: {_missing}")
 
 
+_ALGO_MAP: dict[Image.Resampling, ResampleAlgorithm] = {v: k for k, v in _PILLOW_MAP.items()}
+
+
 def to_pillow(algo: ResampleAlgorithm) -> Image.Resampling:
     """Convert a :class:`~icoforge.core.models.ResampleAlgorithm` to a Pillow value.
 
@@ -44,6 +47,21 @@ def to_pillow(algo: ResampleAlgorithm) -> Image.Resampling:
         The corresponding ``PIL.Image.Resampling`` constant.
     """
     return _PILLOW_MAP[algo]
+
+
+def from_pillow(resampling: Image.Resampling) -> ResampleAlgorithm:
+    """Convert a Pillow ``Resampling`` value back to a :class:`ResampleAlgorithm`.
+
+    Args:
+        resampling: A ``PIL.Image.Resampling`` constant.
+
+    Returns:
+        The corresponding :class:`~icoforge.core.models.ResampleAlgorithm`.
+
+    Raises:
+        KeyError: *resampling* is not one of the supported filters.
+    """
+    return _ALGO_MAP[resampling]
 
 
 # Sizes at or below this threshold get BOX instead of LANCZOS.

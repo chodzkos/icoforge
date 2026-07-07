@@ -78,13 +78,23 @@ class TestHotspot:
         _, _, _, _, hx, hy, _, _ = _read_entry(data, 0)
         assert hx == 5 and hy == 10
 
-    def test_hotspot_same_for_all_frames(self, tmp_path: Path) -> None:
+    def test_hotspot_scaled_per_frame(self, tmp_path: Path) -> None:
+        """C11: the hotspot is relative to the largest frame and scaled down."""
         out = tmp_path / "test.cur"
-        write_cur(out, [_pair(16), _pair(32)], hotspot=(3, 7))
+        write_cur(out, [_pair(16), _pair(32)], hotspot=(30, 20))
         data = out.read_bytes()
-        for i in range(2):
-            _, _, _, _, hx, hy, _, _ = _read_entry(data, i)
-            assert hx == 3 and hy == 7
+        # Entries are largest-first: index 0 = 32px (reference), index 1 = 16px.
+        _, _, _, _, hx0, hy0, _, _ = _read_entry(data, 0)
+        assert (hx0, hy0) == (30, 20)
+        _, _, _, _, hx1, hy1, _, _ = _read_entry(data, 1)
+        # 30*16/32 = 15, 20*16/32 = 10
+        assert (hx1, hy1) == (15, 10)
+
+    def test_hotspot_outside_largest_frame_raises(self, tmp_path: Path) -> None:
+        """C11: a hotspot beyond the largest frame is a validation error."""
+        out = tmp_path / "test.cur"
+        with pytest.raises(ValueError, match="outside the largest frame"):
+            write_cur(out, [_pair(16), _pair(32)], hotspot=(40, 5))
 
     def test_zero_zero_hotspot(self, tmp_path: Path) -> None:
         out = tmp_path / "test.cur"

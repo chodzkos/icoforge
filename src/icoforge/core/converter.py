@@ -34,6 +34,9 @@ _SVG_SUFFIXES: frozenset[str] = frozenset({".svg"})
 _HEIC_SUFFIXES: frozenset[str] = frozenset({".heic", ".heif", ".avif"})
 _SUPPORTED_SUFFIXES: frozenset[str] = _RASTER_SUFFIXES | _SVG_SUFFIXES | _HEIC_SUFFIXES
 
+# 16-/32-bit integer grayscale modes needing down-scaling before RGBA.
+_I16_MODES: frozenset[str] = frozenset({"I", "I;16", "I;16B", "I;16L", "I;16N"})
+
 ProgressCallback = Callable[[float], None]
 
 
@@ -273,8 +276,15 @@ def _load_rgba(path: Path, background: Background) -> Image.Image:
             # Native alpha (or palette with transparency index) — convert and
             # return; with-block exits cleanly after convert() loads all data.
             return img.convert("RGBA")
-        # Everything else (RGB, L, CMYK, …): no alpha present.
-        rgba = img.convert("RGBA")  # pixels become fully opaque (alpha = 255)
+        if img.mode in _I16_MODES:
+            # 16-/32-bit integer grayscale: a direct convert("RGBA") clamps every
+            # value to 255, turning the image nearly white. Scale the high byte
+            # down to 8-bit first so the tonal range is preserved.
+            gray8 = img.convert("I").point(lambda v: v * (1.0 / 256)).convert("L")
+            rgba = gray8.convert("RGBA")
+        else:
+            # Everything else (RGB, L, CMYK, …): no alpha present.
+            rgba = img.convert("RGBA")  # pixels become fully opaque (alpha = 255)
 
     # File handle closed; rgba is an in-memory RGBA Image.
     if background == TRANSPARENT:
@@ -316,7 +326,11 @@ def _render_frame(
     src_w, src_h = source.size
     tgt_w, tgt_h = spec.width, spec.height
 
-    if not config.preserve_aspect or src_w == src_h:
+    # A plain resize only preserves the aspect ratio when the source and target
+    # ratios already match (src_w/src_h == tgt_w/tgt_h). Compare by cross-
+    # multiplication to avoid floating-point error. Otherwise a plain resize
+    # would stretch (e.g. a square source into a 64x32 target), so letterbox.
+    if not config.preserve_aspect or src_w * tgt_h == src_h * tgt_w:
         return source.resize((tgt_w, tgt_h), pillow_algo)
 
     return _letterbox(source, tgt_w, tgt_h, pillow_algo, config.background)

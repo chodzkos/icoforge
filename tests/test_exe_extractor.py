@@ -60,6 +60,18 @@ class TestErrorHandling:
                 result = extract_icons_from_exe(dummy)
             assert result == []
 
+    def test_pe_is_closed_after_extraction(self, tmp_path: Path) -> None:
+        """C10: pe.close() must run even on the early no-resources return path."""
+        with patch("pefile.PE") as mock_pe_cls:
+            mock_pe = MagicMock()
+            del mock_pe.DIRECTORY_ENTRY_RESOURCE  # take the early-return branch
+            mock_pe_cls.return_value = mock_pe
+            dummy = tmp_path / "no_rsrc.exe"
+            dummy.write_bytes(b"x")
+            with patch.object(Path, "exists", return_value=True):
+                extract_icons_from_exe(dummy)
+            mock_pe.close.assert_called_once()
+
     def test_pefile_not_installed_raises_extract_error(self, tmp_path: Path) -> None:
         dummy = tmp_path / "test.exe"
         dummy.write_bytes(b"x")

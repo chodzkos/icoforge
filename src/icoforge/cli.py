@@ -232,6 +232,46 @@ def _explicitly_set(ctx: click.Context, name: str) -> bool:
     )
 
 
+# Options that the ICNS / CUR writers do not consume. Warn instead of silently
+# ignoring them when the user sets one explicitly for such a target.
+_UNSUPPORTED_FLAGS: dict[str, list[tuple[str, str]]] = {
+    ".icns": [
+        ("--bit-depth", "bit_depth"),
+        ("--auto-trim", "auto_trim"),
+        ("--trim-padding", "trim_padding"),
+        ("--remove-bg", "remove_bg"),
+        ("--hotspot", "hotspot"),
+    ],
+    ".cur": [
+        ("--auto-trim", "auto_trim"),
+        ("--trim-padding", "trim_padding"),
+        ("--remove-bg", "remove_bg"),
+    ],
+}
+
+
+def _warn_ignored_convert_flags(
+    ctx: click.Context, suffix: str, per_size_sources: dict[str, Path | None]
+) -> None:
+    """Warn when flags the ICNS/CUR target ignores were set explicitly.
+
+    Avoids silently dropping the user's intent (e.g. ``--auto-trim`` on a
+    ``.icns`` target, which the ICNS writer does not apply).
+    """
+    ignored = [
+        name for name, param in _UNSUPPORTED_FLAGS.get(suffix, []) if _explicitly_set(ctx, param)
+    ]
+    if any(path is not None for path in per_size_sources.values()):
+        ignored.append("--source-N")
+    if ignored:
+        fmt = suffix.lstrip(".").upper()
+        click.secho(
+            f"Warning: {fmt} output ignores {', '.join(ignored)}; had no effect.",
+            fg="yellow",
+            err=True,
+        )
+
+
 def _progress_callback(value: float) -> None:
     """Print an in-place ASCII progress bar to stdout."""
     filled = round(value * _BAR_WIDTH)
@@ -382,6 +422,8 @@ def convert(
             resolved_sizes = _DEFAULT_SIZES_ICNS
         else:
             resolved_sizes = _DEFAULT_SIZES_RASTER
+    if suffix in (".icns", ".cur"):
+        _warn_ignored_convert_flags(ctx, suffix, per_size_sources)
     if suffix == ".icns":
         _convert_icns(source, target, resolved_sizes, resolved_resample, background, keep_aspect)
         return
@@ -734,12 +776,14 @@ def _convert_cur(
     )
     hs = _parse_hotspot(hotspot)
 
-    for spec in size_specs:
-        if hs[0] >= spec.width or hs[1] >= spec.height:
-            raise click.BadParameter(
-                f"Hotspot {hs} is outside {spec.width}x{spec.height}.",
-                param_hint="'--hotspot'",
-            )
+    # The hotspot is expressed relative to the largest frame; smaller frames
+    # scale it proportionally in write_cur.
+    ref = max(size_specs, key=lambda s: s.width * s.height)
+    if not (0 <= hs[0] < ref.width) or not (0 <= hs[1] < ref.height):
+        raise click.BadParameter(
+            f"Hotspot {hs} is outside the largest frame {ref.width}x{ref.height}.",
+            param_hint="'--hotspot'",
+        )
 
     try:
         frames = run_render(source, config, progress=_progress_callback)

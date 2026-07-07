@@ -270,6 +270,14 @@ class TestOptimizePng:
         with pytest.raises(ValueError):
             optimize_png(invalid_path)
 
+    def test_jpeg_renamed_to_png_rejected(self, tmp_path: Path) -> None:
+        """C12: a real JPEG with a .png name must raise a clear ValueError."""
+        fake = tmp_path / "actually_jpeg.png"
+        Image.new("RGB", (16, 16), (10, 20, 30)).save(fake, format="JPEG")
+
+        with pytest.raises(ValueError, match="Expected a PNG image"):
+            optimize_png(fake)
+
     def test_saved_bytes_property(self, simple_png: Path, tmp_path: Path) -> None:
         """Test OptimizationResult.saved_bytes property."""
         target = tmp_path / "opt.png"
