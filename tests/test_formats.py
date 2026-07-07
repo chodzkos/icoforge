@@ -81,6 +81,8 @@ class TestJpeg:
         config = IcoConfig(sizes=(SizeSpec(32, 32),), background=Color(255, 255, 255))
         convert(src, target, config)
         assert target.exists()
+        assert _ico_sizes(target) == {(32, 32)}
+        assert _all_pixels_opaque(target, 32)
 
     def test_render_frames(self, fixtures_dir: Path) -> None:
         src = fixtures_dir / "photo.jpg"
@@ -128,6 +130,8 @@ class TestBmp:
         config = IcoConfig(sizes=(SizeSpec(32, 32),), background=Color(0, 0, 0))
         convert(src, target, config)
         assert target.exists()
+        assert _ico_sizes(target) == {(32, 32)}
+        assert _all_pixels_opaque(target, 32)
 
     def test_render_frames(self, fixtures_dir: Path) -> None:
         src = fixtures_dir / "photo.bmp"
@@ -199,6 +203,8 @@ class TestWebpOpaque:
         config = IcoConfig(sizes=(SizeSpec(32, 32),), background=Color(128, 128, 128))
         convert(src, target, config)
         assert target.exists()
+        assert _ico_sizes(target) == {(32, 32)}
+        assert _all_pixels_opaque(target, 32)
 
     def test_render_frames(self, fixtures_dir: Path) -> None:
         src = fixtures_dir / "photo.webp"
@@ -271,6 +277,8 @@ class TestTiff:
         config = IcoConfig(sizes=(SizeSpec(32, 32),), background=Color(255, 0, 0))
         convert(src, target, config)
         assert target.exists()
+        assert _ico_sizes(target) == {(32, 32)}
+        assert _all_pixels_opaque(target, 32)
 
     def test_render_frames(self, fixtures_dir: Path) -> None:
         src = fixtures_dir / "photo.tiff"
@@ -284,3 +292,4 @@ class TestTiff:
         target = tmp_path / "out.ico"
         convert(src, target, _SINGLE_32)
         assert target.exists()
+        assert _ico_sizes(target) == {(32, 32)}

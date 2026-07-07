@@ -34,6 +34,11 @@ def _make_jpeg(tmp_path: Path) -> Path:
     return p
 
 
+def _is_cursor_file(path: Path) -> bool:
+    """True when *path* has a .cur ICONDIR header (reserved=0, type=2)."""
+    return path.read_bytes()[:4] == b"\x00\x00\x02\x00"
+
+
 # ---------------------------------------------------------------------------
 # Basic conversion
 # ---------------------------------------------------------------------------
@@ -94,6 +99,7 @@ def test_convert_resample_algorithms(algo: str, tmp_path: Path) -> None:
     )
     assert result.exit_code == 0, result.output
     assert out.exists()
+    assert _ico_sizes(out) == {(32, 32)}
 
 
 # ---------------------------------------------------------------------------
@@ -151,6 +157,7 @@ def test_convert_bit_depth(depth: str, tmp_path: Path) -> None:
     )
     assert result.exit_code == 0, result.output
     assert out.exists()
+    assert _ico_sizes(out) == {(32, 32)}
 
 
 def test_convert_bit_depth_default_is_32(tmp_path: Path) -> None:
@@ -437,6 +444,9 @@ class TestOptimizeCli:
         min_png = tmp_path / "src.min.png"
         assert min_png.exists(), ".min.png must be created in default mode"
         assert src.read_bytes() == original_bytes, "source must not be modified"
+        with Image.open(min_png) as opt:
+            assert opt.format == "PNG"
+            assert opt.size == (32, 32)
 
     def test_in_place_modifies_source_no_min_png(self, tmp_path: Path) -> None:
         """--in-place overwrites source; no .min.png created."""
@@ -460,6 +470,9 @@ class TestOptimizeCli:
 
         assert result.exit_code == 0, result.output
         assert out.exists()
+        with Image.open(out) as opt:
+            assert opt.format == "PNG"
+            assert opt.size == (32, 32)
         assert src.read_bytes() == original_bytes
 
     def test_in_place_and_output_conflict(self, tmp_path: Path) -> None:
@@ -562,6 +575,7 @@ class TestCurHotspotValidation:
         )
         assert result.exit_code == 0, result.output
         assert out.exists()
+        assert _is_cursor_file(out)
 
     def test_hotspot_outside_largest_frame_fails(self, tmp_path: Path) -> None:
         """C11: a hotspot beyond the largest frame is still rejected."""
@@ -583,6 +597,7 @@ class TestCurHotspotValidation:
         )
         assert result.exit_code == 0, result.output
         assert out.exists()
+        assert _is_cursor_file(out)
 
     def test_hotspot_at_max_valid_coordinate(self, tmp_path: Path) -> None:
         """Hotspot at (size-1, size-1) is the last valid pixel."""
@@ -594,6 +609,7 @@ class TestCurHotspotValidation:
         )
         assert result.exit_code == 0, result.output
         assert out.exists()
+        assert _is_cursor_file(out)
 
 
 # ---------------------------------------------------------------------------

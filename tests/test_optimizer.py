@@ -267,7 +267,7 @@ class TestOptimizePng:
         invalid_path = tmp_path / "invalid.png"
         invalid_path.write_bytes(b"not a png")
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Cannot open image"):
             optimize_png(invalid_path)
 
     def test_jpeg_renamed_to_png_rejected(self, tmp_path: Path) -> None:

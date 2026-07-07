@@ -85,7 +85,7 @@ class TestReadIco:
     def test_read_ico_file_not_found(self, tmp_path: Path) -> None:
         """Test error handling for missing file."""
         missing = tmp_path / "nonexistent.ico"
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(FileNotFoundError, match="nonexistent"):
             read_ico(missing)
 
     def test_read_ico_invalid_format(self, tmp_path: Path) -> None:

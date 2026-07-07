@@ -45,7 +45,7 @@ class TestErrorHandling:
     def test_non_pe_file_raises_extract_error(self, tmp_path: Path) -> None:
         bad = tmp_path / "bad.exe"
         bad.write_bytes(b"This is not a PE file at all.")
-        with pytest.raises(ExeExtractError):
+        with pytest.raises(ExeExtractError, match="Not a valid PE"):
             extract_icons_from_exe(bad)
 
     def test_pe_without_resources_returns_empty(self, tmp_path: Path) -> None:

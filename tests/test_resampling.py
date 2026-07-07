@@ -91,10 +91,10 @@ def test_recommend_boundary_25_is_lanczos() -> None:
 
 
 def test_recommend_rejects_zero_size() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="target_size must be"):
         recommend_for_size(0)
 
 
 def test_recommend_rejects_negative_size() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="target_size must be"):
         recommend_for_size(-1)
