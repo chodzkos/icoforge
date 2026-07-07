@@ -20,6 +20,8 @@ from pathlib import Path
 
 from PIL import Image
 
+from icoforge.core import limits
+
 try:
     import pillow_heif as _pillow_heif
 except ImportError:
@@ -84,6 +86,8 @@ def load_heic(source: Path) -> Image.Image:
     if not source.exists():
         raise FileNotFoundError(source)
 
+    limits.check_file_size(source, limits.MAX_IMAGE_BYTES)
+
     register_heif_opener()
-    with Image.open(source) as img:
+    with limits.guard_decompression_bomb(), Image.open(source) as img:
         return img.convert("RGBA")
