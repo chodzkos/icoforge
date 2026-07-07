@@ -59,6 +59,67 @@ def test_roundtrip_simple() -> None:
     assert restored.sizes[1].bit_depth == 24
 
 
+# Non-trivial values for every field that affects the conversion result.
+_FULL_CONFIG = IcoConfig(
+    sizes=(
+        SizeSpec(16, 24, bit_depth=8, resample=ResampleAlgorithm.NEAREST),
+        SizeSpec(
+            32,
+            32,
+            bit_depth=24,
+            resample=ResampleAlgorithm.BICUBIC,
+            source_override=Path("/tmp/hand_drawn_32.png"),
+        ),
+    ),
+    resample=ResampleAlgorithm.BOX,
+    background=Color(10, 20, 30, 128),
+    preserve_aspect=False,
+    auto_trim=True,
+    auto_trim_padding=7,
+    remove_bg=True,
+    cursor_hotspot=(3, 5),
+)
+
+
+def test_roundtrip_full_config_equal() -> None:
+    """Every field survives a config_to_dict → config_from_dict round-trip."""
+    restored = config_from_dict(config_to_dict(_FULL_CONFIG))
+    assert restored == _FULL_CONFIG
+
+
+def test_roundtrip_full_config_via_disk(preset_dir: Path) -> None:
+    """save_preset → load_preset preserves the full configuration."""
+    save_preset("Full", _FULL_CONFIG)
+    assert load_preset("Full") == _FULL_CONFIG
+
+
+def test_roundtrip_preserves_remove_bg(preset_dir: Path) -> None:
+    """Regression: remove_bg must not be silently dropped on load."""
+    save_preset("Bg", IcoConfig(sizes=(SizeSpec(32, 32),), remove_bg=True))
+    assert load_preset("Bg").remove_bg is True
+
+
+def test_load_v1_preset_defaults_new_fields(preset_dir: Path) -> None:
+    """A legacy v1 preset (no new fields) loads with sensible defaults."""
+    legacy = {
+        "name": "Legacy",
+        "version": 1,
+        "config": {
+            "sizes": [{"width": 16, "height": 16, "bit_depth": 32}],
+            "resample": "lanczos",
+            "background": "transparent",
+            "preserve_aspect": True,
+            "auto_trim": False,
+            "auto_trim_padding": 0,
+        },
+    }
+    (preset_dir / "Legacy.json").write_text(json.dumps(legacy))
+    cfg = load_preset("Legacy")
+    assert cfg.remove_bg is False
+    assert cfg.cursor_hotspot is None
+    assert cfg.sizes[0].source_override is None
+
+
 def test_roundtrip_transparent() -> None:
     d = config_to_dict(_TRANSPARENT_CONFIG)
     assert d["background"] == "transparent"
@@ -142,7 +203,7 @@ def test_save_creates_file(preset_dir: Path) -> None:
     assert path.exists()
     raw = json.loads(path.read_text())
     assert raw["name"] == "Abc"
-    assert raw["version"] == 1
+    assert raw["version"] == 2
 
 
 def test_list_user_presets_empty(preset_dir: Path) -> None:

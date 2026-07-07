@@ -19,7 +19,7 @@ from icoforge.core.models import (
 )
 from icoforge.utils.paths import get_settings_dir
 
-_PRESET_FORMAT_VERSION = 1
+_PRESET_FORMAT_VERSION = 2
 
 BUILTIN_PRESETS: dict[str, IcoConfig] = {
     "Windows App Icon": IcoConfig(sizes=WINDOWS_APP_SIZES),
@@ -44,12 +44,17 @@ def _safe_filename(name: str) -> str:
 def config_to_dict(config: IcoConfig) -> dict[str, Any]:
     """Serialize *config* to a plain dict suitable for JSON.
 
+    Every :class:`IcoConfig` and :class:`SizeSpec` field that affects the
+    conversion result is persisted, so a ``save``/``load`` round-trip is
+    lossless: sizes (with per-size ``bit_depth``, ``resample`` and
+    ``source_override``), ``resample``, ``background``, ``preserve_aspect``,
+    ``auto_trim``, ``auto_trim_padding``, ``remove_bg`` and ``cursor_hotspot``.
+
     Args:
         config: The IcoConfig to serialize.
 
     Returns:
-        Dict containing sizes, resample, background, preserve_aspect,
-        auto_trim, and auto_trim_padding.
+        JSON-serializable dict describing *config*.
     """
     sizes: list[dict[str, Any]] = []
     for spec in config.sizes:
@@ -60,6 +65,8 @@ def config_to_dict(config: IcoConfig) -> dict[str, Any]:
         }
         if spec.resample is not None:
             entry["resample"] = spec.resample.value
+        if spec.source_override is not None:
+            entry["source_override"] = str(spec.source_override)
         sizes.append(entry)
 
     if config.background is TRANSPARENT:
@@ -80,6 +87,10 @@ def config_to_dict(config: IcoConfig) -> dict[str, Any]:
         "preserve_aspect": config.preserve_aspect,
         "auto_trim": config.auto_trim,
         "auto_trim_padding": config.auto_trim_padding,
+        "remove_bg": config.remove_bg,
+        "cursor_hotspot": list(config.cursor_hotspot)
+        if config.cursor_hotspot is not None
+        else None,
     }
 
 
@@ -104,12 +115,15 @@ def config_from_dict(data: dict[str, Any]) -> IcoConfig:
         for entry in raw_sizes:
             resample_raw: str | None = entry.get("resample")
             per_size_resample = ResampleAlgorithm(resample_raw) if resample_raw else None
+            override_raw: str | None = entry.get("source_override")
+            source_override = Path(override_raw) if override_raw else None
             specs.append(
                 SizeSpec(
                     width=int(entry["width"]),
                     height=int(entry["height"]),
                     bit_depth=int(entry.get("bit_depth", 32)),  # type: ignore[arg-type]
                     resample=per_size_resample,
+                    source_override=source_override,
                 )
             )
 
@@ -132,6 +146,11 @@ def config_from_dict(data: dict[str, Any]) -> IcoConfig:
         else:
             raise ValueError(f"Unknown background value: {bg_raw!r}")
 
+        hotspot_raw = data.get("cursor_hotspot")
+        cursor_hotspot: tuple[int, int] | None = (
+            (int(hotspot_raw[0]), int(hotspot_raw[1])) if hotspot_raw is not None else None
+        )
+
         return IcoConfig(
             sizes=tuple(specs),
             resample=resample_algo,
@@ -139,8 +158,10 @@ def config_from_dict(data: dict[str, Any]) -> IcoConfig:
             preserve_aspect=bool(data.get("preserve_aspect", True)),
             auto_trim=bool(data.get("auto_trim", False)),
             auto_trim_padding=int(data.get("auto_trim_padding", 0)),
+            remove_bg=bool(data.get("remove_bg", False)),
+            cursor_hotspot=cursor_hotspot,
         )
-    except (KeyError, TypeError) as exc:
+    except (KeyError, TypeError, IndexError) as exc:
         raise ValueError(f"Invalid preset data: {exc}") from exc
 
 
@@ -162,6 +183,21 @@ def list_user_presets() -> list[str]:
 
 def _preset_path(name: str) -> Path:
     return get_presets_dir() / f"{_safe_filename(name)}.json"
+
+
+def _config_section(raw: Any) -> dict[str, Any]:
+    """Return the ``config`` object from a parsed preset file, validated.
+
+    Raises:
+        ValueError: *raw* is not an object, lacks a ``config`` key, or its
+            ``config`` value is not an object.
+    """
+    if not isinstance(raw, dict) or "config" not in raw:
+        raise ValueError("Preset file is missing the 'config' section.")
+    section = raw["config"]
+    if not isinstance(section, dict):
+        raise ValueError("Preset 'config' section must be an object.")
+    return section
 
 
 def save_preset(name: str, config: IcoConfig) -> Path:
@@ -203,7 +239,7 @@ def load_preset(name: str) -> IcoConfig:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise ValueError(f"Preset file is not valid JSON: {exc}") from exc
-    return config_from_dict(raw["config"])
+    return config_from_dict(_config_section(raw))
 
 
 def delete_preset(name: str) -> None:
@@ -270,7 +306,7 @@ def import_preset(src: Path) -> str:
         raw = json.loads(src.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
         raise ValueError(f"Cannot read preset file: {exc}") from exc
-    config_from_dict(raw["config"])  # validate
+    config_from_dict(_config_section(raw))  # validate
     name: str = str(raw.get("name", src.stem))
     dest = _preset_path(name)
     dest.write_bytes(src.read_bytes())
