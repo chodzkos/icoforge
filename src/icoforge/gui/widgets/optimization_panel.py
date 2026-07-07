@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 
 from icoforge.core.models import OptimizationConfig
 from icoforge.core.optimizer import OptimizationResult
+from icoforge.gui.workers import BatchOptimizationWorker
 
 
 class DropZoneFrame(QFrame):
@@ -262,7 +263,7 @@ class OptimizationPanel(QWidget):
             self._folder_button.setText(f".../{self._selected_folder.name}")
 
     def _on_optimize_clicked(self) -> None:
-        """Start batch optimization."""
+        """Start batch optimization on a background thread."""
         if not self._file_queue:
             QMessageBox.warning(
                 self,
@@ -270,6 +271,19 @@ class OptimizationPanel(QWidget):
                 self.tr("Dodaj pliki PNG do optymalizacji"),
             )
             return
+
+        # Resolve the output destination from the "save location" radios.
+        # In-place → overwrite sources; folder → write <stem>.min.png there.
+        target_dir: Path | None = None
+        if self._folder_radio.isChecked():
+            if self._selected_folder is None:
+                QMessageBox.warning(
+                    self,
+                    self.tr("Brak folderu"),
+                    self.tr("Wybierz folder wyjściowy lub zmień tryb zapisu."),
+                )
+                return
+            target_dir = self._selected_folder
 
         self._optimize_button.setEnabled(False)
         self._global_progress.setVisible(True)
@@ -285,28 +299,45 @@ class OptimizationPanel(QWidget):
             preserve_color_profile=self._preserve_icc_checkbox.isChecked(),
         )
 
-        def progress_cb(ratio: float) -> None:
-            self._global_progress.setValue(int(ratio * 100))
+        self.optimization_started.emit()
 
-        from icoforge.core.optimizer import optimize_batch
+        worker = BatchOptimizationWorker(list(self._file_queue), config, target_dir)
+        worker.signals.progress.connect(self._on_batch_progress)
+        worker.signals.finished.connect(self._on_batch_finished)
+        worker.signals.error.connect(self._on_batch_error)
+        self._current_batch_worker = worker
+        self._thread_pool.start(worker)
 
-        try:
-            self._results = optimize_batch(self._file_queue, config=config, progress=progress_cb)
-            self._show_results()
-            QMessageBox.information(
-                self,
-                self.tr("Gotowe"),
-                self.tr("Zoptymalizowano %1 plik(ów)").replace("%1", str(len(self._results))),
-            )
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                self.tr("Błąd"),
-                self.tr("Błąd optymalizacji: %1").replace("%1", str(e)),
-            )
-        finally:
-            self._optimize_button.setEnabled(True)
-            self._global_progress.setVisible(False)
+    def _on_batch_progress(self, ratio: float) -> None:
+        """Update the progress bar from the worker thread."""
+        self._global_progress.setValue(int(ratio * 100))
+
+    def _on_batch_finished(self, results: list[OptimizationResult]) -> None:
+        """Handle successful completion of the batch worker."""
+        self._results = results
+        self._show_results()
+        self._reset_after_batch()
+        QMessageBox.information(
+            self,
+            self.tr("Gotowe"),
+            self.tr("Zoptymalizowano %1 plik(ów)").replace("%1", str(len(self._results))),
+        )
+
+    def _on_batch_error(self, message: str) -> None:
+        """Handle a failure reported by the batch worker."""
+        self._reset_after_batch()
+        QMessageBox.critical(
+            self,
+            self.tr("Błąd"),
+            self.tr("Błąd optymalizacji: %1").replace("%1", message),
+        )
+
+    def _reset_after_batch(self) -> None:
+        """Restore the UI to its idle state once a batch run ends."""
+        self._optimize_button.setEnabled(True)
+        self._global_progress.setVisible(False)
+        self._current_batch_worker = None
+        self.optimization_finished.emit()
 
     def _show_results(self) -> None:
         """Display optimization results in table."""
@@ -398,9 +429,3 @@ class OptimizationPanel(QWidget):
                 return f"{size_float:.1f} {unit}"
             size_float /= 1024
         return f"{size_float:.1f} TB"
-
-
-class BatchOptimizationWorker:
-    """Placeholder for future worker class if needed."""
-
-    pass

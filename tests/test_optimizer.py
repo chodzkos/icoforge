@@ -96,6 +96,36 @@ class TestOptimizeBatch:
         # Last value should be 1.0 (100%)
         assert abs(progress_values[-1] - 1.0) < 0.0001
 
+    def test_batch_target_dir_preserves_sources(
+        self, simple_png: Path, gradient_png: Path, tmp_path: Path
+    ) -> None:
+        """With target_dir, originals are untouched and results land in the dir."""
+        out_dir = tmp_path / "optimized"
+        out_dir.mkdir()
+
+        before = {p: p.read_bytes() for p in (simple_png, gradient_png)}
+
+        results = optimize_batch([simple_png, gradient_png], target_dir=out_dir)
+
+        # Sources are byte-for-byte unchanged.
+        for p, original in before.items():
+            assert p.read_bytes() == original
+
+        # Each result is written as <stem>.min.png inside the target dir.
+        for src, result in zip([simple_png, gradient_png], results, strict=True):
+            expected = out_dir / f"{src.stem}.min.png"
+            assert result.source == src
+            assert result.target == expected
+            assert expected.exists()
+            assert result.bytes_after <= result.bytes_before
+
+    def test_batch_target_dir_created_if_missing(self, simple_png: Path, tmp_path: Path) -> None:
+        """A non-existent target_dir is created rather than raising."""
+        out_dir = tmp_path / "does_not_exist_yet"
+        results = optimize_batch([simple_png], target_dir=out_dir)
+        assert (out_dir / f"{simple_png.stem}.min.png").exists()
+        assert results[0].target == out_dir / f"{simple_png.stem}.min.png"
+
     def test_batch_lossless_all_files(
         self, simple_png: Path, gradient_png: Path, tmp_path: Path
     ) -> None:
