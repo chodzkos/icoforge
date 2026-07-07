@@ -158,7 +158,7 @@ Każda faza ma kryteria zakończenia. Nie przechodź do następnej fazy bez uko�
 
 ## Do zrobienia (potencjalne)
 
-- [x] Tryb ciemny / jasny (Widok -> Motyw; auto-detekcja OS; jasny = natywny Qt)
+- [x] Tryb ciemny / jasny (Widok -> Motyw; auto-detekcja OS; oba motywy: brand-Fusion z chodzkos-gui-kit)
 - [x] Lista ostatnio otwartych plikow (Recent Files, max 10)
 - [x] Zapamietywanie pozycji i rozmiaru okna
 - [x] Preset system (zapis konfiguracji konwersji jako JSON; `core/presets.py`, panel GUI, CLI `--preset` i `presets list/show`)

@@ -50,6 +50,11 @@ Name: "desktopicon"; \
 Source: "..\dist\{#AppName}\*"; \
   DestDir: "{app}"; \
   Flags: ignoreversion recursesubdirs createallsubdirs
+; Third-party license notices (LGPL/BSD/MIT). Also bundled by the PyInstaller
+; spec; installed explicitly so the notices ship even for a hand-built dist.
+Source: "..\THIRD_PARTY_LICENSES.txt"; \
+  DestDir: "{app}"; \
+  Flags: ignoreversion
 
 [Icons]
 ; Start Menu

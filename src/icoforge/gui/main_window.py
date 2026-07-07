@@ -844,6 +844,16 @@ class MainWindow(QMainWindow):
         license_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(license_label)
 
+        thirdparty_label = QLabel(
+            self.tr(
+                "Zależności firm trzecich (m.in. PySide6/Qt na LGPL v3) — "
+                "zobacz THIRD_PARTY_LICENSES.txt"
+            )
+        )
+        thirdparty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        thirdparty_label.setWordWrap(True)
+        layout.addWidget(thirdparty_label)
+
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
         buttons.accepted.connect(dlg.accept)
         layout.addWidget(buttons)
