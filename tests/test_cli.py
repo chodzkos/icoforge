@@ -670,3 +670,89 @@ class TestIcnsDefaultSizes:
         # Windows App Icon = 16/20/24/32/40/48/64/96/128/256 → only ICNS-valid remain.
         expected = {_SIZE_TO_TAG[s] for s in (16, 32, 64, 128, 256)}
         assert _icns_block_tags(out) == expected
+
+
+# ---------------------------------------------------------------------------
+# --preset honours the full saved configuration (C4)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def isolated_presets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Redirect user-preset storage to a tmp directory for the CLI to read/write."""
+    from icoforge.core import presets as _presets
+
+    d = tmp_path / "presets"
+    d.mkdir()
+    monkeypatch.setattr(_presets, "get_presets_dir", lambda: d)
+    return d
+
+
+def _make_wide_jpeg(tmp_path: Path) -> Path:
+    """A non-square opaque JPEG so letterbox padding (background) is observable."""
+    img = Image.new("RGB", (64, 32), (0, 0, 255))
+    p = tmp_path / "wide.jpg"
+    img.save(p, format="JPEG")
+    return p
+
+
+def _corner_pixel(path: Path) -> tuple[int, int, int, int]:
+    """Return the top-left pixel of an ICO's (single) frame as RGBA."""
+    with Image.open(path) as ico:
+        rgba = ico.convert("RGBA")
+    return rgba.getpixel((0, 0))  # type: ignore[return-value]
+
+
+class TestPresetHonorsFullConfig:
+    def test_preset_background_and_bit_depth_applied(
+        self, tmp_path: Path, isolated_presets: Path
+    ) -> None:
+        """A preset's background/bit_depth/auto_trim must survive `convert --preset`.
+
+        The wide source is letterboxed into a square frame; the padding bars are
+        filled with the configured background.  If the preset config were lost,
+        the bars would be transparent (default) / white, not red.
+        """
+        from icoforge.core.models import Color, IcoConfig, SizeSpec
+        from icoforge.core.presets import save_preset
+
+        save_preset(
+            "Reddish",
+            IcoConfig(
+                sizes=(SizeSpec(32, 32, bit_depth=24),),
+                background=Color(255, 0, 0),
+                auto_trim=True,
+            ),
+        )
+
+        src = _make_wide_jpeg(tmp_path)
+        out = tmp_path / "out.ico"
+        # No flags besides --preset: every field must come from the preset.
+        result = CliRunner().invoke(main, ["convert", str(src), str(out), "--preset", "Reddish"])
+
+        assert result.exit_code == 0, result.output
+        assert _ico_sizes(out) == {(32, 32)}
+        # Top-left is in the letterbox bar → the preset's red background.
+        assert _corner_pixel(out) == (255, 0, 0, 255)
+
+    def test_explicit_flag_overrides_preset(self, tmp_path: Path, isolated_presets: Path) -> None:
+        """An explicit CLI flag still wins over the preset value."""
+        from icoforge.core.models import Color, IcoConfig, SizeSpec
+        from icoforge.core.presets import save_preset
+
+        save_preset(
+            "Reddish",
+            IcoConfig(sizes=(SizeSpec(32, 32),), background=Color(255, 0, 0)),
+        )
+
+        src = _make_wide_jpeg(tmp_path)
+        out = tmp_path / "out.ico"
+        # Explicit --background transparent must override the preset's red.
+        result = CliRunner().invoke(
+            main,
+            ["convert", str(src), str(out), "--preset", "Reddish", "--background", "transparent"],
+        )
+
+        assert result.exit_code == 0, result.output
+        # Letterbox bar is now transparent, not red.
+        assert _corner_pixel(out) == (0, 0, 0, 0)
