@@ -335,6 +335,7 @@ def main() -> None:
 @click.pass_context
 def convert(
     ctx: click.Context,
+    /,
     source: Path,
     target: Path,
     preset: str | None,
