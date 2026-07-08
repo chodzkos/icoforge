@@ -155,6 +155,9 @@ Każda faza ma kryteria zakończenia. Nie przechodź do następnej fazy bez uko�
 - [x] GitHub Actions: automatyczny release na tag `v*.*.*`
 - [x] Ikona aplikacji i logo w oknie "O programie"
 - [x] SVG dual-backend: resvg-py (bez DLL) + cairosvg (z Cairo DLL w bundlu)
+- [x] Noty licencyjne zależności (`THIRD_PARTY_LICENSES.txt`, LGPL PySide6/Qt) w buildzie, instalatorze i oknie „O programie"
+- [x] Limity zasobów przy niezaufanych plikach – cap `Image.MAX_IMAGE_PIXELS` i limity rozmiaru pliku (`core/limits.py`, ochrona przed decompression bomb)
+- [x] Utwardzenie łańcucha dostaw – SHA-pinning zależności (`chodzkos-gui-kit`) i akcji GitHub Actions, sanityzacja wejść w `release.yml`
 
 ## Do zrobienia (potencjalne)
 

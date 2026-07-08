@@ -9,16 +9,60 @@ Projekt stosuje [Semantic Versioning](https://semver.org/lang/pl/).
 ## [Unreleased]
 
 ### Added
+- **Obsługa AVIF** — `register_heif_opener()` rejestruje dodatkowo
+  `pillow_heif.register_avif_opener()` (w osobnym `try`/`except` dla starszych
+  wersji), więc pliki `.avif` są rozpoznawane; wcześniej `Image.open` rzucał
+  `UnidentifiedImageError` mimo `.avif` na liście wspieranych rozszerzeń (#7).
 - **`THIRD_PARTY_LICENSES.txt`** — noty licencyjne firm trzecich (PySide6/Qt na
   LGPL v3, Pillow, NumPy, click, pyoxipng, opcjonalnie rembg/ONNX) dołączane do
   buildu PyInstaller (`icoforge.spec` → `datas`) i instalatora
   (`installer/icoforge.iss` → `[Files]`), z odnośnikiem w README oraz w oknie
-  „O programie".
+  „O programie" (#15).
+
+### Changed
+- **`convert --preset` honoruje CAŁĄ konfigurację presetu** — budowa zaczyna się
+  od pełnego `IcoConfig` presetu, a nadpisywane są wyłącznie pola jawnie podane w
+  CLI (wykrywane przez `Context.get_parameter_source`). Wcześniej przepadały m.in.
+  `background`, `preserve_aspect`, `auto_trim`/`trim_padding`, per-size `bit_depth`
+  i `source_override` (#9).
+- **Presety serializują wszystkie pola** wpływające na wynik (`remove_bg`,
+  `cursor_hotspot`, per-size `source_override` — wcześniej cicho gubione);
+  `_PRESET_FORMAT_VERSION` podbity do 2, z wstecznie kompatybilnym wczytywaniem
+  starszych plików (#12).
+- **Optymalizacja PNG w GUI działa w wątku roboczym** (`BatchOptimizationWorker`,
+  `QRunnable`) — GUI nie zamraza się w trybie Zopfli, a pasek postępu odświeża się
+  na bieżąco (#11).
 
 ### Fixed
+- **`convert … .icns` bez `--sizes`** dobiera domyślne rozmiary wg formatu wyjścia
+  (`16,32,64,128,256,512`) zamiast kończyć się błędem „ICNS does not support
+  size(s) [48]"; presety kierowane na `.icns` mapują nieobsługiwane rozmiary z
+  czytelnym ostrzeżeniem (#8).
+- **Optymalizacja PNG „Zapisz do folderu"** faktycznie zapisuje wynik do wybranego
+  folderu jako `<stem>.min.png` i nie nadpisuje oryginału (wybór folderu był
+  wcześniej ignorowany) (#11).
+- **Pakiet poprawek rdzenia (C5–C12, C15):** 24-bit ICO komponuje przezroczystość
+  na białym tle zamiast odsłaniać czarny RGB; zachowanie proporcji porównuje
+  proporcje źródła i celu (kwadrat → `64×32` nie jest już rozciągany); 16-bit
+  grayscale skalowany do 8-bit zamiast bielenia; generator favicon honoruje
+  `resample` i naturalne proporcje SVG; `pefile` zamykany w `try`/`finally`;
+  hotspot kursora skalowany proporcjonalnie do każdej klatki; optymalizator
+  odrzuca pliki nie-PNG czytelnym `ValueError`; `.icns`/`.cur` ostrzegają o
+  ignorowanych flagach zamiast cicho je pomijać (#14).
 - Dokumentacja motywu w `README.md` i `docs/ROADMAP.md` — opis zgodny z 1.3.0
   (oba motywy renderuje brand-Fusion z chodzkos-gui-kit; usunięto nieaktualną
-  wzmiankę o „jasny = natywny Qt, ciemny = qdarktheme").
+  wzmiankę o „jasny = natywny Qt, ciemny = qdarktheme") (#15).
+
+### Security
+- **Limity zasobów dla niezaufanych wejść** (`core/limits.py`) — globalny cap
+  `Image.MAX_IMAGE_PIXELS` (64 MP) chroni przed „decompression bomb", a
+  `check_file_size` odrzuca zbyt duże pliki przed wczytaniem (ICO/SVG/obraz/PNG
+  64 MB, PE 128 MB) w `read_ico`, konwerterze, `svg_loader`, optymalizatorze i
+  `exe_extractor`; sygnały bomby są zamieniane na czytelny `ValueError` (#10).
+- **Utwardzenie łańcucha dostaw** — `chodzkos-gui-kit` oraz wszystkie akcje
+  CI/release przypięte do pełnych 40-znakowych commit SHA; `release.yml` nie
+  interpoluje już niezaufanych wartości (`github.ref_name`, `inputs.tag`) do
+  bloków `run`; `ci.yml` z jawnym `permissions: contents: read` (#13).
 
 ## [1.4.0] - 2026-07-07
 
