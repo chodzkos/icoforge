@@ -32,7 +32,6 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QProgressBar,
-    QScrollArea,
     QSpinBox,
     QStatusBar,
     QTabWidget,
@@ -46,6 +45,7 @@ if TYPE_CHECKING:
 
 from chodzkos_gui_kit.qt.dialogs import open_file, pick_dir, save_file
 from chodzkos_gui_kit.qt.titlebar import set_titlebar_dark
+from chodzkos_gui_kit.qt.widgets import make_scrollable
 
 from icoforge.gui.editor.editor_window import EditorWindow
 from icoforge.gui.widgets.file_drop_zone import SUPPORTED_SUFFIXES, FileDropZone
@@ -314,13 +314,8 @@ class MainWindow(QMainWindow):
         vbox.addWidget(self._drop_zone)
 
         self._settings_panel = SettingsPanel()
-
-        scroll = QScrollArea()
-        scroll.setWidget(self._settings_panel)
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        vbox.addWidget(scroll)
+        # Przewijalny panel ustawień („menu") — scroll gdy nie mieści się w oknie.
+        vbox.addWidget(make_scrollable(self._settings_panel))
 
         return panel
 

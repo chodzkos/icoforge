@@ -32,7 +32,7 @@ dependencies = [
     # Przebarwialne ikony SVG (IconProvider) ze wspólnego kitu — własny kod
     # odzyskany z gui-kit. Tor Qt = extra [qt] (PySide6 już mamy wyżej).
     # Przypięte do commit SHA taga v0.5.1 (tagi są mutowalne; SHA jest niezmienny).
-    "chodzkos-gui-kit[qt] @ git+https://github.com/chodzkos/gui-kit@44e639881a7e86600efabe74ec0c8dc8c0114fd2",  # v0.5.1
+    "chodzkos-gui-kit[qt] @ git+https://github.com/chodzkos/gui-kit@12c6b30cfa8f4c00f21b31c583cd70e70b0d1379",  # v0.5.2
 ]
 
 [project.optional-dependencies]
