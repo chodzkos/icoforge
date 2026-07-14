@@ -20,6 +20,12 @@ Projekt stosuje [Semantic Versioning](https://semver.org/lang/pl/).
   „O programie" (#15).
 
 ### Changed
+- **Przewijalny panel ustawień przez `make_scrollable` z `chodzkos-gui-kit` 0.5.2**
+  — inline `QScrollArea` wokół `SettingsPanel` w `main_window` zastąpiony wspólnym
+  helperem kitu (`qt/widgets`). IcoForge miał ten wzorzec najwcześniej (przed
+  powstaniem kitu); teraz jedno źródło (reguła trzech: EpubForge + MediaForge).
+  Bonus: helper jest motyw-świadomy (tło z palety). Pin `chodzkos-gui-kit`
+  podbity do v0.5.2 (SHA `12c6b30`). Zachowanie bez zmian.
 - **`convert --preset` honoruje CAŁĄ konfigurację presetu** — budowa zaczyna się
   od pełnego `IcoConfig` presetu, a nadpisywane są wyłącznie pola jawnie podane w
   CLI (wykrywane przez `Context.get_parameter_source`). Wcześniej przepadały m.in.
