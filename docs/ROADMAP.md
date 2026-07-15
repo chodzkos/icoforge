@@ -167,3 +167,4 @@ Każda faza ma kryteria zakończenia. Nie przechodź do następnej fazy bez uko�
 - [x] Preset system (zapis konfiguracji konwersji jako JSON; `core/presets.py`, panel GUI, CLI `--preset` i `presets list/show`)
 - [ ] AppImage dla Linux / DMG dla macOS
 - [ ] Auto-update (GitHub Releases)
+- [ ] Pomoc/O programie: `QMenuBar` → ikonka+menu w prawym górnym rogu (§6 GUI_STANDARD; jak pdf2md/EpubForge/MediaForge). Najlepiej wykonać przy ekstrakcji `HelpButton`/`CornerMenu` do gui-kit — wtedy migracja = podpięcie kitowego komponentu zamiast czwartej kopii ad-hoc.
