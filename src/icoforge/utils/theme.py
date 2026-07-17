@@ -14,9 +14,9 @@ Kontrakt kitu (zmiana względem dawnego własnego managera):
 * aktualny tryb: property ``setting``; rozwiązany motyw: ``resolved_name()``;
 * belka tytułu okna: ``attach_titlebar(window)`` (DWM = motyw app przy każdym apply).
 
-Trwałość motywu: kitowy ``Config`` (``config.json``, klucz ``"theme"``). Reszta
-ustawień aplikacji (język, recent, geometria okna) zostaje na razie w
-``utils/settings`` — pełna migracja na ``Config`` to osobny krok (#12 audytu).
+Trwałość motywu: WSPÓLNY kitowy ``Config`` (``config.json``, klucz ``"theme"``) —
+ta sama instancja, której używają ``utils/settings`` (język), ``recent_files`` i
+``window_state`` (``utils.settings.get_config``).
 
 Usage (startup)::
 
@@ -32,14 +32,13 @@ Usage (anywhere after init)::
 
 from __future__ import annotations
 
-from chodzkos_gui_kit.config import Config
 from chodzkos_gui_kit.qt import icons as icon_provider
 from chodzkos_gui_kit.qt.theme import ThemeManager
 from PySide6.QtWidgets import QApplication
 
-__all__ = ["ThemeManager", "get_theme_manager", "init_theme_manager"]
+from icoforge.utils.settings import get_config
 
-_APP_NAME = "IcoForge"
+__all__ = ["ThemeManager", "get_theme_manager", "init_theme_manager"]
 
 _instance: ThemeManager | None = None
 
@@ -47,11 +46,11 @@ _instance: ThemeManager | None = None
 def init_theme_manager(app: QApplication) -> ThemeManager:
     """Tworzy singleton kitowego ThemeManager. Wywołaj raz przy starcie.
 
-    Kitowy ``Config`` (``config.json``) niesie na razie tylko klucz motywu —
-    pozostałe ustawienia zostają w ``utils/settings`` do czasu pełnej migracji.
+    Motyw persystuje we WSPÓLNYM ``Config`` aplikacji (ten sam, którego używają
+    settings/recent/window_state) — klucz ``"theme"`` obok reszty ustawień.
     """
     global _instance
-    config = Config(_APP_NAME)
+    config = get_config()
     mgr = ThemeManager(app, config)
 
     def _on_theme_changed(_palette: object) -> None:

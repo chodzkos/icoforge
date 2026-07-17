@@ -7,7 +7,9 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from chodzkos_gui_kit.config import Config
 
+from icoforge.utils.settings import get_config
 from icoforge.utils.window_state import (
     restore_window_state,
     save_window_state,
@@ -16,8 +18,9 @@ from icoforge.utils.window_state import (
 
 @pytest.fixture(autouse=True)
 def _isolated_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # window_state czyta/pisze przez utils.settings.get_config — izolujemy singleton.
     monkeypatch.setattr(
-        "icoforge.utils.window_state._settings_path", lambda: tmp_path / "settings.json"
+        "icoforge.utils.settings._config", Config("IcoForge", path=tmp_path / "config.json")
     )
 
 
@@ -36,28 +39,23 @@ def test_save_window_state_writes_json(tmp_path: Path) -> None:
     window = _make_window(50, 80, 1024, 768)
     save_window_state(window)  # type: ignore[arg-type]
 
-    data = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
-    state = data["window_state"]
-    assert state == {"x": 50, "y": 80, "width": 1024, "height": 768}
+    data = json.loads((tmp_path / "config.json").read_text(encoding="utf-8"))
+    assert data["window_state"] == {"x": 50, "y": 80, "width": 1024, "height": 768}
 
 
-def test_save_preserves_other_keys(tmp_path: Path) -> None:
-    settings_file = tmp_path / "settings.json"
-    settings_file.write_text(json.dumps({"language": "en"}), encoding="utf-8")
+def test_save_preserves_other_keys() -> None:
+    from icoforge.utils.settings import set_language
 
+    set_language("en")
     save_window_state(_make_window())  # type: ignore[arg-type]
 
-    data = json.loads(settings_file.read_text(encoding="utf-8"))
-    assert data["language"] == "en"
-    assert "window_state" in data
+    cfg = get_config()
+    assert cfg["language"] == "en"
+    assert "window_state" in cfg
 
 
-def test_restore_calls_set_geometry_when_visible(tmp_path: Path) -> None:
-    settings_file = tmp_path / "settings.json"
-    settings_file.write_text(
-        json.dumps({"window_state": {"x": 100, "y": 100, "width": 900, "height": 600}}),
-        encoding="utf-8",
-    )
+def test_restore_calls_set_geometry_when_visible() -> None:
+    get_config()["window_state"] = {"x": 100, "y": 100, "width": 900, "height": 600}
     window = _make_window()
 
     with patch("icoforge.utils.window_state._is_position_visible", return_value=True):
@@ -66,12 +64,8 @@ def test_restore_calls_set_geometry_when_visible(tmp_path: Path) -> None:
     window.setGeometry.assert_called_once_with(100, 100, 900, 600)
 
 
-def test_restore_uses_resize_when_off_screen(tmp_path: Path) -> None:
-    settings_file = tmp_path / "settings.json"
-    settings_file.write_text(
-        json.dumps({"window_state": {"x": -9999, "y": -9999, "width": 900, "height": 600}}),
-        encoding="utf-8",
-    )
+def test_restore_uses_resize_when_off_screen() -> None:
+    get_config()["window_state"] = {"x": -9999, "y": -9999, "width": 900, "height": 600}
     window = _make_window()
 
     with patch("icoforge.utils.window_state._is_position_visible", return_value=False):
@@ -81,12 +75,8 @@ def test_restore_uses_resize_when_off_screen(tmp_path: Path) -> None:
     window.resize.assert_called_once_with(900, 600)
 
 
-def test_restore_enforces_minimum_size(tmp_path: Path) -> None:
-    settings_file = tmp_path / "settings.json"
-    settings_file.write_text(
-        json.dumps({"window_state": {"x": 100, "y": 100, "width": 200, "height": 100}}),
-        encoding="utf-8",
-    )
+def test_restore_enforces_minimum_size() -> None:
+    get_config()["window_state"] = {"x": 100, "y": 100, "width": 200, "height": 100}
     window = _make_window()
 
     with patch("icoforge.utils.window_state._is_position_visible", return_value=True):
@@ -95,7 +85,7 @@ def test_restore_enforces_minimum_size(tmp_path: Path) -> None:
     window.setGeometry.assert_called_once_with(100, 100, 700, 500)
 
 
-def test_restore_no_op_when_no_settings(tmp_path: Path) -> None:
+def test_restore_no_op_when_no_settings() -> None:
     window = _make_window()
     restore_window_state(window)  # type: ignore[arg-type]
     window.setGeometry.assert_not_called()

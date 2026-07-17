@@ -1,54 +1,32 @@
-"""Window position/size persistence."""
+"""Window position/size persistence — shared app Config."""
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
 from PySide6.QtWidgets import QApplication, QMainWindow
 
-from icoforge.utils.paths import get_settings_dir
+from icoforge.utils.settings import get_config
 
 _KEY = "window_state"
 _MIN_W = 700
 _MIN_H = 500
 
 
-def _settings_path() -> Path:
-    return get_settings_dir() / "settings.json"
-
-
-def _load_json() -> dict[str, object]:
-    try:
-        return dict(json.loads(_settings_path().read_text(encoding="utf-8")))
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
-
-
-def _save_json(data: dict[str, object]) -> None:
-    path = _settings_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-
-
 def save_window_state(window: QMainWindow) -> None:
-    """Save window geometry (x, y, width, height) to settings.json."""
+    """Save window geometry (x, y, width, height) to the shared config."""
     geo = window.geometry()
-    state: dict[str, object] = {
+    cfg = get_config()
+    cfg[_KEY] = {
         "x": geo.x(),
         "y": geo.y(),
         "width": geo.width(),
         "height": geo.height(),
     }
-    data = _load_json()
-    data[_KEY] = state
-    _save_json(data)
+    cfg.save_now()
 
 
 def restore_window_state(window: QMainWindow) -> None:
-    """Restore window geometry from settings; falls back silently if missing or off-screen."""
-    data = _load_json()
-    raw = data.get(_KEY)
+    """Restore window geometry from config; falls back silently if missing or off-screen."""
+    raw = get_config().get(_KEY)
     if not isinstance(raw, dict):
         return
     x = raw.get("x")

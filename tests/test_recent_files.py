@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
+from chodzkos_gui_kit.config import Config
 
 from icoforge.utils.recent_files import (
     MAX_RECENT,
@@ -18,8 +18,10 @@ from icoforge.utils.recent_files import (
 
 @pytest.fixture(autouse=True)
 def _isolated_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Wstrzykuje współdzielony Config wskazujący plik w tmp — recent_files czyta go
+    # przez utils.settings.get_config, więc to jedyny punkt izolacji.
     monkeypatch.setattr(
-        "icoforge.utils.recent_files._settings_path", lambda: tmp_path / "settings.json"
+        "icoforge.utils.settings._config", Config("IcoForge", path=tmp_path / "config.json")
     )
 
 
@@ -64,19 +66,21 @@ def test_remove_missing_filters_nonexistent(tmp_path: Path) -> None:
 
 
 def test_load_recent_handles_corrupt_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    settings_file = tmp_path / "corrupt.json"
-    settings_file.write_text("not json", encoding="utf-8")
-    monkeypatch.setattr("icoforge.utils.recent_files._settings_path", lambda: settings_file)
+    cfg_file = tmp_path / "config.json"
+    cfg_file.write_text("not json", encoding="utf-8")
+    # Kit Config zachowuje uszkodzony plik (.broken-<ts>) i startuje pusty → brak recent.
+    monkeypatch.setattr("icoforge.utils.settings._config", Config("IcoForge", path=cfg_file))
     assert load_recent() == []
 
 
 def test_add_recent_preserves_other_settings_keys(tmp_path: Path) -> None:
-    settings_file = tmp_path / "settings.json"
-    settings_file.write_text(json.dumps({"language": "pl"}), encoding="utf-8")
+    # Klucz clobbera z audytu: recent i inne ustawienia dzielą jeden Config, więc
+    # dopisanie recent nie kasuje języka (dawniej trzej niezależni pisarze mogli się nadpisać).
+    from icoforge.utils.settings import get_config, set_language
 
-    a = tmp_path / "a.png"
-    add_recent(a)
+    set_language("pl")
+    add_recent(tmp_path / "a.png")
 
-    data = json.loads(settings_file.read_text(encoding="utf-8"))
-    assert data.get("language") == "pl"
-    assert "recent_files" in data
+    cfg = get_config()
+    assert cfg.get("language") == "pl"
+    assert "recent_files" in cfg
