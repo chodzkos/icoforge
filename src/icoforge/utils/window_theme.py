@@ -1,40 +1,41 @@
-"""Pasek tytułu (DWM) dla custom-dialogów IcoForge — helper specyficzny dla appki.
+"""Pasek tytułu (DWM) dla custom-dialogów IcoForge — kitowy TitlebarSync.
 
 File-pickery idą przez kitowe helpery ``chodzkos_gui_kit.qt.dialogs`` (one same
 ustawiają belkę). Tu zostaje tylko ustawianie ciemnego/jasnego paska tytułu dla
-WŁASNYCH dialogów aplikacji (Ustawienia, Pomoc, Presety, AI-installer…). Sam DWM
-liczy wspólny kit — ``chodzkos_gui_kit.qt.titlebar.set_titlebar_dark`` (poprawny
-marshaling 64-bit HWND + repaint ramki Win10). Poza Windows: no-op.
+WŁASNYCH dialogów aplikacji (Ustawienia, Presety, AI-installer, „O programie"…).
 
-Motyw odczytujemy przez ``theme_manager.current_resolved()`` — kontrakt z shellem
-``icoforge.utils.theme.ThemeManager`` (zwraca ``"dark"`` albo ``"light"``).
+Belkę utrzymuje kitowy :class:`TitlebarSync` — filtr zdarzeń, dziecko dialogu,
+który re-aplikuje DWM przy ``Show`` (pierwszy poprawny ``winId``) i
+``ActivationChange``. Zastępuje dawny ``set_titlebar_dark`` + ``QTimer.singleShot``.
+Motyw czytany leniwie z bieżącej palety kitu (``current_palette``), więc helper
+nie potrzebuje ``ThemeManager``. Poza Windows DWM jest no-opem.
+
+Okna długo żyjące (główne, edytor) NIE używają tego helpera — dołączają belkę raz
+przez ``ThemeManager.attach_titlebar(window)`` (kit re-aplikuje DWM przy każdym
+``apply()``, także gdy motyw zmienia się przy otwartym oknie).
 """
 
 from __future__ import annotations
 
-import sys
-
-from chodzkos_gui_kit.qt.titlebar import set_titlebar_dark
+from chodzkos_gui_kit.qt.theme import current_palette, mode_of
+from chodzkos_gui_kit.qt.titlebar import TitlebarSync
 from PySide6.QtWidgets import QWidget
 
 
-def apply_theme_to_dialog(dialog: QWidget, theme_manager: object) -> None:
-    """Ustawia pasek tytułu *dialog* wg motywu, gdy tylko uchwyt istnieje.
+def apply_theme_to_dialog(dialog: QWidget, theme_manager: object = None) -> None:
+    """Dołącza belkę tytułu *dialog* do bieżącego motywu (idempotentnie).
 
-    Bezpieczne przed ``show()``/``exec()``: gdy natywny uchwyt jeszcze nie
-    istnieje, używamy zerowego timera, by DWM odpalił w pierwszym ticku pętli
-    zdarzeń po pokazaniu dialogu. Poza Windows: no-op.
+    Instaluje kitowy :class:`TitlebarSync` jako dziecko dialogu przy pierwszym
+    wywołaniu i odświeża go przy kolejnych (bez dublowania filtrów). Bezpieczne
+    przed ``show()``/``exec()`` — ``TitlebarSync`` re-aplikuje DWM na ``Show``.
 
     Args:
         dialog: dialog (albo dowolny top-level ``QWidget``) do ostylowania.
-        theme_manager: ThemeManager aplikacji; ``None`` jest bezpieczne.
+        theme_manager: ignorowany (zgodność wsteczna wywołań); motyw czytany
+            leniwie z ``current_palette``.
     """
-    if sys.platform != "win32" or theme_manager is None:
+    existing = dialog.findChild(TitlebarSync)
+    if existing is not None:
+        existing.refresh()
         return
-    dark: bool = getattr(theme_manager, "current_resolved", lambda: "light")() == "dark"
-    if int(dialog.winId()) != 0:
-        set_titlebar_dark(dialog, dark)
-    else:
-        from PySide6.QtCore import QTimer
-
-        QTimer.singleShot(0, lambda: set_titlebar_dark(dialog, dark))
+    TitlebarSync(dialog, lambda: mode_of(current_palette())).refresh()

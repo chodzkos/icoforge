@@ -44,7 +44,8 @@ def run_gui() -> int:
     from icoforge.utils.theme import init_theme_manager
 
     theme_manager = init_theme_manager(app)
-    theme_manager.restore()
+    # Apply the persisted (or auto → system-detected) theme before any window paints.
+    theme_manager.apply(theme_manager.setting)
 
     lang = get_language()
 
@@ -62,11 +63,8 @@ def run_gui() -> int:
     if qm_path.exists() and translator.load(str(qm_path)):
         app.installTranslator(translator)
 
-    # Re-apply the current preference whenever the OS colour scheme changes.
-    # "auto" setting re-detects the system theme; dark/light settings ignore the signal.
-    app.styleHints().colorSchemeChanged.connect(
-        lambda _: theme_manager.apply(theme_manager.current_setting())
-    )
+    # OS colour-scheme changes in "auto" mode are handled by the kit ThemeManager
+    # itself (it subscribes to colorSchemeChanged only while the setting is "auto").
 
     from icoforge.gui.main_window import main as gui_main
 
