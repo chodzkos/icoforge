@@ -1,10 +1,14 @@
-"""Application paths: settings directory, portable mode detection, resource lookup."""
+"""Application paths: settings directory (via gui-kit Config), resource lookup."""
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
+
+from chodzkos_gui_kit.config import config_dir
+
+# Nazwa aplikacji dla platformdirs / wariantu portable (jedno źródło prawdy).
+APP_NAME = "IcoForge"
 
 
 def get_resource_path(relative: str) -> Path:
@@ -26,20 +30,12 @@ def get_resource_path(relative: str) -> Path:
 
 
 def get_settings_dir() -> Path:
-    """Return the directory used for all persistent application data.
+    """Return the directory used for persistent application data.
 
-    Portable mode: when a ``portable.txt`` file exists next to the executable
-    (only meaningful for PyInstaller builds), data goes to a ``settings/``
-    subfolder beside the executable.  Otherwise uses the platform config dir.
+    Delegates to the kit's :func:`chodzkos_gui_kit.config.config_dir`: portable
+    variant (frozen ``.exe`` with a ``portable.flag`` marker beside it) → the exe
+    directory; otherwise ``platformdirs`` config dir (``%APPDATA%/IcoForge`` on
+    Windows, ``~/.config/IcoForge`` on Linux). Same directory that holds
+    ``config.json`` — used here for the ``presets/`` subfolder.
     """
-    if getattr(sys, "frozen", False):
-        exe_dir = Path(sys.executable).parent
-        if (exe_dir / "portable.txt").exists():
-            return exe_dir / "settings"
-
-    if sys.platform == "win32":
-        appdata = os.environ.get("APPDATA", "")
-        if appdata:
-            return Path(appdata) / "IcoForge"
-
-    return Path.home() / ".config" / "icoforge"
+    return config_dir(APP_NAME)

@@ -1,49 +1,55 @@
-"""Application settings (persistent key-value store)."""
+"""Application settings — jeden współdzielony kitowy Config (``config.json``).
+
+Cały stan aplikacji (motyw, język, ostatnio otwarte, geometria okna) trzyma JEDNA
+instancja :class:`chodzkos_gui_kit.config.Config`. Wspólny słownik w pamięci +
+atomowy zapis kitu eliminują dawny wyścig trzech niezależnych pisarzy o ten sam
+``settings.json`` (settings/recent/window_state pisały osobno przez read-modify-write).
+
+Zapis jest natychmiastowy (``save_now``) — ustawienia zmieniają się rzadko, a kit
+i tak pisze atomowo (tmp + ``os.replace``) i zachowuje uszkodzony plik jako
+``config.json.broken-<ts>``.
+"""
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
+from chodzkos_gui_kit.config import Config
 
-from icoforge.utils.paths import get_settings_dir
+from icoforge.utils.paths import APP_NAME
 
-
-def _settings_path() -> Path:
-    return get_settings_dir() / "settings.json"
+_config: Config | None = None
 
 
-def _load() -> dict[str, object]:
-    try:
-        return dict(json.loads(_settings_path().read_text(encoding="utf-8")))
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
+def get_config() -> Config:
+    """Zwraca współdzieloną instancję ``Config`` aplikacji (leniwie, singleton).
 
-
-def _save(data: dict[str, object]) -> None:
-    path = _settings_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    Wszystkie moduły ustawień (settings/recent/window_state) oraz ``ThemeManager``
+    (motyw) używają TEJ SAMEJ instancji — inaczej wracałby wyścig o ``config.json``.
+    """
+    global _config
+    if _config is None:
+        _config = Config(APP_NAME)
+    return _config
 
 
 def get_setting(key: str, default: str = "") -> str:
     """Return a string setting value, falling back to *default* if absent."""
-    return str(_load().get(key, default))
+    return str(get_config().get(key, default))
 
 
 def save_setting(key: str, value: str) -> None:
-    """Persist a single string setting without touching other keys."""
-    data = _load()
-    data[key] = value
-    _save(data)
+    """Persist a single string setting (shared config, atomic write)."""
+    cfg = get_config()
+    cfg[key] = value
+    cfg.save_now()
 
 
 def get_language() -> str:
     """Return the configured UI language code ("pl" or "en"). Default: "pl"."""
-    return str(_load().get("language", "pl"))
+    return str(get_config().get("language", "pl"))
 
 
 def set_language(lang: str) -> None:
     """Persist the UI language code."""
-    data = _load()
-    data["language"] = lang
-    _save(data)
+    cfg = get_config()
+    cfg["language"] = lang
+    cfg.save_now()
