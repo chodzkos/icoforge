@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from chodzkos_gui_kit.qt.dialogs import pick_dir, save_file
 from chodzkos_gui_kit.qt.icons import get_icon
-from PySide6.QtCore import QEvent, QPoint, QSize, Qt
+from PySide6.QtCore import QPoint, QSize, Qt
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
@@ -15,7 +15,6 @@ from PySide6.QtGui import (
     QColor,
     QFont,
     QKeySequence,
-    QShowEvent,
 )
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -162,7 +161,9 @@ class EditorWindow(QMainWindow):
 
         self._theme_manager = get_theme_manager()
         if self._theme_manager is not None:
-            self._theme_manager.theme_changed.connect(self._on_theme_changed)
+            # Belka DWM = motyw app (kit, bezwarunkowo przy każdym apply/Show/Activation).
+            self._theme_manager.attach_titlebar(self)
+            # Ikony przebarwialne: cache czyści init_theme_manager, my re-setujemy ikony.
             self._theme_manager.theme_changed.connect(self._refresh_icons)
 
     # ------------------------------------------------------------------
@@ -173,8 +174,12 @@ class EditorWindow(QMainWindow):
         self._icon_actions[action] = icon_name
         action.setIcon(get_icon(icon_name))
 
-    def _refresh_icons(self, _resolved: str | None = None) -> None:
-        """Refresh action icons after the IconProvider cache has been cleared."""
+    def _refresh_icons(self, _palette: object = None) -> None:
+        """Refresh action icons after the IconProvider cache has been cleared.
+
+        Connected to ``ThemeManager.theme_changed(Palette)``; the argument is
+        unused (icons are re-fetched from the just-cleared cache).
+        """
         for action, icon_name in self._icon_actions.items():
             action.setIcon(get_icon(icon_name))
 
@@ -846,35 +851,6 @@ class EditorWindow(QMainWindow):
         self._save_path = Path(path)
         self._is_new_file = False
         self._on_save()
-
-    def showEvent(self, event: QShowEvent) -> None:
-        super().showEvent(event)
-        from chodzkos_gui_kit.qt.titlebar import set_titlebar_dark
-
-        from icoforge.utils.theme import get_theme_manager
-
-        mgr = get_theme_manager()
-        if mgr is not None:
-            set_titlebar_dark(self, mgr.current_resolved() == "dark")
-
-    def changeEvent(self, event: QEvent) -> None:
-        super().changeEvent(event)
-        if event.type() == QEvent.Type.ActivationChange:
-            from chodzkos_gui_kit.qt.titlebar import set_titlebar_dark
-
-            from icoforge.utils.theme import get_theme_manager
-
-            mgr = get_theme_manager()
-            if mgr is not None:
-                set_titlebar_dark(self, mgr.current_resolved() == "dark")
-
-    def _on_theme_changed(self, resolved: str) -> None:
-        import logging
-
-        from chodzkos_gui_kit.qt.titlebar import set_titlebar_dark
-
-        logging.getLogger(__name__).info("EditorWindow._on_theme_changed: resolved=%s", resolved)
-        set_titlebar_dark(self, resolved == "dark")
 
     def closeEvent(self, event: QCloseEvent) -> None:
         from PySide6.QtWidgets import QMessageBox

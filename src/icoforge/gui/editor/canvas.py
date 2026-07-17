@@ -249,8 +249,12 @@ class EditorCanvas(QGraphicsView):
         bg = QColor(50, 50, 50) if is_dark else QColor(210, 210, 210)
         self.setBackgroundBrush(QBrush(bg))
 
-    def _on_theme_changed(self, _theme: str) -> None:
-        """React to a palette change: update background and repaint checkerboard."""
+    def _on_theme_changed(self, _palette: object = None) -> None:
+        """React to a palette change: update background and repaint checkerboard.
+
+        Connected to ``ThemeManager.theme_changed(Palette)``; the argument is
+        unused — the background brush is derived from the live app palette.
+        """
         self._update_background_brush()
         if self._checkerboard is not None:
             self._checkerboard.update()

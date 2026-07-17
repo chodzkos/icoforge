@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QEvent, QSize, QThreadPool, QUrl
+from PySide6.QtCore import QSize, QThreadPool, QUrl
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
@@ -43,7 +43,6 @@ if TYPE_CHECKING:
     from icoforge.utils.theme import ThemeManager
 
 from chodzkos_gui_kit.qt.dialogs import open_file, pick_dir, save_file
-from chodzkos_gui_kit.qt.titlebar import set_titlebar_dark
 from chodzkos_gui_kit.qt.widgets import make_scrollable
 
 from icoforge.gui.editor.editor_window import EditorWindow
@@ -175,7 +174,9 @@ class MainWindow(QMainWindow):
         restore_window_state(self)
 
         if self._theme_manager is not None:
-            self._theme_manager.theme_changed.connect(self._on_theme_changed)
+            # DWM belki = motyw app przy każdym apply() (Show/ActivationChange też) —
+            # kit utrzymuje ją bezwarunkowo, bez ręcznego set_titlebar_dark w oknie.
+            self._theme_manager.attach_titlebar(self)
 
     # ------------------------------------------------------------------
     # Setup helpers
@@ -215,7 +216,7 @@ class MainWindow(QMainWindow):
             theme_group.addAction(act)
             theme_menu.addAction(act)
 
-        current_theme = self._theme_manager.current_setting() if self._theme_manager else "auto"
+        current_theme = self._theme_manager.setting if self._theme_manager else "auto"
         if current_theme == "dark":
             self._theme_dark_action.setChecked(True)
         elif current_theme == "light":
@@ -755,25 +756,6 @@ class MainWindow(QMainWindow):
     # Window lifecycle
     # ------------------------------------------------------------------
 
-    def showEvent(self, event: QShowEvent) -> None:
-        super().showEvent(event)
-        # winId() is only valid once the native window exists (after first show).
-        # Apply the titlebar colour on the very first paint; subsequent changes
-        # are handled by _on_theme_changed which is connected in __init__.
-        if self._theme_manager is not None:
-            set_titlebar_dark(self, self._theme_manager.current_resolved() == "dark")
-
-    def changeEvent(self, event: QEvent) -> None:
-        super().changeEvent(event)
-        if event.type() == QEvent.Type.ActivationChange and self._theme_manager is not None:
-            set_titlebar_dark(self, self._theme_manager.current_resolved() == "dark")
-
-    def _on_theme_changed(self, resolved: str) -> None:
-        import logging
-
-        logging.getLogger(__name__).info("MainWindow._on_theme_changed: resolved=%s", resolved)
-        set_titlebar_dark(self, resolved == "dark")
-
     def closeEvent(self, event: QCloseEvent) -> None:
         save_window_state(self)
         super().closeEvent(event)
@@ -842,7 +824,7 @@ class MainWindow(QMainWindow):
         Passed to :class:`AboutPanel` as a callable so the panel reloads the right
         variant on ``PaletteChange``. The panel scales to its ``logo_width``.
         """
-        resolved = self._theme_manager.current_resolved() if self._theme_manager else "light"
+        resolved = self._theme_manager.resolved_name() if self._theme_manager else "light"
         variant = get_resource_path(f"assets/logo-{resolved}.png")
         logo_path = variant if variant.exists() else get_resource_path("assets/logo.png")
         return QPixmap(str(logo_path)) if logo_path.exists() else None

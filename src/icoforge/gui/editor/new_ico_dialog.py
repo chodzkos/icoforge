@@ -72,13 +72,10 @@ class NewIcoDialog(QDialog):
 
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
-        from chodzkos_gui_kit.qt.titlebar import set_titlebar_dark
+        from icoforge.utils.window_theme import apply_theme_to_dialog
 
-        from icoforge.utils.theme import get_theme_manager
-
-        mgr = get_theme_manager()
-        if mgr is not None:
-            set_titlebar_dark(self, mgr.current_resolved() == "dark")
+        # Kitowy TitlebarSync (idempotentny) — DWM belki wg bieżącego motywu.
+        apply_theme_to_dialog(self)
 
     # ------------------------------------------------------------------
     # UI builders

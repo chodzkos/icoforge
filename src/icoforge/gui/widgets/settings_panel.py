@@ -165,7 +165,7 @@ class SizeTable(QTableWidget):
 
         self.itemChanged.connect(self._on_item_changed)
 
-    def _refresh_source_foregrounds(self, _theme: str = "") -> None:
+    def _refresh_source_foregrounds(self, _palette: object = None) -> None:
         placeholder_color = self.palette().color(QPalette.ColorRole.PlaceholderText)
         text_color = self.palette().color(QPalette.ColorRole.Text)
         for row in range(self.rowCount()):
