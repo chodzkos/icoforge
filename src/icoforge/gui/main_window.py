@@ -6,8 +6,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QEvent, QSize, Qt, QThread, QThreadPool, QUrl
-from PySide6.QtCore import Signal as _Signal
+from PySide6.QtCore import QEvent, QSize, QThreadPool, QUrl
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
@@ -142,9 +141,9 @@ class MainWindow(QMainWindow):
     def __init__(self, theme_manager: ThemeManager | None = None) -> None:
         super().__init__()
         self._theme_manager = theme_manager
-        from icoforge.utils.version_check import get_installed_version
+        from icoforge.utils.version_check import app_version
 
-        self.setWindowTitle(f"IcoForge {get_installed_version()}")
+        self.setWindowTitle(f"IcoForge {app_version()}")
         self.setMinimumSize(700, 500)
         self.resize(900, 600)
         icon_path = get_resource_path("assets/icoforge.ico")
@@ -792,110 +791,61 @@ class MainWindow(QMainWindow):
         HelpWindow(self, title=HELP_TITLE, tabs=help_tabs()).exec()
 
     def _on_about(self) -> None:
-        from icoforge.utils.version_check import get_installed_version
-        from icoforge.utils.window_theme import apply_theme_to_dialog
+        from chodzkos_gui_kit.qt.widgets import AboutPanel, AboutTexts
 
-        app_version = get_installed_version()
+        from icoforge.utils import version_check
+        from icoforge.utils.window_theme import apply_theme_to_dialog
 
         dlg = QDialog(self)
         dlg.setWindowTitle(self.tr("O IcoForge"))
         dlg.setFixedWidth(360)
         layout = QVBoxLayout(dlg)
-        layout.setSpacing(8)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(0, 0, 0, 0)
 
-        logo_label = QLabel()
-        self._about_logo_label = logo_label
-        self._update_about_logo(logo_label)
-        logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(logo_label)
-
-        name_label = QLabel("<b style='font-size:16px'>IcoForge</b>")
-        name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(name_label)
-
-        version_label = QLabel(self.tr("Wersja %1").replace("%1", app_version))
-        version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(version_label)
-
-        update_label = QLabel(self.tr("Sprawdzam aktualizacje…"))
-        update_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        update_label.setOpenExternalLinks(True)
-        layout.addWidget(update_label)
-
-        desc_label = QLabel(self.tr("Konwerter, optymalizator i edytor pikseli dla ikon ICO."))
-        desc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        desc_label.setWordWrap(True)
-        layout.addWidget(desc_label)
-
-        link_label = QLabel(
-            '<a href="https://github.com/chodzkos/icoforge">github.com/chodzkos/icoforge</a>'
-        )
-        link_label.setOpenExternalLinks(True)
-        link_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(link_label)
-
-        license_label = QLabel(self.tr("Licencja: MIT"))
-        license_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(license_label)
-
-        thirdparty_label = QLabel(
-            self.tr(
+        # „O programie" — kitowy AboutPanel (logo/wersja/linki + async update-check).
+        # Wiedza IcoForge (nazwa pakietu, repo, fallback, warianty logo) idzie przez
+        # version_check + logo_provider; kit renderuje i sam sprząta wątek sprawdzania.
+        panel = AboutPanel(
+            dlg,
+            app_name="IcoForge",
+            version=version_check.app_version(),
+            description=self.tr("Konwerter, optymalizator i edytor pikseli dla ikon ICO."),
+            links=[("github.com/chodzkos/icoforge", "https://github.com/chodzkos/icoforge")],
+            license_name="MIT",
+            extra_note=self.tr(
                 "Zależności firm trzecich (m.in. PySide6/Qt na LGPL v3) — "
                 "zobacz THIRD_PARTY_LICENSES.txt"
-            )
+            ),
+            logo=self._about_logo_pixmap,
+            check_update=version_check.check_update,
+            releases_url=version_check.releases_url(),
+            texts=AboutTexts(
+                version_label=self.tr("Wersja %1").replace("%1", "{version}"),
+                checking_update=self.tr("Sprawdzam aktualizacje…"),
+                up_to_date=self.tr("Masz najnowsza wersje."),
+                update_available=self.tr("Dostepna aktualizacja: %1").replace("%1", "{version}"),
+                license_label=self.tr("Licencja: %1").replace("%1", "{name}"),
+            ),
         )
-        thirdparty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        thirdparty_label.setWordWrap(True)
-        layout.addWidget(thirdparty_label)
+        layout.addWidget(panel)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
         buttons.accepted.connect(dlg.accept)
         layout.addWidget(buttons)
 
-        # Background update check — must not block the UI
-        class _UpdateThread(QThread):
-            result = _Signal(bool, str)
-
-            def run(self) -> None:
-                from icoforge.utils.version_check import is_update_available
-
-                self.result.emit(*is_update_available())
-
-        thread = _UpdateThread(dlg)
-
-        def _on_result(available: bool, new_ver: str) -> None:
-            if available:
-                update_label.setText(
-                    f'<a href="https://github.com/chodzkos/icoforge/releases">'
-                    f"{self.tr('Dostepna aktualizacja')}: {new_ver}</a>"
-                )
-            else:
-                update_label.setText(self.tr("Masz najnowsza wersje."))
-
-        thread.result.connect(_on_result)
-        thread.start()
-
-        if self._theme_manager is not None:
-            self._theme_manager.theme_changed.connect(
-                lambda _t: self._update_about_logo(logo_label)
-            )
-
         apply_theme_to_dialog(dlg, self._theme_manager)
         dlg.exec()
-        thread.quit()
-        thread.wait()
 
-    def _update_about_logo(self, label: QLabel) -> None:
-        """Load the logo choosing a dark- or light-mode variant when available."""
+    def _about_logo_pixmap(self) -> QPixmap | None:
+        """Return the app logo for the current theme (dark/light variant, unscaled).
+
+        Passed to :class:`AboutPanel` as a callable so the panel reloads the right
+        variant on ``PaletteChange``. The panel scales to its ``logo_width``.
+        """
         resolved = self._theme_manager.current_resolved() if self._theme_manager else "light"
         variant = get_resource_path(f"assets/logo-{resolved}.png")
         logo_path = variant if variant.exists() else get_resource_path("assets/logo.png")
-        if logo_path.exists():
-            pixmap = QPixmap(str(logo_path))
-            label.setPixmap(pixmap.scaledToWidth(200, Qt.TransformationMode.SmoothTransformation))
-        else:
-            label.clear()
+        return QPixmap(str(logo_path)) if logo_path.exists() else None
 
     def _on_language_changed(self, lang: str) -> None:
         from icoforge.utils.settings import set_language
